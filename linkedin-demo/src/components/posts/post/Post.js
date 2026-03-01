@@ -1,7 +1,9 @@
-import React, { forwardRef, useEffect, useState } from "react";
+import React, { forwardRef } from "react";
+import { useMutation, useQuery } from "convex/react";
 import Avatar from "@material-ui/core/Avatar";
 import Paper from "@material-ui/core/Paper";
 import MoreHorizOutlinedIcon from "@material-ui/icons/MoreHorizOutlined";
+import ThumbUpAltIcon from "@material-ui/icons/ThumbUpAlt";
 import ThumbUpAltOutlinedIcon from "@material-ui/icons/ThumbUpAltOutlined";
 import ReplyOutlinedIcon from "@material-ui/icons/ReplyOutlined";
 import FiberManualRecordRoundedIcon from "@material-ui/icons/FiberManualRecordRounded";
@@ -10,21 +12,38 @@ import CommentOutlinedIcon from "@material-ui/icons/CommentOutlined";
 import ReactPlayer from "react-player";
 import ReactTimeago from "react-timeago";
 import * as images from "../../../assets/images/images";
+import { api } from "../../../convex/_generated/api";
+import useConvexUser from "../../../hooks/useConvexUser";
 import Style from "./Style";
 
 const Post = forwardRef(
-  ({ profile, username, timestamp, description, fileType, fileData, onNavigateProfile }, ref) => {
+  (
+    {
+      postId,
+      likesCount = 0,
+      commentsCount = 0,
+      profile,
+      username,
+      timestamp,
+      description,
+      fileType,
+      fileData,
+      onNavigateProfile,
+    },
+    ref
+  ) => {
     const classes = Style();
     const isFeaturedUser = username === "Alex Turner";
     const handleProfileClick = isFeaturedUser ? onNavigateProfile : undefined;
+    const user = useConvexUser();
+    const toggleLike = useMutation(api.likes.toggleLike);
+    const liked = useQuery(
+      api.likes.getLikeStatus,
+      user?._id ? { userId: user._id, postId } : "skip"
+    );
+    const isLiked = liked ?? false;
 
-    const [likesCount, setLikesCount] = useState(1);
-    const [commentsCount, setCommentsCount] = useState(1);
-    const [heartIcontOrder, setHeartIcontOrder] = useState(1);
-    const [smileIconOrder, setSmileIconOrder] = useState(1);
-    const [thumsUpIconOrder, setThumsUpIconOrder] = useState(1);
-
-    const capitalize = (_string) => {
+    const capitalize = (_string = "") => {
       return _string.charAt(0).toUpperCase() + _string.slice(1);
     };
 
@@ -34,33 +53,25 @@ const Post = forwardRef(
       return <img src={props.src} alt="post" ref={ref} />;
     });
 
-    useEffect(() => {
-      setLikesCount(Math.floor(Math.random() * 1000) + 1);
-      setCommentsCount(Math.floor(Math.random() * 10) + 1);
-      setHeartIcontOrder(Math.floor(Math.random() * (3 - 1 + 1)) + 1);
-      setSmileIconOrder(Math.floor(Math.random() * (3 - 1 + 1)) + 1);
-      setThumsUpIconOrder(Math.floor(Math.random() * (3 - 1 + 1)) + 1);
-    }, []);
+    const handleLikeClick = async () => {
+      if (!user?._id) {
+        return;
+      }
+
+      try {
+        await toggleLike({ userId: user._id, postId });
+      } catch (error) {
+        console.error("Failed to toggle like:", error);
+      }
+    };
 
     const Reactions = () => {
       return (
         <div className={classes.footer__stats}>
           <div>
-            <img
-              src={images.LinkedInLike}
-              alt="linked-in-reaction-1"
-              style={{ order: `${heartIcontOrder} ` }}
-            />
-            <img
-              src={images.LinkedInLove}
-              alt="linked-in-reaction-2"
-              style={{ order: `${smileIconOrder} ` }}
-            />
-            <img
-              src={images.LinkedInApplaud}
-              alt="linked-in-reaction-3"
-              style={{ order: `${thumsUpIconOrder} ` }}
-            />
+            <img src={images.LinkedInLike} alt="linked-in-reaction-1" />
+            <img src={images.LinkedInLove} alt="linked-in-reaction-2" />
+            <img src={images.LinkedInApplaud} alt="linked-in-reaction-3" />
           </div>
           <h4>{likesCount}</h4>
           <FiberManualRecordRoundedIcon
@@ -110,9 +121,13 @@ const Post = forwardRef(
         <div className={classes.post__footer}>
           <Reactions />
           <div className={classes.footer__actions}>
-            <div className={classes.action__icons}>
-              <ThumbUpAltOutlinedIcon style={{ transform: "scaleX(-1)" }} />
-              <h4>Like</h4>
+            <div className={classes.action__icons} onClick={handleLikeClick}>
+              {isLiked ? (
+                <ThumbUpAltIcon style={{ transform: "scaleX(-1)", color: "#2e7d32" }} />
+              ) : (
+                <ThumbUpAltOutlinedIcon style={{ transform: "scaleX(-1)" }} />
+              )}
+              <h4 style={isLiked ? { color: "#2e7d32" } : undefined}>Like</h4>
             </div>
             <div className={classes.action__icons}>
               <CommentOutlinedIcon />
