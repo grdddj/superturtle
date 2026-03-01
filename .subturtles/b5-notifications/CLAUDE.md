@@ -1,5 +1,5 @@
 ## Current Task
-Commit: "Add notifications: like/comment alerts, bell badge, notifications tab"
+All backlog items complete.
 
 ## End Goal with Specs
 - `notifications` table in Convex schema: userId (recipient), type ("like"|"comment"|"message"), fromUserId, postId (optional), conversationId (optional), read (boolean), createdAt
@@ -26,7 +26,7 @@ Commit: "Add notifications: like/comment alerts, bell badge, notifications tab"
 - [x] Add unread badge to header: In `linkedin-demo/src/components/header/Header.js`, query `api.notifications.getUnreadCount({userId: user?._id})`. Show a Badge component (from @material-ui/core) around the NotificationsIcon with the unread count. Import Badge.
 - [x] Push: `cd linkedin-demo && npx convex dev --once`
 - [x] Build: `cd linkedin-demo && npm run build`
-- [ ] Commit: "Add notifications: like/comment alerts, bell badge, notifications tab" <- current
+- [x] Commit: "Add notifications: like/comment alerts, bell badge, notifications tab"
 
 ## Notes
 - All paths from repo root: `/Users/Richard.Mladek/Documents/projects/agentic/`
@@ -40,3 +40,6 @@ Commit: "Add notifications: like/comment alerts, bell badge, notifications tab"
 - Import `internal` from `./_generated/api` for internal mutations, or just use `ctx.db.insert("notifications", {...})` directly in likes.ts/comments.ts (simpler)
 - Green colors: primary #2e7d32, light #66bb6a
 - Message notifications are also wired in `messaging.ts` (`sendMessage`) for all recipients except sender.
+
+## Loop Control
+STOP
