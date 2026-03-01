@@ -1,7 +1,16 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { loginAsGuest } from "./helpers";
 
+async function recoverFeedIfNeeded(page: Page) {
+  const refreshButton = page.getByRole("button", { name: "Refresh" });
+  if (await refreshButton.isVisible().catch(() => false)) {
+    await refreshButton.click();
+  }
+}
+
 async function waitForFeedPosts(page: Page) {
+  await recoverFeedIfNeeded(page);
+  await expect(page.getByPlaceholder("Start a post")).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('[id^="post-"]').first()).toBeVisible({ timeout: 15_000 });
 }
 
@@ -17,6 +26,36 @@ async function getVisibleLikeCount(post: Locator) {
   }
 
   return 0;
+}
+
+function getPostByDescription(page: Page, description: string) {
+  return page
+    .locator('[id^="post-"]')
+    .filter({ has: page.getByText(description, { exact: true }) })
+    .first();
+}
+
+async function createTextPost(page: Page, description: string) {
+  await recoverFeedIfNeeded(page);
+  await page.getByPlaceholder("Start a post").fill(description);
+  await page.getByRole("button", { name: "Post" }).click();
+  await recoverFeedIfNeeded(page);
+  await expect(getPostByDescription(page, description)).toBeVisible({ timeout: 15_000 });
+}
+
+async function openOwnPostMenu(post: Locator) {
+  await post.locator("svg").first().click();
+}
+
+async function deletePostIfPresent(page: Page, description: string) {
+  const post = getPostByDescription(page, description);
+  if ((await post.count()) === 0) {
+    return;
+  }
+
+  await openOwnPostMenu(post);
+  await page.getByRole("menuitem", { name: "Delete" }).click();
+  await expect(post).toHaveCount(0);
 }
 
 test("Guest login", async ({ page }) => {
@@ -89,5 +128,42 @@ test.describe("Feed", () => {
 
     await commentContent.getByRole("img", { name: "Delete comment" }).click();
     await expect(commentText).toHaveCount(0);
+  });
+
+  test("Create a post", async ({ page }) => {
+    await waitForFeedPosts(page);
+
+    const postBody = `E2E test post ${Date.now()}`;
+
+    await createTextPost(page, postBody);
+
+    const createdPost = getPostByDescription(page, postBody);
+    await expect(createdPost).toBeVisible();
+    await expect(createdPost.getByText(postBody, { exact: true })).toBeVisible();
+
+    await deletePostIfPresent(page, postBody);
+  });
+
+  test("Edit a post", async ({ page }) => {
+    await waitForFeedPosts(page);
+
+    const originalText = `E2E editable post ${Date.now()}`;
+    const editedText = `Edited e2e post ${Date.now()}`;
+
+    await createTextPost(page, originalText);
+
+    const originalPost = getPostByDescription(page, originalText);
+    await openOwnPostMenu(originalPost);
+    await page.getByRole("menuitem", { name: "Edit" }).click();
+
+    await originalPost.getByLabel("Edit post description").fill(editedText);
+    await originalPost.getByRole("button", { name: "Save" }).click();
+
+    const editedPost = getPostByDescription(page, editedText);
+    await expect(editedPost).toBeVisible();
+    await expect(editedPost.getByText(editedText, { exact: true })).toBeVisible();
+    await expect(page.getByText(originalText, { exact: true })).toHaveCount(0);
+
+    await deletePostIfPresent(page, editedText);
   });
 });

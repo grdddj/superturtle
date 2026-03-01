@@ -1,5 +1,5 @@
 ## Current Task
-Write create/edit/delete post tests in `linkedin-demo/e2e/core.spec.ts` (tests 5-6).
+Finish and verify create/edit/delete post tests in `linkedin-demo/e2e/core.spec.ts` (tests 5-6).
 
 ## End Goal with Specs
 Comprehensive Playwright e2e test suite at `linkedin-demo/e2e/` that tests all core user flows against the live app at `https://linkedin-demo-iota.vercel.app`. Tests must pass reliably in CI (headless Chromium).
@@ -57,3 +57,5 @@ Comprehensive Playwright e2e test suite at `linkedin-demo/e2e/` that tests all c
 - [ ] Write create/edit/delete post tests (tests 5-6) <- current
 - [ ] Write tab navigation test (test 7)
 - [ ] Run full suite, fix failures, commit
+
+Progress note: tests 5-6 were added, but verification is currently blocked by a live app runtime error (`likes:getLikeStatuses` missing in deployed Convex functions) that triggers the feed ErrorBoundary.
