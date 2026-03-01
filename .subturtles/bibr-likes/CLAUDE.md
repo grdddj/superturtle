@@ -1,5 +1,5 @@
 ## Current Task
-Run `cd linkedin-demo && npm run build` to verify no import errors.
+All backlog items completed.
 
 ## End Goal with Specs
 - `likes` table with userId + postId (enforce uniqueness in mutation)
@@ -15,8 +15,8 @@ Run `cd linkedin-demo && npm run build` to verify no import errors.
 - [x] Create `linkedin-demo/src/convex/comments.ts`: export `addComment` mutation (args: postId, authorId, body). Inserts into comments table with createdAt = Date.now(), increments `commentsCount` on the post. Export `listComments` query (args: postId) that returns all comments for a post sorted by createdAt asc, with author info joined from users table.
 - [x] Update `listPosts` in `linkedin-demo/src/convex/posts.ts`: for each post, also query the likes table to get the actual count (or keep using the denormalized likesCount field — either way ensure consistency)
 - [x] Run `cd linkedin-demo && npx convex dev --once` to push all new functions
-- [ ] Run `cd linkedin-demo && npm run build` to verify no import errors <- current
-- [ ] Commit with message "Add likes and comments tables with mutations and queries"
+- [x] Run `cd linkedin-demo && npm run build` to verify no import errors
+- [x] Commit with message "Add likes and comments tables with mutations and queries"
 
 ## Notes
 - All Convex function files are in `linkedin-demo/src/convex/` (NOT `linkedin-demo/convex/`)
@@ -25,3 +25,6 @@ Run `cd linkedin-demo && npm run build` to verify no import errors.
 - For `toggleLike`, use `ctx.db.query("likes").filter(q => q.and(q.eq(q.field("userId"), args.userId), q.eq(q.field("postId"), args.postId))).first()` to check existence
 - To update a post's count: `ctx.db.patch(args.postId, { likesCount: post.likesCount + 1 })`
 - Run all npm/convex commands from the `linkedin-demo/` directory
+
+## Loop Control
+STOP
