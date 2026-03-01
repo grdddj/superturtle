@@ -1,5 +1,5 @@
 ## Current Task
-Update `linkedin-demo/src/components/header/Header.js` to remove `auth` usage/signout, and wire the bottom nav icons to update `activeTab`.
+Ensure Header logo is text-based "LinkedOut" (remove image) to avoid trademarked logo.
 
 ## End Goal with Specs
 - App always renders feed (no Login screen).
@@ -11,8 +11,8 @@ Update `linkedin-demo/src/components/header/Header.js` to remove `auth` usage/si
 ## Backlog
 - [x] Update `linkedin-demo/src/App.js` to import `mockUser` from `src/mock/user.js`, dispatch `LoginAction(mockUser)` on mount, and remove `auth.onAuthStateChanged` + Login gating
 - [x] Add simple `activeTab` state in `linkedin-demo/src/App.js` and render a placeholder card when `activeTab` is not `home`
-- [ ] Update `linkedin-demo/src/components/header/Header.js` to remove `auth` usage/signout, and wire the bottom nav icons to update `activeTab` <- current
-- [ ] Ensure Header logo is text-based "LinkedOut" (remove image) to avoid trademarked logo
+- [x] Update `linkedin-demo/src/components/header/Header.js` to remove `auth` usage/signout, and wire the bottom nav icons to update `activeTab`
+- [ ] Ensure Header logo is text-based "LinkedOut" (remove image) to avoid trademarked logo <- current
 - [ ] Verify the app renders without Firebase auth or login components
 
 ## Notes
