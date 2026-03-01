@@ -459,7 +459,7 @@ export async function handleResume(ctx: Context): Promise<void> {
     const date = new Date(savedAt);
     const dateStr = Number.isNaN(date.getTime())
       ? "-.- --:--"
-      : `${date.getDate()}.${date.getMonth() + 1} ${date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}`;
+      : `${date.getDate()}.${date.getMonth() + 1} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
     const rawTitle = title.trim() || "Untitled";
     const base = `${driverEmoji} ${dateStr} ${rawTitle}`;
     if (base.length <= BUTTON_LABEL_MAX_LENGTH) return base;
