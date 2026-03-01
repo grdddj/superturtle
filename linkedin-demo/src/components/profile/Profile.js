@@ -48,7 +48,7 @@ const Profile = ({
     <div className={classes.profile}>
       <Paper elevation={1} className={classes.card}>
         {/* Cover + avatar */}
-        <div className={classes.coverArea}>
+        <div className={classes.coverArea} style={{ background: "linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%)" }}>
           <Avatar src={userAvatar} className={classes.avatar} />
         </div>
 
@@ -68,7 +68,7 @@ const Profile = ({
               {location}
             </Typography>
           )}
-          <Typography variant="body2" style={{ color: "#0a66c2", fontSize: "0.8rem" }}>
+          <Typography variant="body2" style={{ color: "#2e7d32", fontSize: "0.8rem" }}>
             {connections} connections · {followers} followers
           </Typography>
         </div>
@@ -79,7 +79,7 @@ const Profile = ({
             variant="contained"
             size="small"
             style={{
-              backgroundColor: "#0a66c2",
+              backgroundColor: "#2e7d32",
               color: "#fff",
               textTransform: "none",
               borderRadius: 16,
@@ -95,8 +95,8 @@ const Profile = ({
             style={{
               textTransform: "none",
               borderRadius: 16,
-              borderColor: "#0a66c2",
-              color: "#0a66c2",
+              borderColor: "#2e7d32",
+              color: "#2e7d32",
               fontWeight: 600,
               padding: "4px 16px",
             }}
@@ -139,7 +139,7 @@ const Profile = ({
             variant="text"
             size="small"
             onClick={onBack}
-            style={{ textTransform: "none", color: "#0a66c2", fontWeight: 600 }}
+            style={{ textTransform: "none", color: "#2e7d32", fontWeight: 600 }}
           >
             ← Back to feed
           </Button>
