@@ -40,6 +40,7 @@ import { buildSessionOverviewLines } from "./handlers/commands";
 import { resetAllDriverSessions } from "./handlers/commands";
 import { handlePinologs } from "./handlers/commands";
 import { session } from "./session";
+import { codexSession } from "./codex-session";
 import { getDueJobs, getJobs, advanceRecurringJob, removeJob } from "./cron";
 import { bot } from "./bot";
 import { startDashboardServer } from "./dashboard";
@@ -963,7 +964,38 @@ if (existsSync(RESTART_FILE)) {
       }
 
       // Clean slate: reset driver sessions (stop any stale work from before restart)
+      // Preserve the active driver preference — it was already loaded from prefs by the constructor.
+      const savedDriver = session.activeDriver;
       await resetAllDriverSessions({ stopRunning: true });
+
+      // Auto-resume the most recent session for the active driver so the user
+      // doesn't lose their conversation context across restarts.
+      if (savedDriver === "codex" && CODEX_AVAILABLE) {
+        try {
+          const [ok] = await codexSession.resumeLast();
+          if (ok) {
+            botLog.info("Auto-resumed last Codex session after restart");
+          } else {
+            botLog.info("No Codex session to resume; keeping codex driver active");
+          }
+        } catch (err) {
+          botLog.warn({ err }, "Failed to auto-resume Codex session after restart; keeping codex driver active");
+        }
+        // Restore the codex driver regardless of whether resume succeeded —
+        // a fresh thread will be created on the next message if needed.
+        session.activeDriver = "codex";
+      } else if (savedDriver === "codex" && !CODEX_AVAILABLE) {
+        // Codex was active but is now unavailable — fall back to Claude
+        session.activeDriver = "claude";
+        botLog.warn("Codex was active but is unavailable after restart; falling back to Claude");
+      } else {
+        // savedDriver === "claude" (or unknown → default)
+        const [ok] = session.resumeLast();
+        if (ok) {
+          botLog.info("Auto-resumed last Claude session after restart");
+        }
+        // activeDriver stays "claude" — no need to set explicitly
+      }
 
       // Send startup message with the same standardized overview format (same as /new)
       const lines = await buildSessionOverviewLines("Bot restarted");
