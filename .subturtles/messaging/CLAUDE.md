@@ -1,5 +1,5 @@
 ## Current Task
-Push functions: `cd linkedin-demo && npx convex dev --once`
+Build: `cd linkedin-demo && npm run build`
 
 ## End Goal with Specs
 - `conversations` table in Convex schema: participants (array of user IDs), createdAt
@@ -25,8 +25,8 @@ Push functions: `cd linkedin-demo && npx convex dev --once`
   Import `useConvexUser` from hooks. Import `useMutation, useQuery` from `convex/react`. Import `api` from convex.
 - [x] Create `linkedin-demo/src/components/messaging/Style.js` with Material-UI `makeStyles`. Style the conversation list items (avatar + text + timestamp row), message bubbles (green #2e7d32 for own, #e0e0e0 for others), input bar, and back button.
 - [x] Wire messaging tab in App.js: The `activeTabLabel` map already has "Messaging" as a key but renders "Coming soon." Change it so when `activeTab === "messaging"` (update the key from current mapping), render `<Messaging />` component instead of the "Coming soon" Paper. Note: the bottom nav in Header.js uses `tabItems` array — check if "messaging" key exists there, if not add it (the TelegramIcon is already in the `items` array for desktop nav).
-- [ ] Push functions: `cd linkedin-demo && npx convex dev --once` <- current
-- [ ] Build: `cd linkedin-demo && npm run build`
+- [x] Push functions: `cd linkedin-demo && npx convex dev --once`
+- [ ] Build: `cd linkedin-demo && npm run build` <- current
 - [ ] Commit with message "Add real-time messaging: conversations, messages, chat UI"
 
 ## Notes
