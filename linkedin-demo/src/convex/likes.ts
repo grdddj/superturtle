@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 
 export const toggleLike = mutation({
   args: {
@@ -36,6 +37,12 @@ export const toggleLike = mutation({
     });
     await ctx.db.patch(args.postId, {
       likesCount: post.likesCount + 1,
+    });
+    await ctx.runMutation(internal.notifications.createNotification, {
+      userId: post.authorId,
+      type: "like",
+      fromUserId: args.userId,
+      postId: args.postId,
     });
 
     return { liked: true };

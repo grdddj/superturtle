@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 
 const normalizeParticipants = (participantIds: string[]) => {
   return [...new Set(participantIds)].sort();
@@ -54,12 +55,34 @@ export const sendMessage = mutation({
       throw new Error("Message body is required");
     }
 
-    return await ctx.db.insert("messages", {
+    const conversation = await ctx.db.get(args.conversationId);
+    if (!conversation) {
+      throw new Error("Conversation not found");
+    }
+
+    const messageId = await ctx.db.insert("messages", {
       conversationId: args.conversationId,
       senderId: args.senderId,
       body,
       createdAt: Date.now(),
     });
+
+    const recipients = conversation.participants.filter(
+      (participantId) => participantId !== args.senderId,
+    );
+
+    await Promise.all(
+      recipients.map((recipientId) =>
+        ctx.runMutation(internal.notifications.createNotification, {
+          userId: recipientId,
+          type: "message",
+          fromUserId: args.senderId,
+          conversationId: args.conversationId,
+        }),
+      ),
+    );
+
+    return messageId;
   },
 });
 

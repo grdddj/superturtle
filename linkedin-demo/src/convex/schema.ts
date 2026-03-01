@@ -45,4 +45,13 @@ export default defineSchema({
     body: v.string(),
     createdAt: v.number(),
   }),
+  notifications: defineTable({
+    userId: v.id("users"),
+    type: v.string(),
+    fromUserId: v.id("users"),
+    postId: v.optional(v.id("posts")),
+    conversationId: v.optional(v.id("conversations")),
+    read: v.boolean(),
+    createdAt: v.number(),
+  }),
 });

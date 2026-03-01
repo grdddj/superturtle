@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 
 export const addComment = mutation({
   args: {
@@ -22,6 +23,13 @@ export const addComment = mutation({
 
     await ctx.db.patch(args.postId, {
       commentsCount: post.commentsCount + 1,
+    });
+
+    await ctx.runMutation(internal.notifications.createNotification, {
+      userId: post.authorId,
+      type: "comment",
+      fromUserId: args.authorId,
+      postId: args.postId,
     });
   },
 });
