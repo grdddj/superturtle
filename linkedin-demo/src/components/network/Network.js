@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { Avatar, Button, Paper, TextField, Typography } from "@material-ui/core";
 import { api } from "../../convex/_generated/api";
+import UserCardSkeleton from "../skeletons/UserCardSkeleton";
 import Style from "./Style";
 
 const DEFAULT_PHOTO = "https://i.pravatar.cc/200?img=68";
@@ -36,11 +37,13 @@ const Network = ({ onViewProfile }) => {
 
   if (users === undefined) {
     return (
-      <Paper className={classes.stateCard} elevation={1}>
-        <Typography variant="body2" color="textSecondary">
-          Loading your network...
-        </Typography>
-      </Paper>
+      <div className={classes.network}>
+        <div className={classes.grid}>
+          {Array.from({ length: 6 }, (_, index) => (
+            <UserCardSkeleton key={`network-skeleton-${index}`} />
+          ))}
+        </div>
+      </div>
     );
   }
 
