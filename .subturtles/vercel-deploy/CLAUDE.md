@@ -1,5 +1,5 @@
 ## Current Task
-Verify the deployment URL loads and returns HTTP 200.
+Commit any Vercel config files (`.vercel/project.json` etc) with message "Add Vercel deployment config for Bíbr In".
 
 ## End Goal with Specs
 - App deployed to Vercel with a public URL
@@ -11,8 +11,8 @@ Verify the deployment URL loads and returns HTTP 200.
 - [x] Link the project to Vercel: run `cd linkedin-demo && vercel link` — if it prompts interactively, try `vercel --yes` or `vercel deploy --yes` instead which auto-creates the project
 - [x] Set environment variable on Vercel: `vercel env add REACT_APP_CONVEX_URL production` with value `https://tough-mosquito-145.convex.cloud` — if interactive prompts fail, use `echo "https://tough-mosquito-145.convex.cloud" | vercel env add REACT_APP_CONVEX_URL production`
 - [x] Deploy to production: `vercel deploy --prod --yes` from the `linkedin-demo/` directory. The build command is `npm run build` and the output directory is `build`
-- [ ] Verify the deployment URL loads and returns HTTP 200 <- current
-- [ ] Commit any Vercel config files (`.vercel/project.json` etc) with message "Add Vercel deployment config for Bíbr In"
+- [x] Verify the deployment URL loads and returns HTTP 200
+- [ ] Commit any Vercel config files (`.vercel/project.json` etc) with message "Add Vercel deployment config for Bíbr In" <- current
 
 ## Notes
 - Working directory for ALL commands: `/Users/Richard.Mladek/Documents/projects/agentic/linkedin-demo`
@@ -22,3 +22,4 @@ Verify the deployment URL loads and returns HTTP 200.
 - If `vercel link` or `vercel deploy` asks interactive questions about framework/settings, prefer `--yes` flag to auto-detect CRA
 - Do NOT include `.env.local` in the deployment (it contains the dev deployment key)
 - The Convex cloud URL for production is: `https://tough-mosquito-145.convex.cloud`
+- Verified `https://linkedin-demo.vercel.app/` returns HTTP 200 on 2026-03-01
