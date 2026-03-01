@@ -23,4 +23,14 @@ export default defineSchema({
     likesCount: v.number(),
     commentsCount: v.number(),
   }),
+  likes: defineTable({
+    userId: v.id("users"),
+    postId: v.id("posts"),
+  }),
+  comments: defineTable({
+    postId: v.id("posts"),
+    authorId: v.id("users"),
+    body: v.string(),
+    createdAt: v.number(),
+  }),
 });
