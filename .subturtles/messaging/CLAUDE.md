@@ -1,5 +1,5 @@
 ## Current Task
-Create messaging UI component at `linkedin-demo/src/components/messaging/Messaging.js` (conversation list + message thread).
+Create `linkedin-demo/src/components/messaging/Style.js` with Material-UI `makeStyles` for conversation list + message thread styles.
 
 ## End Goal with Specs
 - `conversations` table in Convex schema: participants (array of user IDs), createdAt
@@ -19,11 +19,11 @@ Create messaging UI component at `linkedin-demo/src/components/messaging/Messagi
   - `sendMessage` mutation: args { conversationId: v.id("conversations"), senderId: v.id("users"), body: v.string() }. Insert message.
   - `listConversations` query: args { userId: v.id("users") }. Query all conversations, filter where participants includes userId. For each, join the OTHER participant's user data (displayName, photoURL) and get the latest message. Sort by latest message createdAt desc.
   - `listMessages` query: args { conversationId: v.id("conversations") }. Query all messages for the conversation, join sender data (displayName, photoURL), sort by createdAt asc.
-- [ ] Create messaging UI component at `linkedin-demo/src/components/messaging/Messaging.js`. Two sub-views: <- current
+- [x] Create messaging UI component at `linkedin-demo/src/components/messaging/Messaging.js`. Two sub-views:
   1. **ConversationList** — default view. Uses `useQuery(api.messaging.listConversations, { userId: user._id })`. Each item shows: Avatar of other participant, their displayName, last message preview (truncated to 50 chars), time ago. Clicking a conversation opens the thread.
   2. **MessageThread** — shows when a conversation is selected. Header with back arrow + other user's name. Scrollable message list (own messages right-aligned green, others left-aligned grey). Input bar at bottom with text input + Send button.
   Import `useConvexUser` from hooks. Import `useMutation, useQuery` from `convex/react`. Import `api` from convex.
-- [ ] Create `linkedin-demo/src/components/messaging/Style.js` with Material-UI `makeStyles`. Style the conversation list items (avatar + text + timestamp row), message bubbles (green #2e7d32 for own, #e0e0e0 for others), input bar, and back button.
+- [ ] Create `linkedin-demo/src/components/messaging/Style.js` with Material-UI `makeStyles`. Style the conversation list items (avatar + text + timestamp row), message bubbles (green #2e7d32 for own, #e0e0e0 for others), input bar, and back button. <- current
 - [ ] Wire messaging tab in App.js: The `activeTabLabel` map already has "Messaging" as a key but renders "Coming soon." Change it so when `activeTab === "messaging"` (update the key from current mapping), render `<Messaging />` component instead of the "Coming soon" Paper. Note: the bottom nav in Header.js uses `tabItems` array — check if "messaging" key exists there, if not add it (the TelegramIcon is already in the `items` array for desktop nav).
 - [ ] Push functions: `cd linkedin-demo && npx convex dev --once`
 - [ ] Build: `cd linkedin-demo && npm run build`
