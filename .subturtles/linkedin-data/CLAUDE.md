@@ -1,5 +1,5 @@
 ## Current Task
-Update `linkedin-demo/src/components/form/Form.js` to remove Firebase/storage usage and show a demo-only alert on submit.
+Replace `LinkedInJobAdd` in `linkedin-demo/src/assets/images/images.js` with a local or placeholder URL (non-Firebase).
 
 ## End Goal with Specs
 - No Firebase imports in `Posts.js` or `Form.js`.
@@ -12,8 +12,8 @@ Update `linkedin-demo/src/components/form/Form.js` to remove Firebase/storage us
 - [x] Create `linkedin-demo/src/mock/user.js` exporting `mockUser` (displayName "Tadeáš Bíbr", photoURL import from `src/assets/tadeas-bibr.jpg`, title string)
 - [x] Create `linkedin-demo/src/mock/posts.js` with 8-10 posts using mixed content (text-only, image URL, video placeholder text) and multiple mock users
 - [x] Update `linkedin-demo/src/components/posts/Posts.js` to import `mockPosts` and render them (no Firebase)
-- [ ] Update `linkedin-demo/src/components/form/Form.js` to remove Firebase/storage usage and show a demo-only alert on submit <- current
-- [ ] Replace `LinkedInJobAdd` in `linkedin-demo/src/assets/images/images.js` with a local or placeholder URL (non-Firebase)
+- [x] Update `linkedin-demo/src/components/form/Form.js` to remove Firebase/storage usage and show a demo-only alert on submit
+- [ ] Replace `LinkedInJobAdd` in `linkedin-demo/src/assets/images/images.js` with a local or placeholder URL (non-Firebase) <- current
 
 ## Notes
 - Do not edit `App.js` or Header components.
