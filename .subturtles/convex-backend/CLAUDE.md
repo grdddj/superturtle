@@ -1,5 +1,5 @@
 ## Current Task
-Create `convex/users.ts` with `getUser` query (by id) and `getFeaturedUser` query (isFeatured === true).
+Create `convex/posts.ts` with `listPosts` query that fetches all posts sorted by createdAt desc, and for each post resolves the author from the users table (returning author displayName, photoURL, title alongside post data).
 
 ## End Goal with Specs
 Convex backend with:
@@ -11,8 +11,8 @@ Convex backend with:
 
 ## Backlog
 - [x] Create `convex/schema.ts` with users and posts table definitions as described above
-- [ ] Create `convex/users.ts` with `getUser` query (by id) and `getFeaturedUser` query (isFeatured === true) <- current
-- [ ] Create `convex/posts.ts` with `listPosts` query that fetches all posts sorted by createdAt desc, and for each post resolves the author from the users table (returning author displayName, photoURL, title alongside post data)
+- [x] Create `convex/users.ts` with `getUser` query (by id) and `getFeaturedUser` query (isFeatured === true)
+- [ ] Create `convex/posts.ts` with `listPosts` query that fetches all posts sorted by createdAt desc, and for each post resolves the author from the users table (returning author displayName, photoURL, title alongside post data) <- current
 - [ ] Create `convex/seed.ts` with a `seedData` mutation that checks if posts table is empty, then inserts 4 users and 9 posts with the exact data below
 - [ ] Run `npx convex dev --once` to push functions and verify no errors
 - [ ] Commit with message "Add Convex schema, queries, and seed data for Bíbr In"
