@@ -1,5 +1,5 @@
 ## Current Task
-Wire skeleton loaders into the feed view (`Posts.js`) by rendering `PostSkeleton` cards while posts are loading.
+Wire skeleton loaders into the Profile view (`Profile.js`) with a skeleton header while user data loads and `PostSkeleton` cards while profile posts load.
 
 ## End Goal with Specs
 - Feed shows skeleton post cards while loading (pulsing grey rectangles mimicking post layout)
@@ -16,8 +16,8 @@ Wire skeleton loaders into the feed view (`Posts.js`) by rendering `PostSkeleton
 - [x] Create skeleton component `linkedin-demo/src/components/skeletons/PostSkeleton.js`: Import `Skeleton` from `@material-ui/lab`. Render a Paper with: circle skeleton (avatar, 40x40), two text skeletons (name + timestamp), one rect skeleton (description, height 60), one rect skeleton (image area, height 200, optional). Export as default. Use `animation="wave"` for Material feel.
 - [x] Create skeleton component `linkedin-demo/src/components/skeletons/UserCardSkeleton.js`: Circle skeleton (avatar 56x56), two text skeletons (name + title), rect skeleton (button, height 36). For network page.
 - [x] Create skeleton component `linkedin-demo/src/components/skeletons/NotificationSkeleton.js`: Circle skeleton (avatar 36x36), two text lines. For notifications list.
-- [ ] Wire skeletons into feed: In `linkedin-demo/src/components/posts/Posts.js`, check if posts query is loading (result is `undefined`). If loading, render 3x `<PostSkeleton />`. Import PostSkeleton. <- current
-- [ ] Wire skeletons into Profile: In `linkedin-demo/src/components/profile/Profile.js`, if user query is `undefined`, show a skeleton header (rect 200px height for cover, circle for avatar, text lines for name/title). If posts are `undefined`, show 2x PostSkeleton.
+- [x] Wire skeletons into feed: In `linkedin-demo/src/components/posts/Posts.js`, check if posts query is loading (result is `undefined`). If loading, render 3x `<PostSkeleton />`. Import PostSkeleton.
+- [ ] Wire skeletons into Profile: In `linkedin-demo/src/components/profile/Profile.js`, if user query is `undefined`, show a skeleton header (rect 200px height for cover, circle for avatar, text lines for name/title). If posts are `undefined`, show 2x PostSkeleton. <- current
 - [ ] Wire skeletons into Messaging: In `linkedin-demo/src/components/messaging/Messaging.js`, if conversations query is `undefined`, show 4 skeleton rows (circle + two text lines each).
 - [ ] Wire skeletons into Network: In `linkedin-demo/src/components/network/Network.js`, if users query is `undefined`, show 6x UserCardSkeleton.
 - [ ] Wire skeletons into Notifications: In `linkedin-demo/src/components/notifications/Notifications.js`, if notifications query is `undefined`, show 5x NotificationSkeleton.

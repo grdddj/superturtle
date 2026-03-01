@@ -5,12 +5,14 @@ import Post from "./post/Post";
 import Animation from "../animations/Animation";
 import Loading from "../../assets/images/loading-dots.json";
 import useConvexPosts from "../../hooks/useConvexPosts";
+import PostSkeleton from "../skeletons/PostSkeleton";
 
 const DEFAULT_PROFILE_PHOTO = "https://i.pravatar.cc/200?img=68";
 
 const Posts = ({ onNavigateProfile, onViewProfile }) => {
   const classes = Style();
   const posts = useConvexPosts();
+  const isLoading = posts === undefined;
 
   const getProfilePhoto = (photoURL) => {
     if (typeof photoURL === "string" && photoURL.startsWith("/")) {
@@ -21,7 +23,13 @@ const Posts = ({ onNavigateProfile, onViewProfile }) => {
 
   return (
     <div className={classes.posts}>
-      {posts.length === 0 ? (
+      {isLoading ? (
+        <>
+          <PostSkeleton />
+          <PostSkeleton />
+          <PostSkeleton />
+        </>
+      ) : posts.length === 0 ? (
         <Animation src={Loading} />
       ) : (
         <FlipMove style={{ width: "100%" }}>
