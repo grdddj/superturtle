@@ -76,15 +76,15 @@ const SidebarBottom = () => {
   );
 };
 
-const sectionRecent = ["node", "react", "react-native", "redux", "firebase", "mern-stack"];
-const sectionGroups = ["react-community", "2021 developers"];
+const sectionRecent = ["turtle-dev", "convex", "react", "typescript", "open-source", "green-tech"];
+const sectionGroups = ["Turtle In Community", "Full-Stack Builders"];
 const sectionHashTags = [
-  "androidapps",
-  "careers",
-  "entrepreneurship",
-  "jobinterviews",
-  "indiastudents",
-  "india",
+  "turtlein",
+  "buildinpublic",
+  "webdev",
+  "startups",
+  "productdesign",
+  "cleancode",
 ];
 
 export default SidebarBottom;

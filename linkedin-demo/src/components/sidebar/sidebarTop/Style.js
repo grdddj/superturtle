@@ -23,6 +23,11 @@ export default makeStyles((theme) => ({
       margin: "10px 0",
     },
   },
+  subtitle: {
+    margin: "-6px 0 8px",
+    fontSize: 12,
+    color: "grey",
+  },
   cover: {
     width: "100%",
     height: "60px",
