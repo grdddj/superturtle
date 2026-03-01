@@ -1,5 +1,5 @@
 ## Current Task
-Wire Network "Connect" button to show "Pending" visual feedback.
+Push Convex functions once to cloud: `cd linkedin-demo && npx convex dev --once`.
 
 ## End Goal with Specs
 - Profile "Message" button creates/opens a conversation with that user and navigates to Messaging
@@ -14,9 +14,9 @@ Wire Network "Connect" button to show "Pending" visual feedback.
 - [x] Wire Profile "Connect" button in `linkedin-demo/src/components/profile/Profile.js`: Add local state `const [connectPending, setConnectPending] = useState(false)`. On click, toggle to "Pending" (disabled, grey outline). This is cosmetic — no backend needed. Button text: connectPending ? "Pending" : "Connect". Style: pending gets `opacity: 0.6, cursor: "default"`.
 - [x] Wire notification click-through in `linkedin-demo/src/components/notifications/Notifications.js`: Pass `onViewPost` and `onViewProfile` props from App.js. In `handleItemClick`, after marking as read: if `notification.type === "like" || notification.type === "comment"`, call `onViewPost(notification.postId)` — which should navigate to home and scroll to post. If `notification.type === "message"`, call `onNavigateMessaging()` (set activeTab to messaging). Add these props: `onViewPost`, `onViewProfile`, `onNavigateMessaging`.
 - [x] Add `onViewPost` handler in `linkedin-demo/src/App.js`: Create `const onViewPost = (postId) => { setActiveTab("home"); setView("feed"); setTimeout(() => { const el = document.getElementById("post-" + postId); if (el) el.scrollIntoView({ behavior: "smooth", block: "center" }); }, 200); }`. Pass to Notifications component.
-- [ ] Wire Network "Connect" button in `linkedin-demo/src/components/network/Network.js`: Currently at line 102-109 the button has `onClick={(event) => event.stopPropagation()}`. Add local state tracking which user IDs have been "connected" (`const [pendingIds, setPendingIds] = useState(new Set())`). On click, add user ID to pendingIds set. Button text: `pendingIds.has(user._id) ? "Pending" : "Connect"`. Pending style: `opacity: 0.6`. <- current
+- [x] Wire Network "Connect" button in `linkedin-demo/src/components/network/Network.js`: Currently at line 102-109 the button has `onClick={(event) => event.stopPropagation()}`. Add local state tracking which user IDs have been "connected" (`const [pendingIds, setPendingIds] = useState(new Set())`). On click, add user ID to pendingIds set. Button text: `pendingIds.has(user._id) ? "Pending" : "Connect"`. Pending style: `opacity: 0.6`.
 - [x] Pass new props through App.js: Notifications needs `onViewPost`, `onNavigateMessaging`. Profile needs `onNavigateMessaging`. Verify these are threaded through correctly.
-- [ ] Push: `cd linkedin-demo && npx convex dev --once`
+- [ ] Push: `cd linkedin-demo && npx convex dev --once` <- current
 - [x] Build: `cd linkedin-demo && npm run build`
 - [ ] Commit: "Wire dead buttons: profile message, notification links, connect feedback"
 

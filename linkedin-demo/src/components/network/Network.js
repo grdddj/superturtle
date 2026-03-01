@@ -19,6 +19,7 @@ const Network = ({ onViewProfile }) => {
   const classes = Style();
   const users = useQuery(api.users.listAllUsers);
   const [searchTerm, setSearchTerm] = useState("");
+  const [pendingIds, setPendingIds] = useState(() => new Set());
   const normalizedTerm = searchTerm.trim().toLowerCase();
   const filteredUsers = useMemo(() => {
     if (!users) {
@@ -72,43 +73,62 @@ const Network = ({ onViewProfile }) => {
         />
       </div>
       <div className={classes.grid}>
-        {filteredUsers.map((user) => (
-          <Paper
-            key={user._id}
-            elevation={1}
-            className={classes.card}
-            role="button"
-            tabIndex={0}
-            onClick={() => onViewProfile(user._id)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                onViewProfile(user._id);
-              }
-            }}
-          >
-            <Avatar
-              src={resolvePhoto(user.photoURL)}
-              alt={user.displayName}
-              className={classes.avatar}
-            />
-            <div className={classes.info}>
-              <Typography className={classes.displayName}>{user.displayName}</Typography>
-              <Typography className={classes.title}>{user.title}</Typography>
-              <Typography className={classes.location}>
-                {user.location?.trim().length > 0 ? user.location : "Location not listed"}
-              </Typography>
-            </div>
-            <Button
-              variant="outlined"
-              size="small"
-              className={classes.connectButton}
-              onClick={(event) => event.stopPropagation()}
+        {filteredUsers.map((user) => {
+          const isPending = pendingIds.has(user._id);
+
+          return (
+            <Paper
+              key={user._id}
+              elevation={1}
+              className={classes.card}
+              role="button"
+              tabIndex={0}
+              onClick={() => onViewProfile(user._id)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onViewProfile(user._id);
+                }
+              }}
             >
-              Connect
-            </Button>
-          </Paper>
-        ))}
+              <Avatar
+                src={resolvePhoto(user.photoURL)}
+                alt={user.displayName}
+                className={classes.avatar}
+              />
+              <div className={classes.info}>
+                <Typography className={classes.displayName}>{user.displayName}</Typography>
+                <Typography className={classes.title}>{user.title}</Typography>
+                <Typography className={classes.location}>
+                  {user.location?.trim().length > 0 ? user.location : "Location not listed"}
+                </Typography>
+              </div>
+              <Button
+                variant="outlined"
+                size="small"
+                disabled={isPending}
+                className={`${classes.connectButton} ${
+                  isPending ? classes.connectButtonPending : ""
+                }`}
+                onClick={(event) => {
+                  event.stopPropagation();
+
+                  if (isPending) {
+                    return;
+                  }
+
+                  setPendingIds((prev) => {
+                    const next = new Set(prev);
+                    next.add(user._id);
+                    return next;
+                  });
+                }}
+              >
+                {isPending ? "Pending" : "Connect"}
+              </Button>
+            </Paper>
+          );
+        })}
       </div>
       {filteredUsers.length === 0 && (
         <Paper className={classes.stateCard} elevation={1}>

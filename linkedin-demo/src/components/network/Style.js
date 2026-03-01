@@ -90,4 +90,7 @@ export default makeStyles((theme) => ({
       backgroundColor: "rgba(46, 125, 50, 0.08)",
     },
   },
+  connectButtonPending: {
+    opacity: 0.6,
+  },
 }));
