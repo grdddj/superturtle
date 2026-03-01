@@ -1,14 +1,12 @@
-import { mockUser } from "./user";
-
 const createMockTimestamp = (minutesAgo) => ({
   toDate: () => new Date(Date.now() - minutesAgo * 60 * 1000),
 });
 
 export const mockUsers = {
-  tadeas: {
-    username: mockUser.displayName,
-    profile: mockUser.photoURL,
-    title: mockUser.title,
+  alex: {
+    username: "Alex Turner",
+    profile: "https://i.pravatar.cc/200?img=68",
+    title: "🐢 Full-Stack Developer | Building things that matter",
   },
   avery: {
     username: "Avery Chen",
@@ -31,10 +29,11 @@ export const mockPosts = [
   {
     id: "mock-post-1",
     data: {
-      profile: mockUsers.tadeas.profile,
-      username: mockUsers.tadeas.username,
+      profile: mockUsers.alex.profile,
+      username: mockUsers.alex.username,
       timestamp: createMockTimestamp(8),
-      description: "Thrilled to announce that ReKrabice just hit 10,000 boxes returned. That's 10,000 cardboard boxes that didn't end up crying alone in a recycling bin. We're literally saving relationships between humans and packaging. 📦♻️\n\n#sustainability #circulareconomy #boxes #humblebragging",
+      description:
+        "Excited to share that our team shipped a major onboarding improvement this week. We focused on reducing friction in the first five minutes of product use, and early signals are promising.\n\nGreat outcomes come from close collaboration across product, design, and engineering.",
       fileType: null,
       fileData: null,
     },
@@ -45,7 +44,8 @@ export const mockPosts = [
       profile: mockUsers.avery.profile,
       username: mockUsers.avery.username,
       timestamp: createMockTimestamp(17),
-      description: "Hot take: your design system is not a product. It's a coping mechanism for the fact that your 47 designers can't agree on border-radius. Anyway here's a new icon set I made instead of going to therapy 🎨",
+      description:
+        "We completed a refresh of our design system primitives and documentation. The biggest win was aligning on consistent spacing and typography tokens, which sped up handoff and reduced UI drift.\n\nSmall standards create big leverage over time.",
       fileType: "image",
       fileData: "https://picsum.photos/id/1015/1200/700",
     },
@@ -56,7 +56,8 @@ export const mockPosts = [
       profile: mockUsers.devin.profile,
       username: mockUsers.devin.username,
       timestamp: createMockTimestamp(35),
-      description: "Day 847 of centering a div. It's centered now. I think. The tests say yes. My eyes say maybe. The designer says 'can you move it 1px to the left?' I am at peace with the void between pixels. 🧘‍♂️",
+      description:
+        "Spent today improving frontend performance by auditing render paths and trimming unnecessary re-renders. We were able to cut page interaction latency significantly on lower-end devices.\n\nPerformance work is invisible when done well, but users feel it immediately.",
       fileType: null,
       fileData: null,
     },
@@ -67,7 +68,8 @@ export const mockPosts = [
       profile: mockUsers.sofia.profile,
       username: mockUsers.sofia.username,
       timestamp: createMockTimestamp(62),
-      description: "Just finished 12 customer interviews. Key insight: users don't read onboarding flows. Secondary insight: users don't read anything. Third insight: I'm basically writing fan fiction for a product no one reads. Updating the deck anyway. 📊",
+      description:
+        "Wrapped a round of customer interviews this week. A recurring theme was clarity: users value simple workflows and clear next steps over feature depth.\n\nTurning this into a focused messaging update for the next release.",
       fileType: null,
       fileData: null,
     },
@@ -75,10 +77,11 @@ export const mockPosts = [
   {
     id: "mock-post-5",
     data: {
-      profile: mockUsers.tadeas.profile,
-      username: mockUsers.tadeas.username,
+      profile: mockUsers.alex.profile,
+      username: mockUsers.alex.username,
       timestamp: createMockTimestamp(95),
-      description: "People ask me: 'Tadeáš, why reusable boxes? Why not something cool like AI or crypto?'\n\nBecause when the robots take over and the blockchain collapses, you'll still need something to put your stuff in. And I'll be there. With a box. A very nice, reusable one. 📦\n\n#ReKrabice #ThinkInsideTheBox",
+      description:
+        "Quick reflection: strong engineering culture is built through consistent code reviews, clear ownership, and steady delivery habits.\n\nTools matter, but team trust and communication matter more. Proud of the momentum we are building.",
       fileType: "image",
       fileData: "https://picsum.photos/id/1025/1200/700",
     },
@@ -89,7 +92,8 @@ export const mockPosts = [
       profile: mockUsers.avery.profile,
       username: mockUsers.avery.username,
       timestamp: createMockTimestamp(130),
-      description: "Agree? 👇\n\nThe best design is invisible. The second best design is whatever ships before the CEO changes their mind on Friday at 4:47 PM.\n\nRepost if you've ever redesigned a feature that launched 3 hours later.",
+      description:
+        "One principle I keep coming back to: good design reduces decision fatigue. When patterns are predictable and language is clear, teams ship faster and users feel more confident.\n\nDesign quality scales when systems are treated as shared product infrastructure.",
       fileType: null,
       fileData: null,
     },
@@ -100,7 +104,8 @@ export const mockPosts = [
       profile: mockUsers.devin.profile,
       username: mockUsers.devin.username,
       timestamp: createMockTimestamp(188),
-      description: "Removed 2,000 lines of CSS today. The app looks exactly the same. I've either achieved mass enlightenment or broken something that won't surface until the demo with investors. Either way, deploying to prod. YOLO. 🚀",
+      description:
+        "We wrapped a cleanup sprint focused on maintainability. Reduced dead code, simplified styling patterns, and improved component boundaries.\n\nThe product looks the same, but the codebase is healthier and easier to extend.",
       fileType: null,
       fileData: null,
     },
@@ -111,7 +116,8 @@ export const mockPosts = [
       profile: mockUsers.sofia.profile,
       username: mockUsers.sofia.username,
       timestamp: createMockTimestamp(255),
-      description: "Made a 73-slide deck for a feature that got killed in standup this morning. Converting it into a 'learnings document' so the pain has a purpose. If anyone needs a beautifully designed post-mortem for something that never lived, DM me. 💀📑",
+      description:
+        "Finalized our quarterly go-to-market narrative and aligned it with current product capabilities. The strongest message came from real customer outcomes, not feature lists.\n\nClear positioning helps every team move in the same direction.",
       fileType: "image",
       fileData: "https://picsum.photos/id/1043/1200/700",
     },
@@ -119,10 +125,11 @@ export const mockPosts = [
   {
     id: "mock-post-9",
     data: {
-      profile: mockUsers.tadeas.profile,
-      username: mockUsers.tadeas.username,
+      profile: mockUsers.alex.profile,
+      username: mockUsers.alex.username,
       timestamp: createMockTimestamp(320),
-      description: "I used to be EA to the CEO of Slevomat. My greatest achievement was protecting a 45-minute lunch block on his calendar for 6 consecutive months. Generals wish they had my strategic planning skills.\n\nNow I co-founded a box company. Some would call that a lateral move. I call it an upgrade. Boxes > calendars. Always. 📦 > 📅",
+      description:
+        "Career growth reminder: impactful work is rarely linear. The most valuable projects in my journey were the ones that required cross-functional collaboration and continuous learning.\n\nKeep building, keep iterating, and share what you learn with others.",
       fileType: null,
       fileData: null,
     },
