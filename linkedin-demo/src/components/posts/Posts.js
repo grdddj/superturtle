@@ -4,26 +4,35 @@ import FlipMove from "react-flip-move";
 import Post from "./post/Post";
 import Animation from "../animations/Animation";
 import Loading from "../../assets/images/loading-dots.json";
-import { mockPosts } from "../../mock/posts";
+import useConvexPosts from "../../hooks/useConvexPosts";
+import tadeasBibrAvatar from "../../assets/tadeas-bibr.jpg";
 
 const Posts = ({ onNavigateProfile }) => {
   const classes = Style();
+  const posts = useConvexPosts();
+
+  const getProfilePhoto = (photoURL) => {
+    if (typeof photoURL === "string" && photoURL.startsWith("/")) {
+      return tadeasBibrAvatar;
+    }
+    return photoURL;
+  };
 
   return (
     <div className={classes.posts}>
-      {mockPosts.length === 0 ? (
+      {posts.length === 0 ? (
         <Animation src={Loading} />
       ) : (
         <FlipMove style={{ width: "100%" }}>
-          {mockPosts.map((post) => (
+          {posts.map((post) => (
             <Post
-              key={post.id}
-              profile={post.data.profile}
-              username={post.data.username}
-              timestamp={post.data.timestamp}
-              description={post.data.description}
-              fileType={post.data.fileType}
-              fileData={post.data.fileData}
+              key={post._id}
+              profile={getProfilePhoto(post.authorPhotoURL ?? post.author?.photoURL)}
+              username={post.authorName ?? post.author?.displayName}
+              timestamp={{ toDate: () => new Date(post.createdAt) }}
+              description={post.description}
+              fileType={post.fileType}
+              fileData={post.fileData}
               onNavigateProfile={onNavigateProfile}
             />
           ))}

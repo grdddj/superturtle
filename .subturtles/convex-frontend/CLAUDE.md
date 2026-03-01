@@ -1,5 +1,5 @@
 ## Current Task
-Update `linkedin-demo/src/components/posts/Posts.js` to use `useConvexPosts()` instead of mock imports.
+Update `linkedin-demo/src/components/profile/Profile.js` to use `useConvexUser()` for user data instead of mock imports.
 
 ## End Goal with Specs
 - App fetches posts and user data from Convex instead of static mock imports
@@ -14,8 +14,8 @@ Update `linkedin-demo/src/components/posts/Posts.js` to use `useConvexPosts()` i
 - [x] Add ConvexProvider to `linkedin-demo/src/index.js`: import ConvexReactClient from "convex/react", create client with `process.env.REACT_APP_CONVEX_URL`, wrap the existing `<Provider store={store}><App /></Provider>` with `<ConvexProvider client={convex}>...</ConvexProvider>`
 - [x] Create `linkedin-demo/src/hooks/useConvexPosts.js` — a custom hook that calls `useQuery(api.posts.listPosts)` and returns the posts array (or empty array while loading). Import `{ useQuery }` from "convex/react" and `{ api }` from "../convex/_generated/api"
 - [x] Create `linkedin-demo/src/hooks/useConvexUser.js` — a custom hook that calls `useQuery(api.users.getFeaturedUser)` and returns the featured user object (or null while loading)
-- [ ] Update `linkedin-demo/src/components/posts/Posts.js`: replace `import { mockPosts }` with `useConvexPosts()` hook. Map over the returned posts, adapting field names (authorName→username, authorPhotoURL→profile, etc). Keep the same JSX structure <- current
-- [ ] Update `linkedin-demo/src/components/profile/Profile.js`: use `useConvexUser()` hook for user data instead of importing from mock/user.js. Fall back to props/defaults while loading
+- [x] Update `linkedin-demo/src/components/posts/Posts.js`: replace `import { mockPosts }` with `useConvexPosts()` hook. Map over the returned posts, adapting field names (authorName→username, authorPhotoURL→profile, etc). Keep the same JSX structure
+- [ ] Update `linkedin-demo/src/components/profile/Profile.js`: use `useConvexUser()` hook for user data instead of importing from mock/user.js. Fall back to props/defaults while loading <- current
 - [ ] Add auto-seed: in `linkedin-demo/src/App.js`, on mount, call the seed mutation via `useMutation(api.seed.seedData)` so the database gets populated on first visit
 - [ ] Update `linkedin-demo/src/components/posts/post/Post.js`: the isTadeas check should compare against the featured user's displayName from Convex (import useConvexUser or pass isFeatured as a prop from Posts)
 - [ ] Run `cd linkedin-demo && npm run build` to verify build succeeds with Convex integration
