@@ -3,14 +3,8 @@ import { Paper } from "@material-ui/core";
 import FiberManualRecordIcon from "@material-ui/icons/FiberManualRecord";
 import ErrorOutlineSharpIcon from "@material-ui/icons/ErrorOutlineSharp";
 import ExpandMoreIcon from "@material-ui/icons/ExpandMore";
-import LinkedInIcon from "@material-ui/icons/LinkedIn";
-import GitHubIcon from "@material-ui/icons/GitHub";
-import YouTubeIcon from "@material-ui/icons/YouTube";
-import InstagramIcon from "@material-ui/icons/Instagram";
-import TwitterIcon from "@material-ui/icons/Twitter";
 import HeaderInfo from "../../components/util/HeadLine";
 import { LinkedInLightBlue } from "../../assets/Colors";
-import { LinkedInJobAdd } from "../../assets/images/images";
 import Style from "./Style";
 
 const Widgets = () => {
@@ -21,7 +15,7 @@ const Widgets = () => {
     <div className={classes.widgets}>
       <Paper className={classes.widgets__top}>
         <div className={classes.heading}>
-          <h4>LinkedIn News</h4>
+          <h4>Turtle In News</h4>
           <ErrorOutlineSharpIcon />
         </div>
         {top_1.map((title, i) => (
@@ -57,45 +51,27 @@ const Widgets = () => {
       </Paper>
       <div className={classes.widgets__bottom}>
         <Paper className={classes.addBanner}>
-          <img src={LinkedInJobAdd} alt="linked-in-jub-add" />
+          <h4>🐢 Turtle In Premium</h4>
+          <p>Unlock priority visibility and premium networking insights.</p>
         </Paper>
-        {/* About Author */}
-        <div className={classes.about}>
-          <h4>Author Info</h4>
-          <div>
-            {author.map(({ src, url }, i) => (
-              <a href={`${url}`} key={`author-link-${i}`} rel="noreferrer nofollow" target="_blank">
-                {src}
-              </a>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );
 };
 
 const top_1 = [
-  "Google cracks down on loan apps",
-  "Byju’s new acquisition",
-  "Lost password? That'll be $220M",
-  "Tesla gets an India address",
-  "India Inc returns gingerly to office",
+  "Turtle In reaches 1000 users",
+  "React 19 brings new hooks",
+  "Convex raises Series B",
+  "Remote work is here to stay",
+  "AI pair programming goes mainstream",
 ];
 
 const top_2 = [
-  "To Bitcoin or not to Bitcoin",
-  "Infosys, Wipro post robust numbers",
-  "Longer hours equal less productivity",
-  "Fake commute has real benefits",
-];
-
-const author = [
-  { src: <GitHubIcon />, url: "https://github.com/phanison898" },
-  { src: <LinkedInIcon />, url: "https://www.linkedin.com/in/phanison225/" },
-  { src: <YouTubeIcon />, url: "https://www.youtube.com/channel/UC4FAldAo2Ow_2F447yggcqA" },
-  { src: <InstagramIcon />, url: "https://www.instagram.com/phanison225/" },
-  { src: <TwitterIcon />, url: "https://twitter.com/phanison225" },
+  "Green tech startups surge in 2026",
+  "Open source funding hits record high",
+  "TypeScript adoption crosses 80%",
+  "Serverless backends: the new default",
 ];
 
 export default Widgets;

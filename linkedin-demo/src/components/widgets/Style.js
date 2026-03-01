@@ -1,5 +1,5 @@
 import { makeStyles } from "@material-ui/core/styles";
-import { LinkedInBlue, LinkedInLightBlue, darkSecondary, darkPrimary } from "../../assets/Colors";
+import { LinkedInLightBlue, darkSecondary } from "../../assets/Colors";
 
 export default makeStyles((theme) => ({
   widgets: {
@@ -52,38 +52,26 @@ export default makeStyles((theme) => ({
   addBanner: {
     width: "100%",
     display: "flex",
-    padding: 5,
-    borderRadius: 10,
-    overFlow: "hidden",
-    "& > img": {
-      width: "100%",
-      objectFit: "contain",
-      borderRadius: 10,
-      cursor: "pointer",
-    },
-  },
-  about: {
-    display: "flex",
     flexDirection: "column",
-    alignItems: "center",
-    padding: 15,
+    padding: "12px 14px",
+    borderRadius: 10,
+    overflow: "hidden",
+    border: `1px solid ${LinkedInLightBlue}`,
+    background:
+      theme.palette.type === "dark"
+        ? "linear-gradient(120deg, #2e7d32 0%, #1b5e20 100%)"
+        : "linear-gradient(120deg, #e8f5e9 0%, #c8e6c9 100%)",
     "& > h4": {
-      color: theme.palette.type === "dark" ? LinkedInLightBlue : LinkedInBlue,
+      margin: 0,
+      fontSize: 17,
+      fontWeight: 700,
+      color: theme.palette.type === "dark" ? "#e8f5e9" : "#1b5e20",
     },
-    "& > div": {
-      flex: 1,
-      width: "100%",
-      display: "flex",
-      justifyContent: "space-evenly",
-      alignItems: "center",
-      marginTop: 10,
-      "& > a": {
-        color: "grey",
-        transition: "all 0.4s ease",
-        "&:hover": {
-          color: theme.palette.type === "dark" ? darkSecondary : darkPrimary,
-        },
-      },
+    "& > p": {
+      margin: "8px 0 0 0",
+      fontSize: 13,
+      lineHeight: 1.4,
+      color: theme.palette.type === "dark" ? "#c8e6c9" : "#2e7d32",
     },
   },
 }));
