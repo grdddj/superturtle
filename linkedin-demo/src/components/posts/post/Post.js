@@ -1,6 +1,8 @@
 import React, { forwardRef } from "react";
 import { useMutation, useQuery } from "convex/react";
 import Avatar from "@material-ui/core/Avatar";
+import Menu from "@material-ui/core/Menu";
+import MenuItem from "@material-ui/core/MenuItem";
 import Paper from "@material-ui/core/Paper";
 import MoreHorizOutlinedIcon from "@material-ui/icons/MoreHorizOutlined";
 import ThumbUpAltIcon from "@material-ui/icons/ThumbUpAlt";
@@ -20,6 +22,7 @@ const Post = forwardRef(
   (
     {
       postId,
+      authorId,
       likesCount = 0,
       commentsCount = 0,
       profile,
@@ -38,9 +41,11 @@ const Post = forwardRef(
     const user = useConvexUser();
     const toggleLike = useMutation(api.likes.toggleLike);
     const addComment = useMutation(api.comments.addComment);
+    const deletePost = useMutation(api.posts.deletePost);
 
     const [showComments, setShowComments] = React.useState(false);
     const [commentText, setCommentText] = React.useState("");
+    const [menuAnchorEl, setMenuAnchorEl] = React.useState(null);
 
     const liked = useQuery(
       api.likes.getLikeStatus,
@@ -53,6 +58,8 @@ const Post = forwardRef(
 
     const isLiked = liked ?? false;
     const commentsList = comments ?? [];
+    const isOwnPost = Boolean(authorId && user?._id && authorId === user._id);
+    const isMenuOpen = Boolean(menuAnchorEl);
 
     const capitalize = (_string = "") => {
       return _string.charAt(0).toUpperCase() + _string.slice(1);
@@ -95,6 +102,30 @@ const Post = forwardRef(
       }
     };
 
+    const handleMenuOpen = (event) => {
+      if (!isOwnPost) {
+        return;
+      }
+      setMenuAnchorEl(event.currentTarget);
+    };
+
+    const handleMenuClose = () => {
+      setMenuAnchorEl(null);
+    };
+
+    const handleDeleteClick = async () => {
+      if (!isOwnPost) {
+        return;
+      }
+
+      handleMenuClose();
+      try {
+        await deletePost({ postId });
+      } catch (error) {
+        console.error("Failed to delete post:", error);
+      }
+    };
+
     const Reactions = () => {
       return (
         <div className={classes.footer__stats}>
@@ -131,7 +162,18 @@ const Post = forwardRef(
               <ReactTimeago date={new Date(timestamp?.toDate()).toUTCString()} units="minute" />
             </p>
           </div>
-          <MoreHorizOutlinedIcon />
+          <MoreHorizOutlinedIcon
+            onClick={handleMenuOpen}
+            style={!isOwnPost ? { opacity: 0.55, cursor: "default" } : undefined}
+          />
+          <Menu
+            anchorEl={menuAnchorEl}
+            keepMounted
+            open={isMenuOpen}
+            onClose={handleMenuClose}
+          >
+            {isOwnPost && <MenuItem onClick={handleDeleteClick}>Delete</MenuItem>}
+          </Menu>
         </div>
         <div className={classes.post__body}>
           <div className={classes.body__description}>

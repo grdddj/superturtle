@@ -29,6 +29,7 @@ const Posts = ({ onNavigateProfile }) => {
             <Post
               key={post._id}
               postId={post._id}
+              authorId={post.authorId}
               likesCount={post.likesCount}
               commentsCount={post.commentsCount}
               profile={getProfilePhoto(post.authorPhotoURL ?? post.author?.photoURL)}
