@@ -4,9 +4,20 @@ export default makeStyles((theme) => ({
   network: {
     width: "100%",
   },
+  controls: {
+    width: "100%",
+    marginBottom: theme.spacing(1.5),
+  },
+  searchField: {
+    width: "100%",
+    "& .MuiOutlinedInput-root": {
+      backgroundColor: "#fff",
+    },
+  },
   stateCard: {
     width: "100%",
     padding: theme.spacing(3),
+    marginTop: theme.spacing(1.5),
   },
   grid: {
     display: "grid",
@@ -18,6 +29,8 @@ export default makeStyles((theme) => ({
     },
   },
   card: {
+    width: "100%",
+    boxSizing: "border-box",
     backgroundColor: "#fff",
     padding: theme.spacing(2),
     display: "flex",

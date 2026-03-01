@@ -1,5 +1,6 @@
+import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
-import { Avatar, Button, Paper, Typography } from "@material-ui/core";
+import { Avatar, Button, Paper, TextField, Typography } from "@material-ui/core";
 import { api } from "../../convex/_generated/api";
 import Style from "./Style";
 
@@ -16,6 +17,22 @@ const resolvePhoto = (photoURL) => {
 const Network = ({ onViewProfile }) => {
   const classes = Style();
   const users = useQuery(api.users.listAllUsers);
+  const [searchTerm, setSearchTerm] = useState("");
+  const normalizedTerm = searchTerm.trim().toLowerCase();
+  const filteredUsers = useMemo(() => {
+    if (!users) {
+      return [];
+    }
+
+    if (!normalizedTerm) {
+      return users;
+    }
+
+    return users.filter((user) => {
+      const fields = [user.displayName, user.title, user.location].filter(Boolean);
+      return fields.some((field) => field.toLowerCase().includes(normalizedTerm));
+    });
+  }, [users, normalizedTerm]);
 
   if (users === undefined) {
     return (
@@ -39,8 +56,20 @@ const Network = ({ onViewProfile }) => {
 
   return (
     <div className={classes.network}>
+      <div className={classes.controls}>
+        <TextField
+          value={searchTerm}
+          onChange={(event) => setSearchTerm(event.target.value)}
+          placeholder="Search your network"
+          variant="outlined"
+          size="small"
+          fullWidth
+          className={classes.searchField}
+          inputProps={{ "aria-label": "Search users in network" }}
+        />
+      </div>
       <div className={classes.grid}>
-        {users.map((user) => (
+        {filteredUsers.map((user) => (
           <Paper
             key={user._id}
             elevation={1}
@@ -78,6 +107,13 @@ const Network = ({ onViewProfile }) => {
           </Paper>
         ))}
       </div>
+      {filteredUsers.length === 0 && (
+        <Paper className={classes.stateCard} elevation={1}>
+          <Typography variant="body2" color="textSecondary">
+            No people match "{searchTerm.trim()}".
+          </Typography>
+        </Paper>
+      )}
     </div>
   );
 };
