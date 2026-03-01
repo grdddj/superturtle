@@ -120,8 +120,8 @@ export const listConversations = query({
           otherParticipant: otherParticipant
             ? {
                 _id: otherParticipant._id,
-                displayName: otherParticipant.displayName,
-                photoURL: otherParticipant.photoURL,
+                displayName: otherParticipant.displayName ?? otherParticipant.name ?? "Guest User",
+                photoURL: otherParticipant.photoURL ?? otherParticipant.image ?? "",
               }
             : null,
           latestMessage,
@@ -158,8 +158,8 @@ export const listMessages = query({
           sender: sender
             ? {
                 _id: sender._id,
-                displayName: sender.displayName,
-                photoURL: sender.photoURL,
+                displayName: sender.displayName ?? sender.name ?? "Guest User",
+                photoURL: sender.photoURL ?? sender.image ?? "",
               }
             : null,
         };

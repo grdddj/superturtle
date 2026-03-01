@@ -5,16 +5,23 @@ import { v } from "convex/values";
 export default defineSchema({
   ...authTables,
   users: defineTable({
-    displayName: v.string(),
-    photoURL: v.string(),
-    title: v.string(),
-    headline: v.string(),
-    location: v.string(),
-    about: v.string(),
-    experience: v.array(v.string()),
-    connections: v.number(),
-    followers: v.number(),
-    isFeatured: v.boolean(),
+    // Auth fields (set by Convex Auth on sign-in)
+    name: v.optional(v.string()),
+    email: v.optional(v.string()),
+    image: v.optional(v.string()),
+    emailVerificationTime: v.optional(v.number()),
+    isAnonymous: v.optional(v.boolean()),
+    // App-specific fields (optional so auth can create minimal user records)
+    displayName: v.optional(v.string()),
+    photoURL: v.optional(v.string()),
+    title: v.optional(v.string()),
+    headline: v.optional(v.string()),
+    location: v.optional(v.string()),
+    about: v.optional(v.string()),
+    experience: v.optional(v.array(v.string())),
+    connections: v.optional(v.number()),
+    followers: v.optional(v.number()),
+    isFeatured: v.optional(v.boolean()),
   }),
   posts: defineTable({
     authorId: v.id("users"),

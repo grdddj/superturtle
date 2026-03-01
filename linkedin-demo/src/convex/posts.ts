@@ -20,9 +20,9 @@ export const listPosts = query({
           likesCount: likes.length,
           author: author
             ? {
-                displayName: author.displayName,
-                photoURL: author.photoURL,
-                title: author.title,
+                displayName: author.displayName ?? author.name ?? "Guest User",
+                photoURL: author.photoURL ?? author.image ?? "",
+                title: author.title ?? "",
               }
             : null,
         };
@@ -55,9 +55,9 @@ export const listPostsByUser = query({
           likesCount: likes.length,
           author: author
             ? {
-                displayName: author.displayName,
-                photoURL: author.photoURL,
-                title: author.title,
+                displayName: author.displayName ?? author.name ?? "Guest User",
+                photoURL: author.photoURL ?? author.image ?? "",
+                title: author.title ?? "",
               }
             : null,
         };
@@ -95,9 +95,9 @@ export const searchPosts = query({
           author: author
             ? {
                 _id: author._id,
-                displayName: author.displayName,
-                photoURL: author.photoURL,
-                title: author.title,
+                displayName: author.displayName ?? author.name ?? "Guest User",
+                photoURL: author.photoURL ?? author.image ?? "",
+                title: author.title ?? "",
               }
             : null,
         };

@@ -34,14 +34,14 @@ export const listAllUsers = query({
     const users = await ctx.db.query("users").collect();
 
     return [...users]
-      .sort((a, b) => a.displayName.localeCompare(b.displayName))
+      .sort((a, b) => (a.displayName ?? a.name ?? "").localeCompare(b.displayName ?? b.name ?? ""))
       .map((user) => ({
         _id: user._id,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
-        title: user.title,
-        location: user.location,
-        connections: user.connections,
+        displayName: user.displayName ?? user.name ?? "Guest User",
+        photoURL: user.photoURL ?? user.image ?? "",
+        title: user.title ?? "",
+        location: user.location ?? "",
+        connections: user.connections ?? 0,
       }));
   },
 });
@@ -60,15 +60,15 @@ export const searchUsers = query({
 
     return [...users]
       .filter((user) =>
-        user.displayName.toLowerCase().includes(normalizedQuery),
+        (user.displayName ?? user.name ?? "").toLowerCase().includes(normalizedQuery),
       )
-      .sort((a, b) => a.displayName.localeCompare(b.displayName))
+      .sort((a, b) => (a.displayName ?? a.name ?? "").localeCompare(b.displayName ?? b.name ?? ""))
       .slice(0, 10)
       .map((user) => ({
         _id: user._id,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
-        title: user.title,
+        displayName: user.displayName ?? user.name ?? "Guest User",
+        photoURL: user.photoURL ?? user.image ?? "",
+        title: user.title ?? "",
       }));
   },
 });

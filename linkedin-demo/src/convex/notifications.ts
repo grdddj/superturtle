@@ -49,8 +49,8 @@ export const listNotifications = query({
           fromUser: fromUser
             ? {
                 _id: fromUser._id,
-                displayName: fromUser.displayName,
-                photoURL: fromUser.photoURL,
+                displayName: fromUser.displayName ?? fromUser.name ?? "Guest User",
+                photoURL: fromUser.photoURL ?? fromUser.image ?? "",
               }
             : null,
         };

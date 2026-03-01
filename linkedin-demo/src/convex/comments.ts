@@ -53,9 +53,9 @@ export const listComments = query({
           ...comment,
           author: author
             ? {
-                displayName: author.displayName,
-                photoURL: author.photoURL,
-                title: author.title,
+                displayName: author.displayName ?? author.name ?? "Guest User",
+                photoURL: author.photoURL ?? author.image ?? "",
+                title: author.title ?? "",
               }
             : null,
         };
