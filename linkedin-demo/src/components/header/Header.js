@@ -148,13 +148,47 @@ const Header = ({ activeTab, setActiveTab, onNavigateProfile, onNavigateHome }) 
     { Icon: <AppsIcon />, title: "Apps", arrow: true },
   ];
 
+  const navigateToHome = () => {
+    if (typeof onNavigateHome === "function") {
+      onNavigateHome();
+      return;
+    }
+    setActiveTab("home");
+  };
+
+  const handleCreatePostNav = () => {
+    navigateToHome();
+    window.setTimeout(() => {
+      const postInput = document.querySelector('input[placeholder="Start a post"]');
+      if (!postInput) {
+        return;
+      }
+      postInput.scrollIntoView({ behavior: "smooth", block: "center" });
+      postInput.focus();
+    }, 120);
+  };
+
   const tabItems = [
-    { key: "home", icon: HomeIcon },
-    { key: "network", icon: GroupIcon },
-    { key: "post", icon: AddBoxIcon },
-    { key: "messaging", icon: TelegramIcon },
-    { key: "notifications", icon: NotificationsIcon },
-    { key: "jobs", icon: WorkIcon },
+    { key: "home", icon: HomeIcon, onClick: navigateToHome, isActive: activeTab === "home" },
+    {
+      key: "network",
+      icon: GroupIcon,
+      onClick: () => setActiveTab("network"),
+      isActive: activeTab === "network",
+    },
+    { key: "post", icon: AddBoxIcon, onClick: handleCreatePostNav, isActive: false },
+    {
+      key: "messaging",
+      icon: TelegramIcon,
+      onClick: () => setActiveTab("messaging"),
+      isActive: activeTab === "messaging",
+    },
+    {
+      key: "notifications",
+      icon: NotificationsIcon,
+      onClick: () => setActiveTab("notifications"),
+      isActive: activeTab === "notifications",
+    },
   ];
 
   return (
@@ -284,12 +318,13 @@ const Header = ({ activeTab, setActiveTab, onNavigateProfile, onNavigateHome }) 
           Sign Out
         </Button>
         <Paper className={classes.header__bottom__nav}>
-          {tabItems.map(({ key, icon: Icon }) => (
+          {tabItems.map(({ key, icon: Icon, onClick, isActive }) => (
             <Icon
               key={key}
-              onClick={() => setActiveTab(key)}
+              onClick={onClick}
+              aria-label={key}
               style={{
-                color: activeTab === key ? "#0a66c2" : "grey",
+                color: isActive ? "#2e7d32" : "grey",
               }}
             />
           ))}
