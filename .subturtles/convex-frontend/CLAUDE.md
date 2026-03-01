@@ -1,5 +1,5 @@
 ## Current Task
-Wait for Convex backend files (`convex/schema.ts`, `convex/posts.ts`, `convex/users.ts`, `convex/seed.ts`) to appear; continue retry checks until unblocked, then proceed with frontend wiring. Blocked pending file creation.
+Create `linkedin-demo/src/hooks/useConvexPosts.js` using Convex query data.
 
 ## End Goal with Specs
 - App fetches posts and user data from Convex instead of static mock imports
@@ -8,12 +8,11 @@ Wait for Convex backend files (`convex/schema.ts`, `convex/posts.ts`, `convex/us
 - Profile component uses useQuery to fetch the featured user
 - App seeds data on first load if database is empty
 - Build succeeds with no errors
-- Ready for Vercel deployment
 
 ## Backlog
-- [ ] Wait for `convex/schema.ts`, `convex/posts.ts`, `convex/users.ts`, and `convex/seed.ts` to exist (check with ls; if not present yet, wait 30 seconds and check again, up to 5 retries) <- current
-- [ ] Add ConvexProvider to `linkedin-demo/src/index.js`: import ConvexReactClient from "convex/react", create client with `process.env.REACT_APP_CONVEX_URL`, wrap the existing `<Provider store={store}><App /></Provider>` with `<ConvexProvider client={convex}>...</ConvexProvider>`
-- [ ] Create `linkedin-demo/src/hooks/useConvexPosts.js` — a custom hook that calls `useQuery(api.posts.listPosts)` and returns the posts array (or empty array while loading). Import `{ useQuery }` from "convex/react" and `{ api }` from "../convex/_generated/api"
+- [x] Convex backend files already exist at `linkedin-demo/convex/schema.ts`, `linkedin-demo/convex/posts.ts`, `linkedin-demo/convex/users.ts`, `linkedin-demo/convex/seed.ts` — VERIFIED, skip this step
+- [x] Add ConvexProvider to `linkedin-demo/src/index.js`: import ConvexReactClient from "convex/react", create client with `process.env.REACT_APP_CONVEX_URL`, wrap the existing `<Provider store={store}><App /></Provider>` with `<ConvexProvider client={convex}>...</ConvexProvider>`
+- [ ] Create `linkedin-demo/src/hooks/useConvexPosts.js` — a custom hook that calls `useQuery(api.posts.listPosts)` and returns the posts array (or empty array while loading). Import `{ useQuery }` from "convex/react" and `{ api }` from "../convex/_generated/api" <- current
 - [ ] Create `linkedin-demo/src/hooks/useConvexUser.js` — a custom hook that calls `useQuery(api.users.getFeaturedUser)` and returns the featured user object (or null while loading)
 - [ ] Update `linkedin-demo/src/components/posts/Posts.js`: replace `import { mockPosts }` with `useConvexPosts()` hook. Map over the returned posts, adapting field names (authorName→username, authorPhotoURL→profile, etc). Keep the same JSX structure
 - [ ] Update `linkedin-demo/src/components/profile/Profile.js`: use `useConvexUser()` hook for user data instead of importing from mock/user.js. Fall back to props/defaults while loading
@@ -23,14 +22,12 @@ Wait for Convex backend files (`convex/schema.ts`, `convex/posts.ts`, `convex/us
 - [ ] Commit with message "Wire React frontend to Convex backend"
 
 ## Notes
+- IMPORTANT: All paths are relative to the repo root `/Users/Richard.Mladek/Documents/projects/agentic/`. The linkedin-demo project is at `linkedin-demo/`. The convex folder is at `linkedin-demo/convex/`. Run all npm commands from `linkedin-demo/`.
 - This is a CRA (create-react-app) project, NOT Vite. Env vars use `process.env.REACT_APP_CONVEX_URL` (not import.meta.env)
-- The Convex generated API is at `linkedin-demo/convex/_generated/api.js` — import as `import { api } from "../convex/_generated/api"` (path relative to src/)
+- The Convex generated API is at `linkedin-demo/convex/_generated/api` — from src/ files, import as `import { api } from "../convex/_generated/api"`
 - Keep Redux for theme toggle (util state) — only replace the mock data imports with Convex queries
-- The mock/user.js imports a local image (`tadeas-bibr.jpg`) — for Convex, store the avatar URL in the database. For Tadeáš, since it's a local asset, keep using the local import as a fallback when the Convex user's photoURL is "/tadeas-bibr.jpg"
-- Posts from Convex will have: _id, authorId, description, fileType, fileData, createdAt, likesCount, commentsCount, plus joined author fields (authorName, authorPhotoURL, authorTitle)
-- The timestamp field changes from `{ toDate: () => Date }` to a plain epoch number (createdAt). Update ReactTimeago usage: `new Date(createdAt)` instead of `timestamp?.toDate()`
+- The mock/user.js imports a local image (`tadeas-bibr.jpg`) — for Convex, the DB stores "/tadeas-bibr.jpg" for Tadeáš. In the frontend, if photoURL starts with "/" treat it as a local asset and import tadeas-bibr.jpg as fallback
+- Posts from Convex `listPosts` return: _id, authorId, description, fileType, fileData, createdAt, likesCount, commentsCount, authorName, authorPhotoURL, authorTitle
+- The timestamp field changes from `{ toDate: () => Date }` to a plain epoch number (createdAt). Update ReactTimeago: `new Date(createdAt)` instead of `timestamp?.toDate()`
 - Keep the existing UI/styling — only change data sources
 - `.env.local` already has REACT_APP_CONVEX_URL set
-- Progress (2026-03-01): Ran all 5 required retries (`ls` + 30s waits). Files are still missing at repo root, so this item remains blocked.
-- Progress (2026-03-01, follow-up loop): Re-ran the full 5-retry availability check; `convex/schema.ts`, `convex/posts.ts`, `convex/users.ts`, and `convex/seed.ts` are still missing, so backlog item 1 remains `<- current`.
-- Progress (2026-03-01, latest loop): Completed another full 5-retry availability check (`ls` with 30s waits between attempts); `convex/schema.ts`, `convex/posts.ts`, `convex/users.ts`, and `convex/seed.ts` are still missing, so backlog item 1 remains `<- current`.
