@@ -27,3 +27,21 @@ export const getCurrentUser = query({
     return await ctx.db.get(userId);
   },
 });
+
+export const listAllUsers = query({
+  args: {},
+  handler: async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+
+    return [...users]
+      .sort((a, b) => a.displayName.localeCompare(b.displayName))
+      .map((user) => ({
+        _id: user._id,
+        displayName: user.displayName,
+        photoURL: user.photoURL,
+        title: user.title,
+        location: user.location,
+        connections: user.connections,
+      }));
+  },
+});

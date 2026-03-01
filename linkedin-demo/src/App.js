@@ -7,6 +7,7 @@ import Header from "./components/header/Header";
 import Form from "./components/form/Form";
 import Login from "./components/login/Login";
 import Messaging from "./components/messaging/Messaging";
+import Network from "./components/network/Network";
 import Posts from "./components/posts/Posts";
 import Profile from "./components/profile/Profile";
 import Sidebar from "./components/sidebar/Sidebar";
@@ -116,6 +117,8 @@ const App = () => {
               />
             ) : activeTab === "messaging" ? (
               <Messaging />
+            ) : activeTab === "network" ? (
+              <Network onViewProfile={onViewProfile} />
             ) : activeTab === "home" ? (
               <>
                 {/* Feed */}
