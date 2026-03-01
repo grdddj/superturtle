@@ -63,6 +63,11 @@ const App = () => {
     setView("profile");
   };
 
+  const onNavigateHome = () => {
+    setActiveTab("home");
+    setView("feed");
+  };
+
   if (isLoading) {
     return null;
   }
@@ -101,6 +106,7 @@ const App = () => {
             activeTab={activeTab}
             setActiveTab={setActiveTab}
             onNavigateProfile={onNavigateProfile}
+            onNavigateHome={onNavigateHome}
           />
         </Grid>
         <Grid item container className={classes.app__body}>

@@ -45,3 +45,30 @@ export const listAllUsers = query({
       }));
   },
 });
+
+export const searchUsers = query({
+  args: {
+    query: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const normalizedQuery = args.query.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return [];
+    }
+
+    const users = await ctx.db.query("users").collect();
+
+    return [...users]
+      .filter((user) =>
+        user.displayName.toLowerCase().includes(normalizedQuery),
+      )
+      .sort((a, b) => a.displayName.localeCompare(b.displayName))
+      .slice(0, 10)
+      .map((user) => ({
+        _id: user._id,
+        displayName: user.displayName,
+        photoURL: user.photoURL,
+        title: user.title,
+      }));
+  },
+});

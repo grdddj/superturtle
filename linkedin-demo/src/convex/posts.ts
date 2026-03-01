@@ -66,6 +66,46 @@ export const listPostsByUser = query({
   },
 });
 
+export const searchPosts = query({
+  args: {
+    query: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const normalizedQuery = args.query.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return [];
+    }
+
+    const posts = await ctx.db.query("posts").collect();
+    const matchingPosts = [...posts]
+      .filter((post) =>
+        post.description.toLowerCase().includes(normalizedQuery),
+      )
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 10);
+
+    return await Promise.all(
+      matchingPosts.map(async (post) => {
+        const author = await ctx.db.get(post.authorId);
+        return {
+          _id: post._id,
+          authorId: post.authorId,
+          description: post.description,
+          createdAt: post.createdAt,
+          author: author
+            ? {
+                _id: author._id,
+                displayName: author.displayName,
+                photoURL: author.photoURL,
+                title: author.title,
+              }
+            : null,
+        };
+      }),
+    );
+  },
+});
+
 export const createPost = mutation({
   args: {
     authorId: v.id("users"),

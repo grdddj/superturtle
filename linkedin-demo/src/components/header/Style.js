@@ -47,19 +47,32 @@ export default makeStyles((theme) => ({
       },
     },
   },
-  search: {
+  search__wrapper: {
     width: "60%",
+    marginLeft: 10,
+    position: "relative",
     [theme.breakpoints.down("xs")]: {
       width: "100%",
     },
+  },
+  search: {
+    width: "100%",
     height: "65%",
+    minHeight: 34,
     display: "flex",
     alignItems: "center",
-    marginLeft: 10,
     padding: "0 10px",
     borderRadius: 3,
+    border: "1px solid transparent",
     backgroundColor: theme.palette.type === "dark" ? darkSecondary : "#eef3f8",
-    overflow: "hidden",
+    transition: "border-color 0.2s ease, box-shadow 0.2s ease",
+    "&:focus-within": {
+      borderColor: "#2e7d32",
+      boxShadow: "0 0 0 1px rgba(46, 125, 50, 0.15)",
+    },
+    "& > .MuiSvgIcon-root": {
+      color: theme.palette.type === "dark" ? "lightgrey" : "#546e7a",
+    },
     "& > input": {
       width: "100%",
       height: "100%",
@@ -72,6 +85,61 @@ export default makeStyles((theme) => ({
         color: theme.palette.type === "dark" && "grey",
       },
     },
+  },
+  searchDropdown: {
+    position: "absolute",
+    top: "calc(100% + 6px)",
+    left: 0,
+    width: "100%",
+    zIndex: 1000,
+    maxHeight: 400,
+    overflowY: "auto",
+    borderRadius: 8,
+    padding: "4px 0",
+  },
+  searchSectionHeader: {
+    padding: "6px 12px 4px",
+    fontSize: 12,
+    fontWeight: 700,
+    color: theme.palette.type === "dark" ? "#9ca3af" : "#6b7280",
+  },
+  searchResultItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "8px 12px",
+    cursor: "pointer",
+    transition: "background-color 0.15s ease",
+    "&:hover": {
+      backgroundColor: theme.palette.type === "dark" ? darkSecondary : "#f5f5f5",
+    },
+  },
+  searchResultAvatar: {
+    width: 32,
+    height: 32,
+    flexShrink: 0,
+  },
+  searchResultContent: {
+    minWidth: 0,
+    display: "flex",
+    flexDirection: "column",
+  },
+  searchResultPrimary: {
+    fontSize: 14,
+    fontWeight: 600,
+    color: theme.palette.type === "dark" ? "lightgrey" : "#1d2226",
+  },
+  searchResultSecondary: {
+    fontSize: 12,
+    color: theme.palette.type === "dark" ? "#9ca3af" : "#6b7280",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  searchEmptyState: {
+    padding: "8px 12px",
+    fontSize: 12,
+    color: theme.palette.type === "dark" ? "#9ca3af" : "#6b7280",
   },
   header__nav: {
     flex: 5.5,

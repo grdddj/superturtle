@@ -157,7 +157,7 @@ const Post = forwardRef(
     };
 
     return (
-      <Paper ref={ref} className={classes.post}>
+      <Paper ref={ref} className={classes.post} id={`post-${postId}`}>
         <div className={classes.post__header}>
           <Avatar
             src={profile}
