@@ -28,6 +28,9 @@ const Posts = ({ onNavigateProfile }) => {
           {posts.map((post) => (
             <Post
               key={post._id}
+              postId={post._id}
+              likesCount={post.likesCount}
+              commentsCount={post.commentsCount}
               profile={getProfilePhoto(post.authorPhotoURL ?? post.author?.photoURL)}
               username={post.authorName ?? post.author?.displayName}
               timestamp={{ toDate: () => new Date(post.createdAt) }}
