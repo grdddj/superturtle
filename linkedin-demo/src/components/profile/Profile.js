@@ -9,14 +9,13 @@ import {
   Tabs,
   Tab,
 } from "@material-ui/core";
-import Skeleton from "@material-ui/lab/Skeleton";
 import ArrowBackIcon from "@material-ui/icons/ArrowBack";
 import LocationOnIcon from "@material-ui/icons/LocationOn";
 import { api } from "../../convex/_generated/api";
 import { DEFAULT_PHOTO } from "../../constants";
 import useConvexUser from "../../hooks/useConvexUser";
+import LoadingGate from "../LoadingGate";
 import Post from "../posts/post/Post";
-import PostSkeleton from "../skeletons/PostSkeleton";
 import Style from "./Style";
 
 const DEFAULT_PROFILE = {
@@ -119,29 +118,7 @@ const Profile = ({ onBack, onNavigateMessaging = () => {}, userId = null }) => {
           </Button>
         </div>
 
-        {isUserLoading ? (
-          <div style={{ width: "100%" }}>
-            <div style={{ position: "relative", width: "100%" }}>
-              <Skeleton variant="rect" width="100%" height={200} animation="wave" />
-              <Skeleton
-                variant="circle"
-                width={104}
-                height={104}
-                animation="wave"
-                style={{
-                  position: "absolute",
-                  left: 16,
-                  bottom: -52,
-                  border: "4px solid #fff",
-                }}
-              />
-            </div>
-            <div style={{ width: "100%", padding: "58px 16px 0", boxSizing: "border-box" }}>
-              <Skeleton variant="text" width="42%" height={34} animation="wave" />
-              <Skeleton variant="text" width="62%" height={24} animation="wave" />
-            </div>
-          </div>
-        ) : (
+        <LoadingGate isLoading={isUserLoading}>
           <>
             <div className={classes.coverArea}>
               <Avatar src={userAvatar} className={classes.avatar} />
@@ -203,86 +180,82 @@ const Profile = ({ onBack, onNavigateMessaging = () => {}, userId = null }) => {
                 Message
               </Button>
             </div>
-          </>
-        )}
+            <Divider style={{ margin: "16px 0 0" }} />
 
-        <Divider style={{ margin: "16px 0 0" }} />
+            <Tabs
+              value={activeTab}
+              onChange={(_, nextTab) => setActiveTab(nextTab)}
+              indicatorColor="primary"
+              textColor="primary"
+              variant="fullWidth"
+              className={classes.tabs}
+            >
+              <Tab label="Posts" className={classes.tab} />
+              <Tab label="About" className={classes.tab} />
+            </Tabs>
 
-        <Tabs
-          value={activeTab}
-          onChange={(_, nextTab) => setActiveTab(nextTab)}
-          indicatorColor="primary"
-          textColor="primary"
-          variant="fullWidth"
-          className={classes.tabs}
-        >
-          <Tab label="Posts" className={classes.tab} />
-          <Tab label="About" className={classes.tab} />
-        </Tabs>
+            {activeTab === 0 && (
+              <div className={`${classes.section} ${classes.postsSection}`}>
+                <LoadingGate isLoading={posts === undefined}>
+                  {userPosts.length === 0 ? (
+                    <Typography variant="body2" color="textSecondary">
+                      No posts yet.
+                    </Typography>
+                  ) : (
+                    <div className={classes.postsList}>
+                      {userPosts.map((post) => (
+                        <Post
+                          key={post._id}
+                          postId={post._id}
+                          authorId={post.authorId}
+                          likesCount={post.likesCount}
+                          commentsCount={post.commentsCount}
+                          profile={resolveProfilePhoto(post.author?.photoURL ?? userAvatar)}
+                          username={post.author?.displayName ?? userName}
+                          timestamp={{ toDate: () => new Date(post.createdAt) }}
+                          description={post.description}
+                          fileType={post.fileType}
+                          fileData={post.fileData}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </LoadingGate>
+              </div>
+            )}
 
-        {activeTab === 0 && (
-          <div className={`${classes.section} ${classes.postsSection}`}>
-            {posts === undefined ? (
-              <>
-                <PostSkeleton />
-                <PostSkeleton />
-              </>
-            ) : userPosts.length === 0 ? (
-              <Typography variant="body2" color="textSecondary">
-                No posts yet.
-              </Typography>
-            ) : (
-              <div className={classes.postsList}>
-                {userPosts.map((post) => (
-                  <Post
-                    key={post._id}
-                    postId={post._id}
-                    authorId={post.authorId}
-                    likesCount={post.likesCount}
-                    commentsCount={post.commentsCount}
-                    profile={resolveProfilePhoto(post.author?.photoURL ?? userAvatar)}
-                    username={post.author?.displayName ?? userName}
-                    timestamp={{ toDate: () => new Date(post.createdAt) }}
-                    description={post.description}
-                    fileType={post.fileType}
-                    fileData={post.fileData}
-                  />
+            {activeTab === 1 && (
+              <div className={classes.section}>
+                <Typography variant="subtitle2" style={{ fontWeight: 700, marginBottom: 6 }}>
+                  About
+                </Typography>
+                <Typography
+                  variant="body2"
+                  color="textSecondary"
+                  style={{ lineHeight: 1.65, whiteSpace: "pre-line" }}
+                >
+                  {about}
+                </Typography>
+
+                <Divider style={{ margin: "16px 0 12px" }} />
+
+                <Typography variant="subtitle2" style={{ fontWeight: 700, marginBottom: 6 }}>
+                  Experience
+                </Typography>
+                {experience.map((exp, index) => (
+                  <Typography
+                    key={`${exp}-${index}`}
+                    variant="body2"
+                    color="textSecondary"
+                    style={{ marginBottom: 4, lineHeight: 1.55 }}
+                  >
+                    {exp}
+                  </Typography>
                 ))}
               </div>
             )}
-          </div>
-        )}
-
-        {activeTab === 1 && (
-          <div className={classes.section}>
-            <Typography variant="subtitle2" style={{ fontWeight: 700, marginBottom: 6 }}>
-              About
-            </Typography>
-            <Typography
-              variant="body2"
-              color="textSecondary"
-              style={{ lineHeight: 1.65, whiteSpace: "pre-line" }}
-            >
-              {about}
-            </Typography>
-
-            <Divider style={{ margin: "16px 0 12px" }} />
-
-            <Typography variant="subtitle2" style={{ fontWeight: 700, marginBottom: 6 }}>
-              Experience
-            </Typography>
-            {experience.map((exp, index) => (
-              <Typography
-                key={`${exp}-${index}`}
-                variant="body2"
-                color="textSecondary"
-                style={{ marginBottom: 4, lineHeight: 1.55 }}
-              >
-                {exp}
-              </Typography>
-            ))}
-          </div>
-        )}
+          </>
+        </LoadingGate>
       </Paper>
     </div>
   );

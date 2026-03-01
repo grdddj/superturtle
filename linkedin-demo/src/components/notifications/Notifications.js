@@ -7,7 +7,7 @@ import ReactTimeago from "react-timeago";
 import { api } from "../../convex/_generated/api";
 import { DEFAULT_PHOTO } from "../../constants";
 import useConvexUser from "../../hooks/useConvexUser";
-import NotificationSkeleton from "../skeletons/NotificationSkeleton";
+import LoadingGate from "../LoadingGate";
 import Style from "./Style";
 
 const resolvePhoto = (photoURL) => {
@@ -111,18 +111,6 @@ const Notifications = ({ onViewPost, onNavigateProfile, onNavigateMessaging }) =
     );
   }
 
-  if (notifications === undefined) {
-    return (
-      <Paper className={classes.root} elevation={1}>
-        <div className={classes.list}>
-          {Array.from({ length: 5 }).map((_, index) => (
-            <NotificationSkeleton key={`notification-skeleton-${index}`} />
-          ))}
-        </div>
-      </Paper>
-    );
-  }
-
   return (
     <Paper className={classes.root} elevation={1}>
       <div className={classes.header}>
@@ -141,38 +129,43 @@ const Notifications = ({ onViewPost, onNavigateProfile, onNavigateMessaging }) =
         </Button>
       </div>
 
-      {notifications.length === 0 ? (
-        <div className={classes.emptyState}>
-          <Typography variant="body2" color="textSecondary">
-            No notifications yet.
-          </Typography>
-        </div>
-      ) : (
-        <div className={classes.list}>
-          {notifications.map((notification) => (
-            <button
-              type="button"
-              key={notification._id}
-              className={`${classes.item} ${
-                notification.read ? classes.readItem : classes.unreadItem
-              }`}
-              onClick={() => handleItemClick(notification)}
-            >
-              <Avatar
-                src={resolvePhoto(notification.fromUser?.photoURL)}
-                alt={notification.fromUser?.displayName ?? "User"}
-                className={classes.avatar}
-              />
-              <div className={classes.content}>
-                <Typography className={classes.message}>{getNotificationMessage(notification)}</Typography>
-                <Typography className={classes.timestamp}>
-                  <ReactTimeago date={new Date(notification.createdAt).toUTCString()} units="minute" />
-                </Typography>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
+      <LoadingGate isLoading={notifications === undefined}>
+        {notifications?.length === 0 ? (
+          <div className={classes.emptyState}>
+            <Typography variant="body2" color="textSecondary">
+              No notifications yet.
+            </Typography>
+          </div>
+        ) : (
+          <div className={classes.list}>
+            {notifications?.map((notification) => (
+              <button
+                type="button"
+                key={notification._id}
+                className={`${classes.item} ${
+                  notification.read ? classes.readItem : classes.unreadItem
+                }`}
+                onClick={() => handleItemClick(notification)}
+              >
+                <Avatar
+                  src={resolvePhoto(notification.fromUser?.photoURL)}
+                  alt={notification.fromUser?.displayName ?? "User"}
+                  className={classes.avatar}
+                />
+                <div className={classes.content}>
+                  <Typography className={classes.message}>{getNotificationMessage(notification)}</Typography>
+                  <Typography className={classes.timestamp}>
+                    <ReactTimeago
+                      date={new Date(notification.createdAt).toUTCString()}
+                      units="minute"
+                    />
+                  </Typography>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </LoadingGate>
     </Paper>
   );
 };

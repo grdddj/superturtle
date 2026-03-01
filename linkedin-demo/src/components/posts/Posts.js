@@ -6,7 +6,7 @@ import Animation from "../animations/Animation";
 import Loading from "../../assets/images/loading-dots.json";
 import { DEFAULT_PHOTO } from "../../constants";
 import useConvexPosts from "../../hooks/useConvexPosts";
-import PostSkeleton from "../skeletons/PostSkeleton";
+import LoadingGate from "../LoadingGate";
 
 const Posts = ({ onNavigateProfile }) => {
   const classes = Style();
@@ -22,34 +22,30 @@ const Posts = ({ onNavigateProfile }) => {
 
   return (
     <div className={classes.posts}>
-      {isLoading ? (
-        <>
-          <PostSkeleton />
-          <PostSkeleton />
-          <PostSkeleton />
-        </>
-      ) : posts.length === 0 ? (
-        <Animation src={Loading} />
-      ) : (
-        <FlipMove style={{ width: "100%" }}>
-          {posts.map((post) => (
-            <Post
-              key={post._id}
-              postId={post._id}
-              authorId={post.authorId}
-              likesCount={post.likesCount}
-              commentsCount={post.commentsCount}
-              profile={getProfilePhoto(post.authorPhotoURL ?? post.author?.photoURL)}
-              username={post.authorName ?? post.author?.displayName}
-              timestamp={post.createdAt}
-              description={post.description}
-              fileType={post.fileType}
-              fileData={post.fileData}
-              onNavigateProfile={onNavigateProfile}
-            />
-          ))}
-        </FlipMove>
-      )}
+      <LoadingGate isLoading={isLoading}>
+        {posts?.length === 0 ? (
+          <Animation src={Loading} />
+        ) : (
+          <FlipMove style={{ width: "100%" }}>
+            {posts?.map((post) => (
+              <Post
+                key={post._id}
+                postId={post._id}
+                authorId={post.authorId}
+                likesCount={post.likesCount}
+                commentsCount={post.commentsCount}
+                profile={getProfilePhoto(post.authorPhotoURL ?? post.author?.photoURL)}
+                username={post.authorName ?? post.author?.displayName}
+                timestamp={post.createdAt}
+                description={post.description}
+                fileType={post.fileType}
+                fileData={post.fileData}
+                onNavigateProfile={onNavigateProfile}
+              />
+            ))}
+          </FlipMove>
+        )}
+      </LoadingGate>
     </div>
   );
 };

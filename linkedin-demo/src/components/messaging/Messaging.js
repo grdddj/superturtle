@@ -9,12 +9,12 @@ import {
   TextField,
   Typography,
 } from "@material-ui/core";
-import Skeleton from "@material-ui/lab/Skeleton";
 import ArrowBackIcon from "@material-ui/icons/ArrowBack";
 import SendIcon from "@material-ui/icons/Send";
 import { api } from "../../convex/_generated/api";
 import { DEFAULT_PHOTO } from "../../constants";
 import useConvexUser from "../../hooks/useConvexUser";
+import LoadingGate from "../LoadingGate";
 import useStyles from "./Style";
 
 const truncatePreview = (value = "", maxLength = 50) => {
@@ -134,78 +134,48 @@ const Messaging = () => {
     );
   }
 
-  if (conversations === undefined) {
-    return (
-      <Paper className={classes.root} elevation={1}>
-        <div className={classes.listView}>
-          <div className={classes.listHeader}>
-            <Typography variant="h6" style={{ fontSize: 18, fontWeight: 700 }}>
-              Messaging
-            </Typography>
-          </div>
-          {Array.from({ length: 4 }).map((_, index) => (
-            <div
-              key={`conversation-skeleton-${index}`}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                padding: "12px 16px",
-                borderBottom: "1px solid #f1f3f4",
-              }}
-            >
-              <Skeleton variant="circle" width={40} height={40} animation="wave" />
-              <div style={{ flex: 1 }}>
-                <Skeleton variant="text" width="56%" height={18} animation="wave" />
-                <Skeleton variant="text" width="78%" height={16} animation="wave" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </Paper>
-    );
-  }
-
   if (!selectedConversationId) {
     return (
       <Paper className={classes.root} elevation={1}>
-        <div className={classes.listView}>
-          <div className={classes.listHeader}>
-            <Typography variant="h6" style={{ fontSize: 18, fontWeight: 700 }}>
-              Messaging
-            </Typography>
-          </div>
-          {conversations.length === 0 ? (
-            <div className={classes.emptyState}>
-              <Typography variant="body2">No conversations yet.</Typography>
+        <LoadingGate isLoading={conversations === undefined}>
+          <div className={classes.listView}>
+            <div className={classes.listHeader}>
+              <Typography variant="h6" style={{ fontSize: 18, fontWeight: 700 }}>
+                Messaging
+              </Typography>
             </div>
-          ) : (
-            conversations.map((conversation) => {
-              const preview = conversation.latestMessage?.body ?? "No messages yet";
-              const displayName = conversation.otherParticipant?.displayName ?? "Unknown user";
-              const photoURL = resolvePhoto(conversation.otherParticipant?.photoURL);
-              const timestamp = conversation.latestMessage?.createdAt ?? conversation.createdAt;
+            {conversations?.length === 0 ? (
+              <div className={classes.emptyState}>
+                <Typography variant="body2">No conversations yet.</Typography>
+              </div>
+            ) : (
+              conversations?.map((conversation) => {
+                const preview = conversation.latestMessage?.body ?? "No messages yet";
+                const displayName = conversation.otherParticipant?.displayName ?? "Unknown user";
+                const photoURL = resolvePhoto(conversation.otherParticipant?.photoURL);
+                const timestamp = conversation.latestMessage?.createdAt ?? conversation.createdAt;
 
-              return (
-                <button
-                  type="button"
-                  key={conversation._id}
-                  className={classes.conversationItem}
-                  onClick={() => setSelectedConversationId(conversation._id)}
-                >
-                  <Avatar src={photoURL} alt={displayName} />
-                  <div className={classes.conversationMain}>
-                    <div className={classes.conversationTopRow}>
-                      <p className={classes.conversationName}>{displayName}</p>
-                      <span className={classes.conversationTime}>{formatTimeAgo(timestamp)}</span>
+                return (
+                  <button
+                    type="button"
+                    key={conversation._id}
+                    className={classes.conversationItem}
+                    onClick={() => setSelectedConversationId(conversation._id)}
+                  >
+                    <Avatar src={photoURL} alt={displayName} />
+                    <div className={classes.conversationMain}>
+                      <div className={classes.conversationTopRow}>
+                        <p className={classes.conversationName}>{displayName}</p>
+                        <span className={classes.conversationTime}>{formatTimeAgo(timestamp)}</span>
+                      </div>
+                      <p className={classes.conversationPreview}>{truncatePreview(preview, 50)}</p>
                     </div>
-                    <p className={classes.conversationPreview}>{truncatePreview(preview, 50)}</p>
-                  </div>
-                </button>
-              );
-            })
-          )}
-        </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </LoadingGate>
       </Paper>
     );
   }

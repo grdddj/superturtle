@@ -3,7 +3,7 @@ import { useQuery } from "convex/react";
 import { Avatar, Button, Paper, TextField, Typography } from "@material-ui/core";
 import { api } from "../../convex/_generated/api";
 import { DEFAULT_PHOTO } from "../../constants";
-import UserCardSkeleton from "../skeletons/UserCardSkeleton";
+import LoadingGate from "../LoadingGate";
 import Style from "./Style";
 
 const resolvePhoto = (photoURL) => {
@@ -35,19 +35,7 @@ const Network = ({ onNavigateProfile }) => {
     });
   }, [users, normalizedTerm]);
 
-  if (users === undefined) {
-    return (
-      <div className={classes.network}>
-        <div className={classes.grid}>
-          {Array.from({ length: 6 }, (_, index) => (
-            <UserCardSkeleton key={`network-skeleton-${index}`} />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (users.length === 0) {
+  if (users?.length === 0) {
     return (
       <Paper className={classes.stateCard} elevation={1}>
         <Typography variant="body2" color="textSecondary">
@@ -71,71 +59,75 @@ const Network = ({ onNavigateProfile }) => {
           inputProps={{ "aria-label": "Search users in network" }}
         />
       </div>
-      <div className={classes.grid}>
-        {filteredUsers.map((user) => {
-          const isPending = pendingIds.has(user._id);
+      <LoadingGate isLoading={users === undefined}>
+        <>
+          <div className={classes.grid}>
+            {filteredUsers.map((user) => {
+              const isPending = pendingIds.has(user._id);
 
-          return (
-            <Paper
-              key={user._id}
-              elevation={1}
-              className={classes.card}
-              role="button"
-              tabIndex={0}
-              onClick={() => onNavigateProfile(user._id)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  onNavigateProfile(user._id);
-                }
-              }}
-            >
-              <Avatar
-                src={resolvePhoto(user.photoURL)}
-                alt={user.displayName}
-                className={classes.avatar}
-              />
-              <div className={classes.info}>
-                <Typography className={classes.displayName}>{user.displayName}</Typography>
-                <Typography className={classes.title}>{user.title}</Typography>
-                <Typography className={classes.location}>
-                  {user.location?.trim().length > 0 ? user.location : "Location not listed"}
-                </Typography>
-              </div>
-              <Button
-                variant="outlined"
-                size="small"
-                disabled={isPending}
-                className={`${classes.connectButton} ${
-                  isPending ? classes.connectButtonPending : ""
-                }`}
-                onClick={(event) => {
-                  event.stopPropagation();
+              return (
+                <Paper
+                  key={user._id}
+                  elevation={1}
+                  className={classes.card}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onNavigateProfile(user._id)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onNavigateProfile(user._id);
+                    }
+                  }}
+                >
+                  <Avatar
+                    src={resolvePhoto(user.photoURL)}
+                    alt={user.displayName}
+                    className={classes.avatar}
+                  />
+                  <div className={classes.info}>
+                    <Typography className={classes.displayName}>{user.displayName}</Typography>
+                    <Typography className={classes.title}>{user.title}</Typography>
+                    <Typography className={classes.location}>
+                      {user.location?.trim().length > 0 ? user.location : "Location not listed"}
+                    </Typography>
+                  </div>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    disabled={isPending}
+                    className={`${classes.connectButton} ${
+                      isPending ? classes.connectButtonPending : ""
+                    }`}
+                    onClick={(event) => {
+                      event.stopPropagation();
 
-                  if (isPending) {
-                    return;
-                  }
+                      if (isPending) {
+                        return;
+                      }
 
-                  setPendingIds((prev) => {
-                    const next = new Set(prev);
-                    next.add(user._id);
-                    return next;
-                  });
-                }}
-              >
-                {isPending ? "Pending" : "Connect"}
-              </Button>
+                      setPendingIds((prev) => {
+                        const next = new Set(prev);
+                        next.add(user._id);
+                        return next;
+                      });
+                    }}
+                  >
+                    {isPending ? "Pending" : "Connect"}
+                  </Button>
+                </Paper>
+              );
+            })}
+          </div>
+          {filteredUsers.length === 0 && (
+            <Paper className={classes.stateCard} elevation={1}>
+              <Typography variant="body2" color="textSecondary">
+                No people match "{searchTerm.trim()}".
+              </Typography>
             </Paper>
-          );
-        })}
-      </div>
-      {filteredUsers.length === 0 && (
-        <Paper className={classes.stateCard} elevation={1}>
-          <Typography variant="body2" color="textSecondary">
-            No people match "{searchTerm.trim()}".
-          </Typography>
-        </Paper>
-      )}
+          )}
+        </>
+      </LoadingGate>
     </div>
   );
 };
