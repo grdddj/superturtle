@@ -10,11 +10,15 @@ import CommentOutlinedIcon from "@material-ui/icons/CommentOutlined";
 import ReactPlayer from "react-player";
 import ReactTimeago from "react-timeago";
 import * as images from "../../../assets/images/images";
+import useConvexUser from "../../../hooks/useConvexUser";
 import Style from "./Style";
 
 const Post = forwardRef(
   ({ profile, username, timestamp, description, fileType, fileData, onNavigateProfile }, ref) => {
     const classes = Style();
+    const featuredUser = useConvexUser();
+    const isTadeas = username === featuredUser?.displayName;
+    const handleProfileClick = isTadeas ? onNavigateProfile : undefined;
 
     const [likesCount, setLikesCount] = useState(1);
     const [commentsCount, setCommentsCount] = useState(1);
@@ -72,9 +76,18 @@ const Post = forwardRef(
     return (
       <Paper ref={ref} className={classes.post}>
         <div className={classes.post__header}>
-          <Avatar src={profile} onClick={onNavigateProfile} />
+          <Avatar
+            src={profile}
+            onClick={handleProfileClick}
+            style={isTadeas ? { cursor: "pointer" } : undefined}
+          />
           <div className={classes.header__info}>
-            <h4 onClick={onNavigateProfile}>{capitalize(username)}</h4>
+            <h4
+              onClick={handleProfileClick}
+              style={isTadeas ? { cursor: "pointer" } : { cursor: "default" }}
+            >
+              {capitalize(username)}
+            </h4>
             <p>
               <ReactTimeago date={new Date(timestamp?.toDate()).toUTCString()} units="minute" />
             </p>

@@ -1,5 +1,5 @@
 ## Current Task
-Update `linkedin-demo/src/components/posts/post/Post.js` so the `isTadeas` check compares against the featured user's displayName from Convex.
+All backlog items are complete.
 
 ## End Goal with Specs
 - App fetches posts and user data from Convex instead of static mock imports
@@ -17,9 +17,9 @@ Update `linkedin-demo/src/components/posts/post/Post.js` so the `isTadeas` check
 - [x] Update `linkedin-demo/src/components/posts/Posts.js`: replace `import { mockPosts }` with `useConvexPosts()` hook. Map over the returned posts, adapting field names (authorName→username, authorPhotoURL→profile, etc). Keep the same JSX structure
 - [x] Update `linkedin-demo/src/components/profile/Profile.js`: use `useConvexUser()` hook for user data instead of importing from mock/user.js. Fall back to props/defaults while loading
 - [x] Add auto-seed: in `linkedin-demo/src/App.js`, on mount, call the seed mutation via `useMutation(api.seed.seedData)` so the database gets populated on first visit
-- [ ] Update `linkedin-demo/src/components/posts/post/Post.js`: the isTadeas check should compare against the featured user's displayName from Convex (import useConvexUser or pass isFeatured as a prop from Posts) <- current
-- [ ] Run `cd linkedin-demo && npm run build` to verify build succeeds with Convex integration
-- [ ] Commit with message "Wire React frontend to Convex backend"
+- [x] Update `linkedin-demo/src/components/posts/post/Post.js`: the isTadeas check should compare against the featured user's displayName from Convex (import useConvexUser or pass isFeatured as a prop from Posts)
+- [x] Run `cd linkedin-demo && npm run build` to verify build succeeds with Convex integration
+- [x] Commit with message "Wire React frontend to Convex backend"
 
 ## Notes
 - IMPORTANT: All paths are relative to the repo root `/Users/Richard.Mladek/Documents/projects/agentic/`. The linkedin-demo project is at `linkedin-demo/`. The convex folder is at `linkedin-demo/convex/`. Run all npm commands from `linkedin-demo/`.
@@ -31,3 +31,6 @@ Update `linkedin-demo/src/components/posts/post/Post.js` so the `isTadeas` check
 - The timestamp field changes from `{ toDate: () => Date }` to a plain epoch number (createdAt). Update ReactTimeago: `new Date(createdAt)` instead of `timestamp?.toDate()`
 - Keep the existing UI/styling — only change data sources
 - `.env.local` already has REACT_APP_CONVEX_URL set
+
+## Loop Control
+STOP
