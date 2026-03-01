@@ -14,10 +14,15 @@ export const listPosts = query({
           .query("likes")
           .filter((q) => q.eq(q.field("postId"), post._id))
           .collect();
+        const comments = await ctx.db
+          .query("comments")
+          .filter((q) => q.eq(q.field("postId"), post._id))
+          .collect();
 
         return {
           ...post,
           likesCount: likes.length,
+          commentsCount: comments.length,
           author: author
             ? {
                 displayName: author.displayName ?? author.name ?? "Guest User",
@@ -49,10 +54,15 @@ export const listPostsByUser = query({
           .query("likes")
           .filter((q) => q.eq(q.field("postId"), post._id))
           .collect();
+        const comments = await ctx.db
+          .query("comments")
+          .filter((q) => q.eq(q.field("postId"), post._id))
+          .collect();
 
         return {
           ...post,
           likesCount: likes.length,
+          commentsCount: comments.length,
           author: author
             ? {
                 displayName: author.displayName ?? author.name ?? "Guest User",

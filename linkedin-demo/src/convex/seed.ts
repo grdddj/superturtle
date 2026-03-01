@@ -137,8 +137,8 @@ export const seedData = mutation({
         authorId: post.authorId,
         description: post.description,
         createdAt: createdAtFromMinutesAgo(post.minutesAgo),
-        likesCount: 1,
-        commentsCount: 1,
+        likesCount: 0,
+        commentsCount: 0,
         ...(post.fileType ? { fileType: post.fileType } : {}),
         ...(post.fileData ? { fileData: post.fileData } : {}),
       });

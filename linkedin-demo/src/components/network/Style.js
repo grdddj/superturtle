@@ -20,19 +20,15 @@ export default makeStyles((theme) => ({
     marginTop: theme.spacing(1.5),
   },
   grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: theme.spacing(1.5),
-    [theme.breakpoints.down("xs")]: {
-      gridTemplateColumns: "1fr",
-      gap: theme.spacing(1),
-    },
+    display: "flex",
+    flexDirection: "column",
+    gap: theme.spacing(1),
   },
   card: {
     width: "100%",
     boxSizing: "border-box",
     backgroundColor: "#fff",
-    padding: theme.spacing(2),
+    padding: theme.spacing(1.5, 2),
     display: "flex",
     alignItems: "center",
     gap: theme.spacing(1.5),
