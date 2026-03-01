@@ -1,5 +1,5 @@
 ## Current Task
-Update `linkedin-demo/public/manifest.json` name and short_name to "LinkedOut" (or "LinkedOut Demo").
+Add a small demo banner in `linkedin-demo/public/index.html` (e.g., in root div comment or noscript) without touching React files.
 
 ## End Goal with Specs
 - Browser title shows "LinkedOut" and indicates demo.
@@ -10,8 +10,8 @@ Update `linkedin-demo/public/manifest.json` name and short_name to "LinkedOut" (
 ## Backlog
 - [x] Update `linkedin-demo/public/index.html` title to "LinkedOut" and add a brief demo description meta
 - [x] Ensure viewport meta tag is present and correct for mobile
-- [ ] Update `linkedin-demo/public/manifest.json` name and short_name to "LinkedOut" (or "LinkedOut Demo") <- current
-- [ ] Add a small demo banner in `linkedin-demo/public/index.html` (e.g., in root div comment or noscript) without touching React files
+- [x] Update `linkedin-demo/public/manifest.json` name and short_name to "LinkedOut" (or "LinkedOut Demo")
+- [ ] Add a small demo banner in `linkedin-demo/public/index.html` (e.g., in root div comment or noscript) without touching React files <- current
 
 ## Notes
 - Only touch files under `linkedin-demo/public/`
