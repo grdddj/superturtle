@@ -1,5 +1,5 @@
 ## Current Task
-Build: `cd linkedin-demo && npm run build`
+All messaging backlog items complete.
 
 ## End Goal with Specs
 - `conversations` table in Convex schema: participants (array of user IDs), createdAt
@@ -26,8 +26,8 @@ Build: `cd linkedin-demo && npm run build`
 - [x] Create `linkedin-demo/src/components/messaging/Style.js` with Material-UI `makeStyles`. Style the conversation list items (avatar + text + timestamp row), message bubbles (green #2e7d32 for own, #e0e0e0 for others), input bar, and back button.
 - [x] Wire messaging tab in App.js: The `activeTabLabel` map already has "Messaging" as a key but renders "Coming soon." Change it so when `activeTab === "messaging"` (update the key from current mapping), render `<Messaging />` component instead of the "Coming soon" Paper. Note: the bottom nav in Header.js uses `tabItems` array — check if "messaging" key exists there, if not add it (the TelegramIcon is already in the `items` array for desktop nav).
 - [x] Push functions: `cd linkedin-demo && npx convex dev --once`
-- [ ] Build: `cd linkedin-demo && npm run build` <- current
-- [ ] Commit with message "Add real-time messaging: conversations, messages, chat UI"
+- [x] Build: `cd linkedin-demo && npm run build`
+- [x] Commit with message "Add real-time messaging: conversations, messages, chat UI" <- current
 
 ## Notes
 - All paths from repo root: `/Users/Richard.Mladek/Documents/projects/agentic/`
@@ -38,3 +38,6 @@ Build: `cd linkedin-demo && npm run build`
 - `useConvexUser()` hook returns the current auth user (with ._id)
 - Green colors: primary #2e7d32, light #66bb6a
 - The existing "Coming soon" pattern in App.js (lines 113-117) is what we replace for the messaging tab
+
+## Loop Control
+STOP
