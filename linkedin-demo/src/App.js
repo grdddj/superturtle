@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useMutation } from "convex/react";
 import { useSelector, useDispatch } from "react-redux";
 import { Grid, Hidden, Paper, Typography } from "@material-ui/core";
 import { ThemeProvider, createMuiTheme } from "@material-ui/core";
@@ -9,6 +10,7 @@ import Profile from "./components/profile/Profile";
 import Sidebar from "./components/sidebar/Sidebar";
 import Widgets from "./components/widgets/Widgets";
 import { LoginAction } from "./store/actions/auth";
+import { api } from "./convex/_generated/api";
 import { mockUser } from "./mock/user";
 import Styles from "./Style";
 import { LinkedInBgColor, darkPrimary } from "./assets/Colors";
@@ -19,6 +21,7 @@ const App = () => {
   const mode = useSelector((state) => state.util);
   const [activeTab, setActiveTab] = useState("home");
   const [view, setView] = useState("feed");
+  const seedData = useMutation(api.seed.seedData);
 
   const muiTheme = createMuiTheme({
     palette: {
@@ -29,6 +32,18 @@ const App = () => {
   useEffect(() => {
     dispatch(LoginAction(mockUser));
   }, [dispatch]);
+
+  useEffect(() => {
+    const runSeed = async () => {
+      try {
+        await seedData({});
+      } catch (error) {
+        console.error("Failed to seed Convex data:", error);
+      }
+    };
+
+    runSeed();
+  }, [seedData]);
 
   const activeTabLabel = {
     home: "Home",
