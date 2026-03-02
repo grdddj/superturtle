@@ -130,6 +130,17 @@ export default makeStyles((theme) => ({
     fontWeight: 600,
     color: theme.palette.type === "dark" ? "lightgrey" : "#1d2226",
   },
+  searchResultPrimaryRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 4,
+    minWidth: 0,
+  },
+  searchVerifiedIcon: {
+    fontSize: 16,
+    color: "#1a73e8",
+    flexShrink: 0,
+  },
   searchResultSecondary: {
     fontSize: 12,
     color: theme.palette.type === "dark" ? "#9ca3af" : "#6b7280",

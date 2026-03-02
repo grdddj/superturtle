@@ -4,6 +4,7 @@ import { Avatar, Button, Paper, Typography } from "@material-ui/core";
 import { makeStyles } from "@material-ui/core/styles";
 import { fade } from "@material-ui/core/styles/colorManipulator";
 import BusinessIcon from "@material-ui/icons/Business";
+import VerifiedUserIcon from "@material-ui/icons/VerifiedUser";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
 import { darkSecondary } from "../../assets/Colors";
@@ -66,6 +67,16 @@ const useStyles = makeStyles((theme) => ({
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
+  },
+  nameRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 4,
+  },
+  verifiedIcon: {
+    fontSize: 16,
+    color: "#1a73e8",
+    flexShrink: 0,
   },
   industry: {
     fontSize: 12,
@@ -179,7 +190,15 @@ const CompanySuggestions = () => {
                     {!company.logoURL ? <BusinessIcon fontSize="small" /> : null}
                   </Avatar>
                   <div className={classes.textBlock}>
-                    <Typography className={classes.name}>{company.name}</Typography>
+                    <div className={classes.nameRow}>
+                      <Typography className={classes.name}>{company.name}</Typography>
+                      {company.isVerified ? (
+                        <VerifiedUserIcon
+                          className={classes.verifiedIcon}
+                          aria-label="Verified company"
+                        />
+                      ) : null}
+                    </div>
                     <Typography className={classes.industry}>
                       {`${company.industry || "Unknown industry"} • ${getFollowerLabel(
                         company.followerCount,

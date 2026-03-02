@@ -27,6 +27,7 @@ import WbSunnyOutlinedIcon from "@material-ui/icons/WbSunnyOutlined";
 import PersonIcon from "@material-ui/icons/Person";
 import PersonOutlineIcon from "@material-ui/icons/PersonOutline";
 import BusinessIcon from "@material-ui/icons/Business";
+import VerifiedUserIcon from "@material-ui/icons/VerifiedUser";
 import { api } from "../../convex/_generated/api";
 import useConvexUser from "../../hooks/useConvexUser";
 import MenuItem from "./menuItem/MenuItem";
@@ -425,9 +426,17 @@ const Header = ({
                               {!company.logoURL ? <BusinessIcon fontSize="small" /> : null}
                             </Avatar>
                             <div className={classes.searchResultContent}>
-                              <Typography className={classes.searchResultPrimary}>
-                                {company.name}
-                              </Typography>
+                              <div className={classes.searchResultPrimaryRow}>
+                                <Typography className={classes.searchResultPrimary}>
+                                  {company.name}
+                                </Typography>
+                                {company.isVerified ? (
+                                  <VerifiedUserIcon
+                                    className={classes.searchVerifiedIcon}
+                                    aria-label="Verified company"
+                                  />
+                                ) : null}
+                              </div>
                               <Typography className={classes.searchResultSecondary}>
                                 {`${company.industry || "Unknown industry"} • ${getFollowerLabel(
                                   company.followerCount

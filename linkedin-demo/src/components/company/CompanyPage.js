@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   Avatar,
   Card,
@@ -19,8 +19,9 @@ import BusinessIcon from "@material-ui/icons/Business";
 import MoreVertIcon from "@material-ui/icons/MoreVert";
 import VerifiedUserIcon from "@material-ui/icons/VerifiedUser";
 import { api } from "../../convex/_generated/api";
-import CompanyAnalytics from "./CompanyAnalytics";
-import CompanyJobsTab from "./CompanyJobsTab";
+import CompanyAboutTab from "./CompanyAboutTab";
+import CompanyPeopleTab from "./CompanyPeopleTab";
+import CompanyPostsTab from "./CompanyPostsTab";
 
 const useStyles = makeStyles((theme) => ({
   pageCard: {
@@ -125,31 +126,8 @@ const useStyles = makeStyles((theme) => ({
       marginTop: theme.spacing(1.5),
     },
   },
-  aboutSection: {
-    marginTop: 0,
-  },
-  aboutTitle: {
-    color: theme.palette.text.secondary,
-    fontWeight: 600,
-    textTransform: "uppercase",
-    fontSize: 12,
-    letterSpacing: 0.4,
-  },
-  aboutBody: {
-    marginTop: theme.spacing(1),
-    color: theme.palette.text.primary,
-    whiteSpace: "pre-wrap",
-  },
   adminButton: {
     color: theme.palette.primary.main,
-  },
-  emptyStateCard: {
-    border: `1px solid ${theme.palette.divider}`,
-    backgroundColor: theme.palette.background.paper,
-  },
-  emptyStateBody: {
-    color: theme.palette.text.secondary,
-    textAlign: "center",
   },
 }));
 
@@ -161,13 +139,13 @@ const formatFollowerCount = (count) => {
 };
 
 const TAB_ABOUT = "about";
+const TAB_PEOPLE = "people";
 const TAB_POSTS = "posts";
-const TAB_JOBS = "jobs";
-const TAB_ANALYTICS = "analytics";
 
 const CompanyPage = ({ slug: slugProp }) => {
   const classes = useStyles();
   const theme = useTheme();
+  const navigate = useNavigate();
   const isMobileLayout = useMediaQuery("(max-width:767px)");
   const params = useParams();
   const [adminMenuAnchor, setAdminMenuAnchor] = useState(null);
@@ -193,6 +171,18 @@ const CompanyPage = ({ slug: slugProp }) => {
     company.admins.some((adminId) => adminId === currentUser._id);
 
   const closeAdminMenu = () => setAdminMenuAnchor(null);
+  const handleNavigateProfile = ({ username, userId }) => {
+    const normalizedUsername = typeof username === "string" ? username.trim().toLowerCase() : "";
+
+    if (normalizedUsername) {
+      navigate(`/${encodeURIComponent(normalizedUsername)}`);
+      return;
+    }
+
+    if (userId) {
+      navigate(`/profile/${encodeURIComponent(userId)}`);
+    }
+  };
 
   const handleCopyCompanyLink = async () => {
     if (!company?.slug || !window?.navigator?.clipboard) {
@@ -322,34 +312,16 @@ const CompanyPage = ({ slug: slugProp }) => {
           className={classes.tabs}
         >
           <Tab value={TAB_ABOUT} label="About" className={classes.tab} />
+          <Tab value={TAB_PEOPLE} label="People" className={classes.tab} />
           <Tab value={TAB_POSTS} label="Posts" className={classes.tab} />
-          <Tab value={TAB_JOBS} label="Jobs" className={classes.tab} />
-          {isAdmin ? <Tab value={TAB_ANALYTICS} label="Analytics" className={classes.tab} /> : null}
         </Tabs>
 
         <div className={classes.tabPanel}>
-          {activeTab === TAB_ABOUT ? (
-            <div className={classes.aboutSection}>
-              <Typography className={classes.aboutTitle}>About</Typography>
-              <Typography variant="body1" className={classes.aboutBody}>
-                {company.description || "No company description available yet."}
-              </Typography>
-            </div>
-          ) : null}
-
+          {activeTab === TAB_ABOUT ? <CompanyAboutTab company={company} /> : null}
+          {activeTab === TAB_PEOPLE ? <CompanyPeopleTab company={company} /> : null}
           {activeTab === TAB_POSTS ? (
-            <Card elevation={0} className={classes.emptyStateCard}>
-              <CardContent>
-                <Typography variant="body2" className={classes.emptyStateBody}>
-                  No company posts yet.
-                </Typography>
-              </CardContent>
-            </Card>
+            <CompanyPostsTab companyId={company._id} onNavigateProfile={handleNavigateProfile} />
           ) : null}
-
-          {activeTab === TAB_JOBS ? <CompanyJobsTab /> : null}
-
-          {activeTab === TAB_ANALYTICS && isAdmin ? <CompanyAnalytics companyId={company._id} /> : null}
         </div>
       </CardContent>
     </Card>

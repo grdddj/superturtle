@@ -292,6 +292,7 @@ export const searchCompanies = query({
         slug: company.slug,
         industry: company.industry,
         followerCount: followerCountByCompanyId.get(company._id) ?? 0,
+        isVerified: company.isVerified ?? false,
         logoStorageId: company.logoStorageId ?? null,
       }));
   },
@@ -340,6 +341,7 @@ export const getCompanySuggestions = query({
         slug: company.slug,
         industry: company.industry,
         followerCount: followerCountByCompanyId.get(company._id) ?? 0,
+        isVerified: company.isVerified ?? false,
         logoURL: company.logoStorageId ? await ctx.storage.getUrl(company.logoStorageId) : null,
       })),
     );
