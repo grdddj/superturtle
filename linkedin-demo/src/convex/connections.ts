@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { buildAuthorSummary } from "./helpers";
 
 export const sendConnectionRequest = mutation({
   args: {
@@ -192,22 +193,26 @@ export const listConnections = query({
           return null;
         }
 
+        const userSummary = await buildAuthorSummary(ctx, user);
         return {
           connectionId: connection.connectionId,
-          user: {
-            _id: user._id,
-            displayName: user.displayName ?? user.name ?? "Guest User",
-            photoURL: user.photoURL ?? user.image ?? "",
-            title: user.title ?? "",
-            location: user.location ?? "",
-          },
+          user: userSummary
+            ? {
+                ...userSummary,
+                location: user.location ?? "",
+              }
+            : null,
         };
       }),
     );
 
     return withUsers
-      .filter((connection): connection is NonNullable<typeof connection> =>
-        Boolean(connection),
+      .filter(
+        (
+          connection,
+        ): connection is NonNullable<typeof connection> & {
+          user: NonNullable<NonNullable<typeof connection>["user"]>;
+        } => Boolean(connection) && Boolean(connection.user),
       )
       .sort((a, b) => a.user.displayName.localeCompare(b.user.displayName));
   },
@@ -232,22 +237,26 @@ export const listPendingRequests = query({
           return null;
         }
 
+        const requesterSummary = await buildAuthorSummary(ctx, requester);
         return {
           connectionId: connection._id,
-          user: {
-            _id: requester._id,
-            displayName: requester.displayName ?? requester.name ?? "Guest User",
-            photoURL: requester.photoURL ?? requester.image ?? "",
-            title: requester.title ?? "",
-            location: requester.location ?? "",
-          },
+          user: requesterSummary
+            ? {
+                ...requesterSummary,
+                location: requester.location ?? "",
+              }
+            : null,
         };
       }),
     );
 
     return withUsers
-      .filter((connection): connection is NonNullable<typeof connection> =>
-        Boolean(connection),
+      .filter(
+        (
+          connection,
+        ): connection is NonNullable<typeof connection> & {
+          user: NonNullable<NonNullable<typeof connection>["user"]>;
+        } => Boolean(connection) && Boolean(connection.user),
       )
       .sort((a, b) => a.user.displayName.localeCompare(b.user.displayName));
   },

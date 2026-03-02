@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { buildAuthorSummary } from "./helpers";
 
 const normalizeParticipants = (participantIds: string[]) => {
   return [...new Set(participantIds)].sort();
@@ -150,13 +151,7 @@ export const listConversations = query({
 
         return {
           ...conversation,
-          otherParticipant: otherParticipant
-            ? {
-                _id: otherParticipant._id,
-                displayName: otherParticipant.displayName ?? otherParticipant.name ?? "Guest User",
-                photoURL: otherParticipant.photoURL ?? otherParticipant.image ?? "",
-              }
-            : null,
+          otherParticipant: await buildAuthorSummary(ctx, otherParticipant),
           latestMessage,
           latestMessageCreatedAt: latestMessage
             ? latestMessage.createdAt
@@ -188,13 +183,7 @@ export const listMessages = query({
         const sender = await ctx.db.get(message.senderId);
         return {
           ...message,
-          sender: sender
-            ? {
-                _id: sender._id,
-                displayName: sender.displayName ?? sender.name ?? "Guest User",
-                photoURL: sender.photoURL ?? sender.image ?? "",
-              }
-            : null,
+          sender: await buildAuthorSummary(ctx, sender),
         };
       }),
     );

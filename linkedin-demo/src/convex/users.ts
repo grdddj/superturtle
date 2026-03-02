@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import type { Doc, Id } from "./_generated/dataModel";
+import { resolveUserPhotoURL } from "./helpers";
 
 const USERNAME_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -15,20 +16,6 @@ const slugifyUsername = (value: string) => {
 };
 
 const normalizeUsername = (value: string) => value.trim().toLowerCase();
-
-const resolveUserPhotoURL = async (
-  ctx: { storage: { getUrl: (storageId: Id<"_storage">) => Promise<string | null> } },
-  user: Doc<"users">,
-) => {
-  if (user.photoStorageId) {
-    const storagePhotoURL = await ctx.storage.getUrl(user.photoStorageId);
-    if (storagePhotoURL) {
-      return storagePhotoURL;
-    }
-  }
-
-  return user.photoURL ?? user.image ?? "";
-};
 
 const resolveUserCoverURL = async (
   ctx: { storage: { getUrl: (storageId: Id<"_storage">) => Promise<string | null> } },

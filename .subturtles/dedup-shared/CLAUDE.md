@@ -1,5 +1,5 @@
 ## Current Task
-Update all Convex functions to import from shared helpers.
+Verify no unused local copies remain (grep for old function definitions).
 
 ## End Goal with Specs
 All duplicated helpers (resolvePhoto, resolveUserPhotoURL, buildAuthorSummary, REACTION_ITEMS) extracted into shared files. Each utility defined once, imported everywhere.
@@ -9,16 +9,16 @@ All duplicated helpers (resolvePhoto, resolveUserPhotoURL, buildAuthorSummary, R
 - [x] Create `linkedin-demo/src/utils/reactions.js` — extract `REACTION_ITEMS` constant. Currently duplicated in Post.js and ArticleView.js.
 - [x] Create `linkedin-demo/src/convex/helpers.ts` — extract `resolveUserPhotoURL` and `buildAuthorSummary` server-side helpers. Currently duplicated in bookmarks.ts, articles.ts, posts.ts.
 - [x] Update all components to import from shared modules instead of defining locally
-- [ ] Update all Convex functions to import from shared helpers <- current
-- [ ] Verify no unused local copies remain (grep for old function definitions)
+- [x] Update all Convex functions to import from shared helpers
+- [ ] Verify no unused local copies remain (grep for old function definitions) <- current
 - [ ] Test build: `cd linkedin-demo && npm run build`
 - [ ] Run `cd linkedin-demo && npx convex dev --once` to verify Convex functions still work
 - [ ] Commit
 
 ## Notes
 - 2026-03-02: Shared photo helper import migration is complete across components; `npm run build` passes.
-- 2026-03-02: Progress on Convex helper migration: `posts.ts`, `bookmarks.ts`, and `articles.ts` now import shared author helpers; additional Convex files still need migration.
-- 2026-03-02: `npm run build` currently fails on pre-existing lint error in `src/components/profile/ExperienceSection.js` (`useTheme` called inside callback, react-hooks/rules-of-hooks).
+- 2026-03-02: Convex helper migration completed in `users.ts`, `comments.ts`, `hashtags.ts`, `messaging.ts`, `notifications.ts`, and `connections.ts`; author/photo helpers now import from `src/convex/helpers.ts`.
+- 2026-03-02: `cd linkedin-demo && npm run build` passes after helper migration.
 - Client-side shared utils go in `linkedin-demo/src/utils/`
 - Server-side (Convex) shared helpers go in `linkedin-demo/src/convex/helpers.ts`
 - resolvePhoto pattern: takes URL string, returns Convex storage URL or fallback

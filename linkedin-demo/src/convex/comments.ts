@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { buildAuthorSummary } from "./helpers";
 
 export const addComment = mutation({
   args: {
@@ -76,13 +77,7 @@ export const listComments = query({
         const author = await ctx.db.get(comment.authorId);
         return {
           ...comment,
-          author: author
-            ? {
-                displayName: author.displayName ?? author.name ?? "Guest User",
-                photoURL: author.photoURL ?? author.image ?? "",
-                title: author.title ?? "",
-              }
-            : null,
+          author: await buildAuthorSummary(ctx, author),
         };
       }),
     );

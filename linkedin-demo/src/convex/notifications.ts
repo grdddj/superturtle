@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
+import { buildAuthorSummary } from "./helpers";
 
 export const createNotification = internalMutation({
   args: {
@@ -46,14 +47,7 @@ export const listNotifications = query({
 
         return {
           ...notification,
-          fromUser: fromUser
-            ? {
-                _id: fromUser._id,
-                displayName: fromUser.displayName ?? fromUser.name ?? "Guest User",
-                photoURL: fromUser.photoURL ?? fromUser.image ?? "",
-                username: fromUser.username ?? "",
-              }
-            : null,
+          fromUser: await buildAuthorSummary(ctx, fromUser),
         };
       }),
     );

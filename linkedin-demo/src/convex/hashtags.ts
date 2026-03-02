@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
+import { buildAuthorSummary } from "./helpers";
 
 const normalizeHashtag = (value: string) =>
   value
@@ -73,14 +74,7 @@ export const getPostsByHashtag = query({
           likesCount: likes.length,
           commentsCount: comments.length,
           imageUrls,
-          author: author
-            ? {
-                displayName: author.displayName ?? author.name ?? "Guest User",
-                photoURL: author.photoURL ?? author.image ?? "",
-                title: author.title ?? "",
-                username: author.username ?? "",
-              }
-            : null,
+          author: await buildAuthorSummary(ctx, author),
         };
       }),
     );
