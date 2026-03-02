@@ -25,6 +25,7 @@ import Styles from "./Style";
 import { LinkedInBgColor, LinkedInBlue, darkPrimary } from "./assets/Colors";
 
 const CompanyPage = lazy(() => import("./components/company/CompanyPage"));
+const CreateCompany = lazy(() => import("./components/company/CreateCompany"));
 
 const normalizeHashtag = (value) =>
   value
@@ -53,6 +54,7 @@ const AppShell = () => {
   const articleRouteMatch = useMatch("/article/:id");
   const savedRouteMatch = useMatch("/saved");
   const companyRouteMatch = useMatch("/company/:slug");
+  const createCompanyRouteMatch = useMatch("/create-company");
   const usernameRouteMatch = useMatch("/:username");
   const profileIdRouteMatch = useMatch("/profile/:userId");
   const routeHashtagParam = hashtagRouteMatch?.params?.tag ?? null;
@@ -67,8 +69,13 @@ const AppShell = () => {
   const isArticleRouteActive = Boolean(articleRouteMatch?.params?.id);
   const isSavedRouteActive = Boolean(savedRouteMatch);
   const isCompanyRouteActive = Boolean(routeCompanySlug);
+  const isCreateCompanyRouteActive = Boolean(createCompanyRouteMatch);
   const routeUsername =
-    isWriteArticleRouteActive || isArticleRouteActive || isSavedRouteActive || isCompanyRouteActive
+    isWriteArticleRouteActive ||
+    isArticleRouteActive ||
+    isSavedRouteActive ||
+    isCompanyRouteActive ||
+    isCreateCompanyRouteActive
     ? null
     : usernameRouteMatch?.params?.username?.trim().toLowerCase() ?? null;
   const routeUserId = profileIdRouteMatch?.params?.userId ?? null;
@@ -80,7 +87,8 @@ const AppShell = () => {
     isWriteArticleRouteActive ||
     isArticleRouteActive ||
     isSavedRouteActive ||
-    isCompanyRouteActive;
+    isCompanyRouteActive ||
+    isCreateCompanyRouteActive;
   const { isAuthenticated, isLoading } = useConvexAuth();
   const seedData = useMutation(api.seed.seedData);
   const currentUser = useQuery(api.users.getCurrentUser, isAuthenticated ? {} : "skip");
@@ -267,7 +275,9 @@ const AppShell = () => {
   const shouldShowArticleView = isArticleRouteActive;
   const shouldShowSavedView = isSavedRouteActive;
   const shouldShowCompanyView = isCompanyRouteActive;
+  const shouldShowCreateCompanyView = isCreateCompanyRouteActive;
   const shouldShowProfileView =
+    !shouldShowCreateCompanyView &&
     !shouldShowCompanyView &&
     !shouldShowSavedView &&
     !shouldShowHashtagView &&
@@ -344,12 +354,24 @@ const AppShell = () => {
                   <CompanyPage slug={routeCompanySlug} />
                 </Suspense>
               )}
+              {shouldShowCreateCompanyView && (
+                <Suspense
+                  fallback={
+                    <Typography variant="body2" color="textSecondary">
+                      Loading create company...
+                    </Typography>
+                  }
+                >
+                  <CreateCompany />
+                </Suspense>
+              )}
 
               {/* Keep-alive tabs — always mounted, shown/hidden via display.
                   This prevents Convex query re-fetching and skeleton flashes. */}
               <div
                 style={showWhen(
-                  !shouldShowProfileView &&
+                    !shouldShowProfileView &&
+                    !shouldShowCreateCompanyView &&
                     !shouldShowSavedView &&
                     !shouldShowCompanyView &&
                     !shouldShowHashtagView &&
@@ -368,7 +390,8 @@ const AppShell = () => {
 
               <div
                 style={showWhen(
-                  !shouldShowProfileView &&
+                    !shouldShowProfileView &&
+                    !shouldShowCreateCompanyView &&
                     !shouldShowSavedView &&
                     !shouldShowCompanyView &&
                     !shouldShowHashtagView &&
@@ -382,7 +405,8 @@ const AppShell = () => {
 
               <div
                 style={showWhen(
-                  !shouldShowProfileView &&
+                    !shouldShowProfileView &&
+                    !shouldShowCreateCompanyView &&
                     !shouldShowSavedView &&
                     !shouldShowCompanyView &&
                     !shouldShowHashtagView &&
@@ -397,6 +421,7 @@ const AppShell = () => {
               <div
                 style={showWhen(
                   !shouldShowProfileView &&
+                  !shouldShowCreateCompanyView &&
                   !shouldShowSavedView &&
                   !shouldShowCompanyView &&
                   !shouldShowHashtagView &&

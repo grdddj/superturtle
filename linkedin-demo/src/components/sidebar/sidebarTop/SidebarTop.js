@@ -4,6 +4,7 @@ import { Paper, Avatar, Divider } from "@material-ui/core";
 import { useTheme } from "@material-ui/core/styles";
 import LabelOutlinedIcon from "@material-ui/icons/LabelOutlined";
 import BookmarkBorderIcon from "@material-ui/icons/BookmarkBorder";
+import BusinessIcon from "@material-ui/icons/Business";
 import { Link } from "react-router-dom";
 import { api } from "../../../convex/_generated/api";
 import useConvexUser from "../../../hooks/useConvexUser";
@@ -46,6 +47,12 @@ const SidebarTop = () => {
         <div className={classes.myItems}>
           <BookmarkBorderIcon />
           <h4>Saved posts</h4>
+        </div>
+      </Link>
+      <Link to="/create-company" className={classes.savedPostsLink}>
+        <div className={classes.myItems}>
+          <BusinessIcon />
+          <h4>Create company</h4>
         </div>
       </Link>
     </Paper>
