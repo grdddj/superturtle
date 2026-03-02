@@ -1,5 +1,5 @@
 ## Current Task
-Create `linkedin-demo/src/convex/articles.ts` with create/get article functions.
+Create article editor page `linkedin-demo/src/components/articles/ArticleEditor.js` with title/body/publish UI.
 
 ## End Goal with Specs
 Item 32 from Phase 2: Long-form article posts with rich text editing and dedicated article view page.
@@ -11,8 +11,8 @@ Item 32 from Phase 2: Long-form article posts with rich text editing and dedicat
 
 ## Backlog
 - [x] Add article fields to posts schema (`linkedin-demo/src/convex/schema.ts`) — type: "post"|"article" (default "post"), articleTitle (optional string), articleBody (optional string)
-- [ ] Create `linkedin-demo/src/convex/articles.ts` — mutation: createArticle(title, body, description?); query: getArticle(postId) <- current
-- [ ] Create article editor page `linkedin-demo/src/components/articles/ArticleEditor.js` — title input + large textarea for body + publish button
+- [x] Create `linkedin-demo/src/convex/articles.ts` — mutation: createArticle(title, body, description?); query: getArticle(postId)
+- [ ] Create article editor page `linkedin-demo/src/components/articles/ArticleEditor.js` — title input + large textarea for body + publish button <- current
 - [ ] Add `/write-article` route in App.js and "Write article" button near post composer
 - [ ] Create article view page `linkedin-demo/src/components/articles/ArticleView.js` — full-page layout with title, author info, body, reactions
 - [ ] Add `/article/:id` route in App.js
