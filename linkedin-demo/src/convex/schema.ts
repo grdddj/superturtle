@@ -57,6 +57,9 @@ export default defineSchema({
   posts: defineTable({
     authorId: v.id("users"),
     description: v.string(),
+    type: v.optional(v.union(v.literal("post"), v.literal("article"))),
+    articleTitle: v.optional(v.string()),
+    articleBody: v.optional(v.string()),
     visibility: v.optional(
       v.union(v.literal("public"), v.literal("connections")),
     ),
@@ -67,10 +70,27 @@ export default defineSchema({
     likesCount: v.number(),
     commentsCount: v.number(),
   }),
+  polls: defineTable({
+    postId: v.id("posts"),
+    question: v.string(),
+    options: v.array(v.string()),
+  }).index("byPostId", ["postId"]),
+  pollVotes: defineTable({
+    pollId: v.id("polls"),
+    userId: v.id("users"),
+    optionIndex: v.number(),
+  })
+    .index("byPollId", ["pollId"])
+    .index("byPollAndUser", ["pollId", "userId"]),
   likes: defineTable({
     userId: v.id("users"),
     postId: v.id("posts"),
   }),
+  bookmarks: defineTable({
+    userId: v.id("users"),
+    postId: v.id("posts"),
+    createdAt: v.number(),
+  }).index("byUserId", ["userId"]),
   hashtags: defineTable({
     tag: v.string(),
     postId: v.id("posts"),
