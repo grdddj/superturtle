@@ -1,9 +1,7 @@
-import { WORKING_DIR } from "../config";
+import { WORKING_DIR, CTL_PATH } from "../config";
 import { session } from "../session";
 import { stopActiveDriverQuery } from "./driver-routing";
 import { streamLog } from "../logger";
-
-const CTL_PATH = `${WORKING_DIR}/super_turtle/subturtle/ctl`;
 const stopLog = streamLog.child({ handler: "stop" });
 
 export interface StopSubturtlesResult {

@@ -17,6 +17,8 @@ import {
   CODEX_USER_ENABLED,
   IS_MACOS,
   IS_LINUX,
+  CTL_PATH,
+  BOT_DIR,
   getCodexUnavailableReason,
 } from "../config";
 import { getContextReport } from "../context-command";
@@ -1528,7 +1530,7 @@ export async function handleRestart(ctx: Context): Promise<void> {
   // In run-loop mode, just exit; run-loop respawns in the same tmux terminal.
   if (!inRunLoop) {
     // Re-exec this same command so /restart works even when launched directly.
-    const botDir = `${WORKING_DIR}/super_turtle/claude-telegram-bot`;
+    const botDir = BOT_DIR;
     const child = Bun.spawn(process.argv, {
       cwd: botDir,
       stdin: "ignore",
@@ -1556,7 +1558,7 @@ export async function handleSubturtle(ctx: Context): Promise<void> {
   }
 
   // Run ctl list command
-  const ctlPath = `${WORKING_DIR}/super_turtle/subturtle/ctl`;
+  const ctlPath = CTL_PATH;
   const proc = Bun.spawnSync([ctlPath, "list"], { cwd: WORKING_DIR });
   const output = proc.stdout.toString().trim();
 

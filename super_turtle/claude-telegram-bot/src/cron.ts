@@ -7,8 +7,9 @@
  * and optional silent flag for background-only processing.
  */
 
-import { readFileSync, writeFileSync, existsSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
+import { SUPERTURTLE_DATA_DIR } from "./config";
 import { cronLog } from "./logger";
 
 // Job type definition
@@ -23,8 +24,8 @@ export interface CronJob {
   created_at: string; // ISO 8601 format
 }
 
-// Path to the job store
-const CRON_JOBS_FILE = join(import.meta.dir, "../cron-jobs.json");
+// Path to the job store — lives in user's project data dir, not in the package
+const CRON_JOBS_FILE = join(SUPERTURTLE_DATA_DIR, "cron-jobs.json");
 
 let jobsCache: CronJob[] = [];
 
@@ -109,6 +110,7 @@ export function loadJobs(): CronJob[] {
  */
 export function saveJobs(): void {
   // Intentionally throws — callers must handle so job mutations aren't silently lost
+  mkdirSync(SUPERTURTLE_DATA_DIR, { recursive: true });
   writeFileSync(CRON_JOBS_FILE, JSON.stringify(jobsCache, null, 2));
 }
 

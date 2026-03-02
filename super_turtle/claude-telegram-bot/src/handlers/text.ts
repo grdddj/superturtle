@@ -4,7 +4,7 @@
 
 import type { Context, NextFunction } from "grammy";
 import { session } from "../session";
-import { ALLOWED_USERS } from "../config";
+import { ALLOWED_USERS, CTL_PATH } from "../config";
 import { getCurrentDriver } from "../drivers/registry";
 import { isAuthorized, rateLimiter } from "../security";
 import {
@@ -56,7 +56,7 @@ function buildSpawnOrchestrationRecoveryPrompt(originalMessage: string): string 
   return `The previous response stream stalled after SubTurtle spawn orchestration.
 Continue from current repository/runtime state and finish the task safely.
 Before taking any side-effecting action:
-1) Run ./super_turtle/subturtle/ctl list and treat already-running SubTurtles as successfully spawned.
+1) Run ${CTL_PATH} list and treat already-running SubTurtles as successfully spawned.
 2) If any intended SubTurtles are missing, spawn only the missing ones.
 3) Never re-run spawn commands for names that already exist or are running.
 4) Report exact running names and any missing/failed names.
