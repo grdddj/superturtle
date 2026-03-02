@@ -270,4 +270,47 @@ test.describe("Phase 2 batch 2 e2e", () => {
       }
     }
   });
+
+  test("Edit history stores previous post description", async ({ page }) => {
+    const client = await createAuthenticatedConvexClient(page);
+    let createdPostId: string | null = null;
+    const originalDescription = `E2E edit history original ${Date.now()}`;
+    const editedDescription = `E2E edit history edited ${Date.now()}`;
+
+    try {
+      const currentUser = await runConvexCallOrSkip("users:getCurrentUser", () =>
+        client.query("users:getCurrentUser", {}),
+      );
+      test.skip(!currentUser?._id, "Skipped: current user lookup failed for guest auth session.");
+
+      createdPostId = await runConvexCallOrSkip("posts:createPost", () =>
+        client.mutation("posts:createPost", {
+          authorId: currentUser._id,
+          description: originalDescription,
+          visibility: "public",
+        }),
+      );
+
+      await runConvexCallOrSkip("posts:editPost", () =>
+        client.mutation("posts:editPost", {
+          postId: createdPostId!,
+          description: editedDescription,
+        }),
+      );
+
+      const editHistory = await runConvexCallOrSkip("postEdits:getEditHistory", () =>
+        client.query("postEdits:getEditHistory", { postId: createdPostId! }),
+      );
+
+      expect(editHistory.length).toBeGreaterThanOrEqual(1);
+      expect(editHistory[0]?.previousDescription).toBe(originalDescription);
+      expect(editHistory[0]?.editedAt).toBeGreaterThan(0);
+    } finally {
+      if (createdPostId) {
+        await client
+          .mutation("posts:deletePost", { postId: createdPostId })
+          .catch(() => {});
+      }
+    }
+  });
 });
