@@ -52,6 +52,16 @@ export default defineSchema({
     body: v.string(),
     createdAt: v.number(),
   }),
+  connections: defineTable({
+    userId1: v.id("users"),
+    userId2: v.id("users"),
+    status: v.string(),
+    requestedBy: v.id("users"),
+    createdAt: v.number(),
+  })
+    .index("byUsers", ["userId1", "userId2"])
+    .index("byUser1", ["userId1", "status"])
+    .index("byUser2", ["userId2", "status"]),
   notifications: defineTable({
     userId: v.id("users"),
     type: v.string(),
