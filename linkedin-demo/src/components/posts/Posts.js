@@ -1,10 +1,9 @@
 import React from "react";
 import { useQuery } from "convex/react";
 import { makeStyles } from "@material-ui/core/styles";
+import Typography from "@material-ui/core/Typography";
 import FlipMove from "react-flip-move";
 import Post from "./post/Post";
-import Animation from "../animations/Animation";
-import Loading from "../../assets/images/loading-dots.json";
 import { DEFAULT_PHOTO } from "../../constants";
 import { api } from "../../convex/_generated/api";
 import useConvexPosts from "../../hooks/useConvexPosts";
@@ -38,7 +37,9 @@ const Posts = ({ onNavigateProfile }) => {
     <div className={classes.posts}>
       <LoadingGate isLoading={isLoading}>
         {posts?.length === 0 ? (
-          <Animation src={Loading} />
+          <Typography variant="body2" color="textSecondary">
+            No posts yet.
+          </Typography>
         ) : (
           <FlipMove style={{ width: "100%" }}>
             {posts?.map((post) => (
