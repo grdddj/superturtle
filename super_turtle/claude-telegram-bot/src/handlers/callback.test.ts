@@ -354,7 +354,7 @@ describe("handleCallback resume_current", () => {
     expect(result.payload?.callbackAnswers[0]?.text).toBe("Continuing current Claude session");
     expect(result.payload?.callbackAnswers[0]?.show_alert).toBeUndefined();
     expect(result.payload?.editTexts[0]).toContain("Continuing current Claude session");
-    expect(result.payload?.replies[0]).toContain("📝 **Last messages:**");
+    expect(result.payload?.replies[0]).toContain("📝 Current Claude session");
   });
 
   it("continues the active Codex session", async () => {
@@ -406,7 +406,7 @@ describe("handleCallback resume_current", () => {
     expect(result.payload?.callbackAnswers[0]?.text).toBe("Continuing current Codex session");
     expect(result.payload?.callbackAnswers[0]?.show_alert).toBeUndefined();
     expect(result.payload?.editTexts[0]).toContain("Continuing current Codex session");
-    expect(result.payload?.replies[0]).toContain("📝 **Last messages:**");
+    expect(result.payload?.replies[0]).toContain("📝 Current Codex session");
   });
 
   it("shows alert when resume_current has no active session", async () => {

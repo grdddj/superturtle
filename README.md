@@ -105,7 +105,7 @@ Then message your bot in Telegram and ask it to build something.
 ## Documentation
 
 - Docs site: [superturtle.mintlify.app](https://superturtle.mintlify.app)
-- Start with: [Quickstart](docs/quickstart.mdx)
+- Start with: [Quickstart](https://superturtle.mintlify.app/quickstart)
 
 Full documentation: https://superturtle.mintlify.app
 Platform support details: https://superturtle.mintlify.app/config/platform-support

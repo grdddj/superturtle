@@ -75,23 +75,46 @@ function formatSessionPreview(preview?: string): string | null {
  * Format recentMessages array into a readable Telegram message.
  * Shows the last few conversation turns with role labels.
  */
-function formatRecentMessages(messages?: import("../types").RecentMessage[]): string | null {
+/**
+ * Build a formatted session headline from saved_at + title.
+ * Matches the compact format used on buttons: "1.3 20:05 Title"
+ */
+function formatSessionHeadline(savedAt?: string, title?: string): string {
+  if (!savedAt) return "Session";
+  const date = new Date(savedAt);
+  if (Number.isNaN(date.getTime())) return title?.trim() || "Session";
+  const dateStr = `${date.getDate()}.${date.getMonth() + 1} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  const t = title?.trim();
+  return t ? `${dateStr} — ${t}` : dateStr;
+}
+
+/**
+ * Format recent user messages as a numbered one-line-each preview.
+ * Returns the full block including headline, or null if no messages.
+ */
+function formatRecentMessages(
+  messages?: import("../types").RecentMessage[],
+  headline?: string
+): string | null {
   if (!messages || messages.length === 0) return null;
 
-  // Show last 6 messages max (3 exchanges) to keep Telegram message manageable
-  const recent = messages.slice(-6);
-  const lines: string[] = [];
+  // Show last 5 user messages to give context for what this session was about
+  const userMessages = messages.filter((m) => m.role === "user").slice(-5);
+  if (userMessages.length === 0) return null;
 
-  for (const msg of recent) {
-    const roleLabel = msg.role === "user" ? "👤 You" : "🤖 Assistant";
-    // Truncate long messages for display
-    const displayText = msg.text.length > 300
-      ? msg.text.slice(0, 297) + "..."
-      : msg.text;
-    lines.push(`${roleLabel}: ${displayText}`);
+  const header = headline ? `📝 ${headline}` : "📝 Session";
+  const lines: string[] = [header, ""];
+  for (let i = 0; i < userMessages.length; i++) {
+    const msg = userMessages[i]!;
+    // One-line preview: strip newlines, truncate
+    const oneLine = msg.text.replace(/\n+/g, " ").trim();
+    const displayText = oneLine.length > 120
+      ? oneLine.slice(0, 117) + "..."
+      : oneLine;
+    lines.push(`${i + 1}. ${displayText}`);
   }
 
-  return lines.join("\n\n");
+  return lines.join("\n");
 }
 
 /**
@@ -536,9 +559,9 @@ async function handleResumeCurrentCallback(ctx: Context): Promise<void> {
     }
     await ctx.answerCallbackQuery({ text: "Continuing current Codex session" });
 
-    const recentPreview = formatRecentMessages(codexSession.recentMessages);
+    const recentPreview = formatRecentMessages(codexSession.recentMessages, "Current Codex session");
     if (recentPreview) {
-      await ctx.reply(`📝 **Last messages:**\n\n${recentPreview}`);
+      await ctx.reply(recentPreview);
     } else {
       await ctx.reply("ℹ️ Current Codex session is already linked. Send a message to continue.");
     }
@@ -558,9 +581,9 @@ async function handleResumeCurrentCallback(ctx: Context): Promise<void> {
   }
   await ctx.answerCallbackQuery({ text: "Continuing current Claude session" });
 
-  const recentPreview = formatRecentMessages(session.recentMessages);
+  const recentPreview = formatRecentMessages(session.recentMessages, "Current Claude session");
   if (recentPreview) {
-    await ctx.reply(`📝 **Last messages:**\n\n${recentPreview}`);
+    await ctx.reply(recentPreview);
   } else {
     await ctx.reply("ℹ️ Current Claude session is already linked. Send a message to continue.");
   }
@@ -610,14 +633,16 @@ async function handleResumeCallback(
   const inMemoryMessages = session.recentMessages.length > 0
     ? session.recentMessages
     : undefined;
+  const headline = formatSessionHeadline(sessionEntry?.saved_at, sessionEntry?.title);
   const recentPreview = formatRecentMessages(
-    inMemoryMessages || sessionEntry?.recentMessages
+    inMemoryMessages || sessionEntry?.recentMessages,
+    headline
   );
   const legacyPreview = formatSessionPreview(sessionEntry?.preview);
-  const displayPreview = recentPreview || legacyPreview;
+  const displayPreview = recentPreview || (legacyPreview ? `📝 ${headline}\n\n${legacyPreview}` : null);
 
   if (displayPreview) {
-    await ctx.reply(`📝 **Last messages:**\n\n${displayPreview}`);
+    await ctx.reply(displayPreview);
   } else {
     await ctx.reply("ℹ️ Session resumed. Send a message to continue.");
   }
@@ -672,18 +697,21 @@ async function handleCodexResumeCallback(
   const localMatch = localSessions.find((s) => s.session_id === sessionId);
   const liveSessions = await codexSession.getSessionListLive();
   const liveMatch = liveSessions.find((s) => s.session_id === sessionId);
+  const matchEntry = localMatch || liveMatch;
   // Also check the in-memory buffer directly (populated during this bot session)
   const inMemoryMessages = codexSession.recentMessages.length > 0
     ? codexSession.recentMessages
     : undefined;
+  const headline = formatSessionHeadline(matchEntry?.saved_at, matchEntry?.title);
   const recentPreview = formatRecentMessages(
-    inMemoryMessages || localMatch?.recentMessages || liveMatch?.recentMessages
+    inMemoryMessages || localMatch?.recentMessages || liveMatch?.recentMessages,
+    headline
   );
   const legacyPreview = formatSessionPreview(localMatch?.preview || liveMatch?.preview);
-  const displayPreview = recentPreview || legacyPreview;
+  const displayPreview = recentPreview || (legacyPreview ? `📝 ${headline}\n\n${legacyPreview}` : null);
 
   if (displayPreview) {
-    await ctx.reply(`📝 **Last messages:**\n\n${displayPreview}`);
+    await ctx.reply(displayPreview);
   } else {
     await ctx.reply("ℹ️ Codex session resumed. Send a message to continue.");
   }

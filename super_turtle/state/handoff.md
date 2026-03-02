@@ -1,10 +1,11 @@
 # SubTurtle Long-Run Handoff
 
-Last updated: 2026-03-01T08:34:40Z
+Last updated: 2026-03-02T11:22:02Z
 
 ## Active Runs
-- mcp-transport-debug (last event: spawn at 2026-03-01T08:34:31Z)
-- test-fix-codex-afterlives (last event: spawn at 2026-03-01T08:24:37Z)
+- company-links (last event: spawn at 2026-03-02T11:02:02Z)
+- company-polish (last event: spawn at 2026-03-02T11:01:32Z)
+- company-social (last event: spawn at 2026-03-02T11:00:31Z)
 
 ## Recent Milestones
 - None yet.
