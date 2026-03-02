@@ -67,6 +67,21 @@ export default defineSchema({
     userId: v.id("users"),
     postId: v.id("posts"),
   }),
+  reactions: defineTable({
+    userId: v.id("users"),
+    postId: v.id("posts"),
+    reactionType: v.union(
+      v.literal("like"),
+      v.literal("love"),
+      v.literal("celebrate"),
+      v.literal("insightful"),
+      v.literal("funny"),
+    ),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("byUserAndPost", ["userId", "postId"])
+    .index("byPost", ["postId"]),
   comments: defineTable({
     postId: v.id("posts"),
     authorId: v.id("users"),
