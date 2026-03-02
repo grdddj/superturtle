@@ -1,5 +1,5 @@
 ## Current Task
-Wire tabs into CompanyPage.js using MUI Tabs component. Three tabs: About, People, Posts. Default to About tab.
+All backlog items complete for this SubTurtle. Preparing stop signal.
 
 ## End Goal with Specs
 Users can follow companies. Company admins post as the company (shows company logo/name). Company page has 3 tabs: About (full details), People (employees from experience), Posts (company posts feed).
@@ -10,9 +10,9 @@ Users can follow companies. Company admins post as the company (shows company lo
 - [x] Create `src/components/company/CompanyAboutTab.js` — displays: description, industry, size, website (clickable link), founded year, locations list, specialties. Use MUI Typography, List, ListItem, Link.
 - [x] Create `src/components/company/CompanyPeopleTab.js` — query users whose experienceEntries contain an entry matching the company name (case-insensitive). Display user cards with avatar, name, title. Click navigates to /:username.
 - [x] Create `src/components/company/CompanyPostsTab.js` — list posts where companyId matches. Reuse existing Post component. Show "No posts yet" empty state.
-- [ ] Wire tabs into CompanyPage.js using MUI Tabs component. Three tabs: About, People, Posts. Default to About tab. <- current
-- [ ] Run `cd linkedin-demo && npx convex dev --once && npm run build` to verify.
-- [ ] Commit with descriptive message.
+- [x] Wire tabs into CompanyPage.js using MUI Tabs component. Three tabs: About, People, Posts. Default to About tab.
+- [x] Run `cd linkedin-demo && npx convex dev --once && npm run build` to verify.
+- [x] Commit with descriptive message.
 
 ## Notes
 - Project root: /Users/Richard.Mladek/Documents/projects/agentic/linkedin-demo
@@ -24,3 +24,6 @@ Users can follow companies. Company admins post as the company (shows company lo
 - Use getAuthUserId(ctx) for all mutations
 - MUI v4: @material-ui/core, @material-ui/icons
 - IMPORTANT: Only modify files in linkedin-demo/ directory
+
+## Loop Control
+STOP
