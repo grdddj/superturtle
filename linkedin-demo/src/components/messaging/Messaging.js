@@ -14,6 +14,7 @@ import SendIcon from "@material-ui/icons/Send";
 import { api } from "../../convex/_generated/api";
 import { resolvePhoto } from "../../utils/photo";
 import useConvexUser from "../../hooks/useConvexUser";
+import useErrorToast from "../../hooks/useErrorToast";
 import LoadingGate from "../LoadingGate";
 import useStyles from "./Style";
 
