@@ -1,13 +1,12 @@
 import { useState } from "react";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { Avatar, Button, Paper, Typography } from "@material-ui/core";
-import { makeStyles } from "@material-ui/core/styles";
+import { makeStyles, useTheme } from "@material-ui/core/styles";
 import { fade } from "@material-ui/core/styles/colorManipulator";
 import BusinessIcon from "@material-ui/icons/Business";
 import VerifiedUserIcon from "@material-ui/icons/VerifiedUser";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
-import { darkSecondary } from "../../assets/Colors";
 
 const useStyles = makeStyles((theme) => ({
   suggestions: {
@@ -37,7 +36,7 @@ const useStyles = makeStyles((theme) => ({
     cursor: "pointer",
     transition: "background-color 0.2s ease",
     "&:hover": {
-      backgroundColor: theme.palette.type === "dark" ? darkSecondary : "#f3f2ef",
+      backgroundColor: theme.palette.action.hover,
     },
   },
   companyInfo: {
@@ -75,7 +74,7 @@ const useStyles = makeStyles((theme) => ({
   },
   verifiedIcon: {
     fontSize: 16,
-    color: "#1a73e8",
+    color: theme.palette.primary.main,
     flexShrink: 0,
   },
   industry: {
@@ -114,6 +113,7 @@ const getFollowerLabel = (count) => {
 
 const CompanySuggestions = () => {
   const classes = useStyles();
+  const theme = useTheme();
   const navigate = useNavigate();
   const { isAuthenticated } = useConvexAuth();
   const suggestions = useQuery(api.companies.getCompanySuggestions);
@@ -152,7 +152,13 @@ const CompanySuggestions = () => {
   };
 
   return (
-    <Paper className={classes.suggestions}>
+    <Paper
+      className={classes.suggestions}
+      style={{
+        backgroundColor: theme.palette.background.paper,
+        border: `1px solid ${theme.palette.divider}`,
+      }}
+    >
       <div className={classes.heading}>
         <h4>Companies you may want to follow</h4>
       </div>

@@ -1,5 +1,5 @@
 ## Current Task
-Ensure all company components use `theme.palette` tokens instead of hardcoded colors. Use `useTheme()` hook. Background, text, borders should all be theme-aware for dark mode.
+All company-polish backlog items are complete. Prepare to stop the loop.
 
 ## End Goal with Specs
 Company pages are fully theme-aware (dark mode works). Company admins see basic analytics (follower count, post engagement). Jobs tab exists as a placeholder. Verified companies show a badge.
@@ -11,9 +11,9 @@ Company pages are fully theme-aware (dark mode works). Company admins see basic 
 - [x] Create `src/components/company/CompanyJobsTab.js` — placeholder tab showing "No job postings yet. Check back soon!" with a WorkOutlineIcon. This will be populated in Phase 4.
 - [x] Add Jobs tab to CompanyPage.js tabs (after Posts tab).
 - [x] Add verified badge display: in CompanyPage.js header, if company.isVerified is true, show a VerifiedIcon (MUI) in blue next to the company name. Also show in search results and suggestion cards.
-- [ ] Ensure all company components use `theme.palette` tokens instead of hardcoded colors. Use `useTheme()` hook. Background, text, borders should all be theme-aware for dark mode. <- current
-- [ ] Run `cd linkedin-demo && npx convex dev --once && npm run build` to verify.
-- [ ] Commit with descriptive message.
+- [x] Ensure all company components use `theme.palette` tokens instead of hardcoded colors. Use `useTheme()` hook. Background, text, borders should all be theme-aware for dark mode.
+- [x] Run `cd linkedin-demo && npx convex dev --once && npm run build` to verify.
+- [x] Commit with descriptive message.
 
 ## Notes
 - Project root: /Users/Richard.Mladek/Documents/projects/agentic/linkedin-demo
@@ -25,3 +25,6 @@ Company pages are fully theme-aware (dark mode works). Company admins see basic 
 - Use getAuthUserId(ctx) for admin checks
 - MUI v4: @material-ui/core, @material-ui/icons
 - IMPORTANT: Only modify files in linkedin-demo/ directory
+
+## Loop Control
+STOP

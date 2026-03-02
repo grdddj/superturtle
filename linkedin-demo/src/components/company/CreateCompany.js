@@ -113,15 +113,15 @@ const useStyles = makeStyles((theme) => ({
     gap: theme.spacing(1),
   },
   createButton: {
+    color: theme.palette.getContrastText(theme.palette.primary.main),
     backgroundColor: theme.palette.primary.main,
-    color: "#fff",
     fontWeight: 700,
     textTransform: "none",
     "&:hover": {
       backgroundColor: theme.palette.primary.dark,
     },
     "&.Mui-disabled": {
-      color: "rgba(255,255,255,0.7)",
+      color: fade(theme.palette.getContrastText(theme.palette.primary.main), 0.7),
       backgroundColor: fade(theme.palette.primary.main, 0.55),
     },
   },

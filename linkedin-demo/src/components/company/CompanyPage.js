@@ -95,7 +95,7 @@ const useStyles = makeStyles((theme) => ({
     gap: theme.spacing(0.75),
   },
   verifiedIcon: {
-    color: "#1a73e8",
+    color: theme.palette.primary.main,
     fontSize: 22,
     flexShrink: 0,
   },
@@ -238,7 +238,7 @@ const CompanyPage = ({ slug: slugProp }) => {
   const coverStyle = company.coverURL
     ? { backgroundImage: `url(${company.coverURL})` }
     : {
-        backgroundImage: `linear-gradient(135deg, ${theme.palette.primary.main}, #66bb6a)`,
+        backgroundImage: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.primary.light})`,
       };
 
   const coverSectionStyle = isMobileLayout
