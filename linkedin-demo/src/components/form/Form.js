@@ -31,6 +31,7 @@ const Form = () => {
   const [openURL, setOpenURL] = useState(false);
   const [URL, setURL] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [postVisibility, setPostVisibility] = useState("public");
 
   const handleSubmitButton = async (e) => {
     e.preventDefault();
@@ -77,6 +78,7 @@ const Form = () => {
       const payload = {
         authorId: user._id,
         description,
+        visibility: postVisibility,
       };
 
       const selectedFiles = uploadData.files;
@@ -145,6 +147,7 @@ const Form = () => {
     });
     setOpenURL(false);
     setURL("");
+    setPostVisibility("public");
   };
 
   const handleRemoveFile = (indexToRemove) => {
@@ -208,6 +211,15 @@ const Form = () => {
               setOpenURL(false);
             }}
           />
+          <select
+            aria-label="Post visibility"
+            value={postVisibility}
+            onChange={(e) => setPostVisibility(e.target.value)}
+            disabled={isSubmitting}
+          >
+            <option value="public">Public</option>
+            <option value="connections">Connections Only</option>
+          </select>
           <button type="submit" disabled={isSubmitting}>{isSubmitting ? "Posting..." : "Post"}</button>
         </form>
       </div>

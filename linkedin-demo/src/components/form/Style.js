@@ -52,6 +52,25 @@ export default makeStyles((theme) => ({
         color: theme.palette.type === "dark" && "grey",
       },
     },
+    "& > select": {
+      height: "100%",
+      border: 0,
+      outlineWidth: 0,
+      padding: "0 10px",
+      backgroundColor: "transparent",
+      color: theme.palette.type === "dark" ? "lightgrey" : "#333",
+      fontSize: 13,
+      fontWeight: 600,
+      borderLeft:
+        theme.palette.type === "dark"
+          ? "1px solid rgba(225,225,225,0.1)"
+          : "1px solid rgba(0,0,0,0.12)",
+      cursor: "pointer",
+      "&:disabled": {
+        cursor: "not-allowed",
+        opacity: 0.7,
+      },
+    },
     "& > button": {
       height: "100%",
       display: "flex",
