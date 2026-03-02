@@ -28,6 +28,7 @@ import useConvexUser from "../../hooks/useConvexUser";
 import useErrorToast from "../../hooks/useErrorToast";
 import LoadingGate from "../LoadingGate";
 import Post from "../posts/post/Post";
+import EducationSection from "./EducationSection";
 import ExperienceSection from "./ExperienceSection";
 import Style from "./Style";
 
@@ -150,21 +151,6 @@ const renderBasicRichText = (value, fallback = "") => {
       {lineIndex < lines.length - 1 && <br />}
     </React.Fragment>
   ));
-};
-
-const formatEducationDateRange = (startYear, endYear) => {
-  const hasStartYear = typeof startYear === "string" && startYear.trim().length > 0;
-  const hasEndYear = typeof endYear === "string" && endYear.trim().length > 0;
-
-  if (hasStartYear && hasEndYear) {
-    return `${startYear} - ${endYear}`;
-  }
-
-  if (hasStartYear) {
-    return `${startYear} - Present`;
-  }
-
-  return "";
 };
 
 const computeProfileCompleteness = ({
@@ -1604,113 +1590,21 @@ const Profile = ({
                   onExperienceFieldChange={handleExperienceFieldChange}
                 />
 
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 8,
-                    marginBottom: 6,
-                  }}
-                >
-                  <Typography variant="subtitle2" style={{ fontWeight: 700 }}>
-                    Education
-                  </Typography>
-                  {isOwnProfile && (
-                    <Button
-                      size="small"
-                      variant="text"
-                      onClick={handleOpenCreateEducationDialog}
-                      style={{
-                        textTransform: "none",
-                        color: theme.palette.primary.main,
-                        fontWeight: 600,
-                        minHeight: 32,
-                      }}
-                    >
-                      Add education
-                    </Button>
-                  )}
-                </div>
-
-                {educationEntries.length === 0 && (
-                  <Typography variant="body2" color="textSecondary">
-                    No education added yet.
-                  </Typography>
-                )}
-
-                {educationEntries.map((entry) => {
-                  const dateRange = formatEducationDateRange(entry.startYear, entry.endYear);
-                  return (
-                    <div
-                      key={entry.id}
-                      style={{
-                        border: "1px solid rgba(46, 125, 50, 0.2)",
-                        borderRadius: 10,
-                        padding: "10px 12px",
-                        marginBottom: 10,
-                      }}
-                    >
-                      <Typography variant="subtitle2" style={{ fontWeight: 700, marginBottom: 2 }}>
-                        {entry.school}
-                      </Typography>
-                      <Typography
-                        variant="body2"
-                        color="textSecondary"
-                        style={{ fontWeight: 600, marginBottom: 2 }}
-                      >
-                        {[entry.degree, entry.field].filter(Boolean).join(", ")}
-                      </Typography>
-                      {dateRange && (
-                        <Typography
-                          variant="body2"
-                          color="textSecondary"
-                          style={{ fontSize: "0.8rem", marginBottom: isOwnProfile ? 6 : 2 }}
-                        >
-                          {dateRange}
-                        </Typography>
-                      )}
-                      {isOwnProfile && (
-                        <div style={{ display: "flex", gap: 6 }}>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            onClick={() => handleOpenEditEducationDialog(entry)}
-                            disabled={isEducationSavePending}
-                            style={{
-                              textTransform: "none",
-                              borderRadius: 16,
-                              borderColor: theme.palette.primary.main,
-                              color: theme.palette.primary.main,
-                              fontWeight: 600,
-                              padding: "2px 10px",
-                            }}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            onClick={() => handleRemoveEducation(entry.id)}
-                            disabled={isEducationSavePending}
-                            style={{
-                              textTransform: "none",
-                              borderRadius: 16,
-                              borderColor: "#c62828",
-                              color: "#c62828",
-                              fontWeight: 600,
-                              padding: "2px 10px",
-                            }}
-                          >
-                            Delete
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-
-                <Divider style={{ margin: "16px 0 12px" }} />
+                <EducationSection
+                  isOwnProfile={isOwnProfile}
+                  educationEntries={educationEntries}
+                  isEducationSavePending={isEducationSavePending}
+                  isEducationDialogOpen={isEducationDialogOpen}
+                  editingEducationId={editingEducationId}
+                  educationFormData={educationFormData}
+                  primaryColor={theme.palette.primary.main}
+                  onOpenCreateDialog={handleOpenCreateEducationDialog}
+                  onOpenEditDialog={handleOpenEditEducationDialog}
+                  onRemoveEducation={handleRemoveEducation}
+                  onCloseDialog={handleCloseEducationDialog}
+                  onSaveEducation={handleSaveEducation}
+                  onEducationFieldChange={handleEducationFieldChange}
+                />
 
                 <Typography variant="subtitle2" style={{ fontWeight: 700, marginBottom: 8 }}>
                   Skills
@@ -1795,82 +1689,6 @@ const Profile = ({
                 )}
               </div>
             )}
-
-            <Dialog
-              open={isEducationDialogOpen}
-              onClose={() => handleCloseEducationDialog()}
-              fullWidth
-              maxWidth="sm"
-              aria-labelledby="education-dialog-title"
-            >
-              <DialogTitle id="education-dialog-title">
-                {editingEducationId ? "Edit education" : "Add education"}
-              </DialogTitle>
-              <DialogContent dividers>
-                <TextField
-                  label="School"
-                  value={educationFormData.school}
-                  onChange={handleEducationFieldChange("school")}
-                  variant="outlined"
-                  margin="dense"
-                  fullWidth
-                  required
-                />
-                <TextField
-                  label="Degree"
-                  value={educationFormData.degree}
-                  onChange={handleEducationFieldChange("degree")}
-                  variant="outlined"
-                  margin="dense"
-                  fullWidth
-                  required
-                />
-                <TextField
-                  label="Field of study"
-                  value={educationFormData.field}
-                  onChange={handleEducationFieldChange("field")}
-                  variant="outlined"
-                  margin="dense"
-                  fullWidth
-                  required
-                />
-                <TextField
-                  label="Start year"
-                  placeholder="e.g. 2018"
-                  value={educationFormData.startYear}
-                  onChange={handleEducationFieldChange("startYear")}
-                  variant="outlined"
-                  margin="dense"
-                  fullWidth
-                  required
-                />
-                <TextField
-                  label="End year"
-                  placeholder="e.g. 2022 or Present"
-                  value={educationFormData.endYear}
-                  onChange={handleEducationFieldChange("endYear")}
-                  variant="outlined"
-                  margin="dense"
-                  fullWidth
-                />
-              </DialogContent>
-              <DialogActions>
-                <Button
-                  onClick={() => handleCloseEducationDialog()}
-                  disabled={isEducationSavePending}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleSaveEducation}
-                  variant="contained"
-                  color="primary"
-                  disabled={isEducationSavePending}
-                >
-                  {editingEducationId ? "Update" : "Save"}
-                </Button>
-              </DialogActions>
-            </Dialog>
 
             <Dialog
               open={isEditDialogOpen}
