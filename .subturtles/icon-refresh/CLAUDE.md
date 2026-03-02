@@ -1,5 +1,5 @@
 ## Current Task
-Update post action bar icons to remove generic symbols and align with LinkedIn-style actions.
+Review post header icon usage and keep `MoreHorizOutlinedIcon` as-is.
 
 ## End Goal with Specs
 Modern, professional icons that match LinkedIn's visual language. Replace generic icons with more appropriate MUI icon variants. Improve post action bar, header nav, and sidebar icons.
@@ -12,12 +12,12 @@ Modern, professional icons that match LinkedIn's visual language. Replace generi
   - `NotificationsIcon` → `NotificationsOutlinedIcon` (outlined when inactive)
   - `PersonIcon` → `PersonOutlineIcon` (Sign In)
   - `Brightness4Icon`/`BrightnessHighIcon` → `DarkModeOutlined`/`LightModeOutlined` (or keep if MUI v4 doesn't have these — check first, use `NightsStayOutlined`/`WbSunnyOutlined` as fallback)
-- [ ] **Post action icons** in `linkedin-demo/src/components/posts/post/PostActions.js`: <- current
+- [x] **Post action icons** in `linkedin-demo/src/components/posts/post/PostActions.js`:
   - `RepeatIcon` → `ShareOutlinedIcon` or `ReplyOutlinedIcon` (Repost — RepeatIcon looks like a music repeat button)
   - `CommentOutlinedIcon` is fine — keep
   - `BookmarkBorderOutlinedIcon` is fine — keep
   - Ensure Like/ThumbUp icons use outlined when not active, filled when active (verify this works)
-- [ ] **Post header** in `linkedin-demo/src/components/posts/post/PostHeader.js`:
+- [ ] **Post header** in `linkedin-demo/src/components/posts/post/PostHeader.js`: <- current
   - `MoreHorizOutlinedIcon` is fine — keep
 - [ ] **Form/composer icons** in `linkedin-demo/src/components/form/Form.js`:
   - `VideocamRoundedIcon` → `VideocamOutlinedIcon` (consistent outlined style)

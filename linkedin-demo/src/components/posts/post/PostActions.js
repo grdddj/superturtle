@@ -3,7 +3,7 @@ import { useTheme } from "@material-ui/core/styles";
 import ThumbUpAltIcon from "@material-ui/icons/ThumbUpAlt";
 import ThumbUpAltOutlinedIcon from "@material-ui/icons/ThumbUpAltOutlined";
 import CommentOutlinedIcon from "@material-ui/icons/CommentOutlined";
-import RepeatIcon from "@material-ui/icons/Repeat";
+import ShareOutlinedIcon from "@material-ui/icons/ShareOutlined";
 import BookmarkBorderOutlinedIcon from "@material-ui/icons/BookmarkBorderOutlined";
 import BookmarkIcon from "@material-ui/icons/Bookmark";
 import { REACTION_ITEMS } from "../../../utils/reactions";
@@ -118,6 +118,7 @@ const PostActions = ({
     setIsReactionPickerOpen(false);
     onReactionChange(nextReaction);
   };
+  const isLikeActive = Boolean(selectedReaction);
 
   return (
     <div className={classes.footer__actions}>
@@ -164,7 +165,7 @@ const PostActions = ({
           onTouchCancel={canInteract ? handleReactionActionTouchCancel : undefined}
           style={!canInteract ? { opacity: 0.45, cursor: "not-allowed" } : undefined}
         >
-          {canInteract && selectedReaction ? (
+          {isLikeActive ? (
             <ThumbUpAltIcon
               style={{
                 transform: "scaleX(-1)",
@@ -176,7 +177,7 @@ const PostActions = ({
           )}
           <h4
             style={
-              canInteract && selectedReaction
+              isLikeActive
                 ? { color: selectedReactionItem?.color ?? theme.palette.primary.main }
                 : undefined
             }
@@ -196,7 +197,7 @@ const PostActions = ({
         onClick={onRepostClick}
         style={!canInteract ? { opacity: 0.45, cursor: "not-allowed" } : undefined}
       >
-        <RepeatIcon />
+        <ShareOutlinedIcon />
         <h4>Repost</h4>
       </div>
       <div
