@@ -1,0 +1,278 @@
+import { v } from "convex/values";
+import { mutation, query } from "./_generated/server";
+
+export const sendConnectionRequest = mutation({
+  args: {
+    fromUserId: v.id("users"),
+    toUserId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    if (args.fromUserId === args.toUserId) {
+      throw new Error("Cannot connect with yourself");
+    }
+
+    const [existingForward, existingReverse] = await Promise.all([
+      ctx.db
+        .query("connections")
+        .withIndex("byUsers", (q) =>
+          q.eq("userId1", args.fromUserId).eq("userId2", args.toUserId),
+        )
+        .first(),
+      ctx.db
+        .query("connections")
+        .withIndex("byUsers", (q) =>
+          q.eq("userId1", args.toUserId).eq("userId2", args.fromUserId),
+        )
+        .first(),
+    ]);
+
+    if (existingForward || existingReverse) {
+      throw new Error("Connection already exists");
+    }
+
+    const connectionId = await ctx.db.insert("connections", {
+      userId1: args.fromUserId,
+      userId2: args.toUserId,
+      status: "pending",
+      requestedBy: args.fromUserId,
+      createdAt: Date.now(),
+    });
+
+    await ctx.db.insert("notifications", {
+      userId: args.toUserId,
+      type: "connection_request",
+      fromUserId: args.fromUserId,
+      read: false,
+      createdAt: Date.now(),
+    });
+
+    return connectionId;
+  },
+});
+
+export const acceptConnection = mutation({
+  args: {
+    connectionId: v.id("connections"),
+  },
+  handler: async (ctx, args) => {
+    const connection = await ctx.db.get(args.connectionId);
+    if (!connection) {
+      throw new Error("Connection not found");
+    }
+
+    if (connection.status !== "accepted") {
+      await ctx.db.patch(args.connectionId, {
+        status: "accepted",
+      });
+
+      const acceptedBy =
+        connection.requestedBy === connection.userId1
+          ? connection.userId2
+          : connection.userId1;
+
+      await ctx.db.insert("notifications", {
+        userId: connection.requestedBy,
+        type: "connection_accepted",
+        fromUserId: acceptedBy,
+        read: false,
+        createdAt: Date.now(),
+      });
+    }
+  },
+});
+
+export const rejectConnection = mutation({
+  args: {
+    connectionId: v.id("connections"),
+  },
+  handler: async (ctx, args) => {
+    const connection = await ctx.db.get(args.connectionId);
+    if (!connection) {
+      throw new Error("Connection not found");
+    }
+
+    await ctx.db.delete(args.connectionId);
+  },
+});
+
+export const removeConnection = mutation({
+  args: {
+    connectionId: v.id("connections"),
+  },
+  handler: async (ctx, args) => {
+    const connection = await ctx.db.get(args.connectionId);
+    if (!connection) {
+      throw new Error("Connection not found");
+    }
+
+    await ctx.db.delete(args.connectionId);
+  },
+});
+
+export const getConnectionStatus = query({
+  args: {
+    userId1: v.id("users"),
+    userId2: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const [forwardConnection, reverseConnection] = await Promise.all([
+      ctx.db
+        .query("connections")
+        .withIndex("byUsers", (q) =>
+          q.eq("userId1", args.userId1).eq("userId2", args.userId2),
+        )
+        .first(),
+      ctx.db
+        .query("connections")
+        .withIndex("byUsers", (q) =>
+          q.eq("userId1", args.userId2).eq("userId2", args.userId1),
+        )
+        .first(),
+    ]);
+
+    const connection = forwardConnection ?? reverseConnection;
+
+    if (!connection) {
+      return { status: "none" as const };
+    }
+
+    if (connection.status === "accepted") {
+      return {
+        status: "accepted" as const,
+        connectionId: connection._id,
+      };
+    }
+
+    return {
+      status: "pending" as const,
+      connectionId: connection._id,
+      direction:
+        connection.requestedBy === args.userId1
+          ? ("sent" as const)
+          : ("received" as const),
+    };
+  },
+});
+
+export const listConnections = query({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const [requestedConnections, receivedConnections] = await Promise.all([
+      ctx.db
+        .query("connections")
+        .withIndex("byUser1", (q) =>
+          q.eq("userId1", args.userId).eq("status", "accepted"),
+        )
+        .collect(),
+      ctx.db
+        .query("connections")
+        .withIndex("byUser2", (q) =>
+          q.eq("userId2", args.userId).eq("status", "accepted"),
+        )
+        .collect(),
+    ]);
+
+    const allConnections = [
+      ...requestedConnections.map((connection) => ({
+        connectionId: connection._id,
+        otherUserId: connection.userId2,
+      })),
+      ...receivedConnections.map((connection) => ({
+        connectionId: connection._id,
+        otherUserId: connection.userId1,
+      })),
+    ];
+
+    const withUsers = await Promise.all(
+      allConnections.map(async (connection) => {
+        const user = await ctx.db.get(connection.otherUserId);
+        if (!user) {
+          return null;
+        }
+
+        return {
+          connectionId: connection.connectionId,
+          user: {
+            _id: user._id,
+            displayName: user.displayName ?? user.name ?? "Guest User",
+            photoURL: user.photoURL ?? user.image ?? "",
+            title: user.title ?? "",
+            location: user.location ?? "",
+          },
+        };
+      }),
+    );
+
+    return withUsers
+      .filter((connection): connection is NonNullable<typeof connection> =>
+        Boolean(connection),
+      )
+      .sort((a, b) => a.user.displayName.localeCompare(b.user.displayName));
+  },
+});
+
+export const listPendingRequests = query({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const pendingConnections = await ctx.db
+      .query("connections")
+      .withIndex("byUser2", (q) =>
+        q.eq("userId2", args.userId).eq("status", "pending"),
+      )
+      .collect();
+
+    const withUsers = await Promise.all(
+      pendingConnections.map(async (connection) => {
+        const requester = await ctx.db.get(connection.requestedBy);
+        if (!requester) {
+          return null;
+        }
+
+        return {
+          connectionId: connection._id,
+          user: {
+            _id: requester._id,
+            displayName: requester.displayName ?? requester.name ?? "Guest User",
+            photoURL: requester.photoURL ?? requester.image ?? "",
+            title: requester.title ?? "",
+            location: requester.location ?? "",
+          },
+        };
+      }),
+    );
+
+    return withUsers
+      .filter((connection): connection is NonNullable<typeof connection> =>
+        Boolean(connection),
+      )
+      .sort((a, b) => a.user.displayName.localeCompare(b.user.displayName));
+  },
+});
+
+export const getConnectionCount = query({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const [requestedConnections, receivedConnections] = await Promise.all([
+      ctx.db
+        .query("connections")
+        .withIndex("byUser1", (q) =>
+          q.eq("userId1", args.userId).eq("status", "accepted"),
+        )
+        .collect(),
+      ctx.db
+        .query("connections")
+        .withIndex("byUser2", (q) =>
+          q.eq("userId2", args.userId).eq("status", "accepted"),
+        )
+        .collect(),
+    ]);
+
+    return requestedConnections.length + receivedConnections.length;
+  },
+});

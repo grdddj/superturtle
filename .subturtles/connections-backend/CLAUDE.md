@@ -1,5 +1,5 @@
 ## Current Task
-Create `linkedin-demo/src/convex/connections.ts` with connection mutations and queries.
+Run `npx convex dev --once` to push schema + functions.
 
 ## End Goal with Specs
 - New `connections` table in Convex schema with: userId1, userId2, status ("pending"|"accepted"), requestedBy, createdAt
@@ -26,7 +26,7 @@ Create `linkedin-demo/src/convex/connections.ts` with connection mutations and q
     .index("byUser1", ["userId1", "status"])
     .index("byUser2", ["userId2", "status"]),
   ```
-- [ ] Create `linkedin-demo/src/convex/connections.ts` with these functions: <- current
+- [x] Create `linkedin-demo/src/convex/connections.ts` with these functions:
   - `sendConnectionRequest` mutation: args { fromUserId: v.id("users"), toUserId: v.id("users") }. Validates fromUserId !== toUserId (throw "Cannot connect with yourself"). Checks no existing connection between the pair (check both directions: userId1/userId2 and userId2/userId1). Inserts with status="pending", requestedBy=fromUserId. Creates notification: type="connection_request", userId=toUserId, fromUserId=fromUserId.
   - `acceptConnection` mutation: args { connectionId: v.id("connections") }. Patches status to "accepted". Creates notification: type="connection_accepted", userId=requestedBy, fromUserId=the other user.
   - `rejectConnection` mutation: args { connectionId: v.id("connections") }. Deletes the connection record.
@@ -35,7 +35,7 @@ Create `linkedin-demo/src/convex/connections.ts` with connection mutations and q
   - `listConnections` query: args { userId: v.id("users") }. Returns all accepted connections for this user (both directions). Joins user data (displayName, photoURL, title, location). Returns array of { connectionId, user: { _id, displayName, photoURL, title, location } }.
   - `listPendingRequests` query: args { userId: v.id("users") }. Returns pending connections where userId2=userId (incoming requests). Joins requester user data.
   - `getConnectionCount` query: args { userId: v.id("users") }. Counts accepted connections (both directions). Returns a number.
-- [ ] Run `npx convex dev --once` to push schema + functions
+- [ ] Run `npx convex dev --once` to push schema + functions <- current
 - [ ] Commit: "Add connections backend: schema, mutations, queries, real counts"
 
 ## Notes
