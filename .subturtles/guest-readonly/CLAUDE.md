@@ -1,5 +1,5 @@
 ## Current Task
-Update `linkedin-demo/src/hooks/useConvexUser.js`: remove fallback to `featuredUser`. If not authenticated, return null. Ensure components handle null user gracefully.
+Update `linkedin-demo/src/components/profile/Profile.js`: hide Connect and Message buttons when user is null (unauthenticated).
 
 ## End Goal with Specs
 - Remove the Anonymous provider from Convex Auth (auth.ts)
@@ -26,8 +26,8 @@ Update `linkedin-demo/src/hooks/useConvexUser.js`: remove fallback to `featuredU
 - [x] Update `linkedin-demo/src/components/header/Header.js`: when user is null (unauthenticated), show a "Sign In" Button (green #2e7d32, white text) on the right side instead of the sign-out button and avatar. Clicking it sets `onSignInClick()` prop which App.js uses to show the login modal. Hide notification badge for unauthenticated.
 - [x] Update `linkedin-demo/src/components/form/Form.js`: wrap the entire form in a check — if `!user?._id`, don't render the form at all (return null or a small "Sign in to post" prompt).
 - [x] Update `linkedin-demo/src/components/posts/post/Post.js`: for unauthenticated users (no user._id): disable the like button (grey it out), hide the comment input field, hide the edit/delete menu. The post content remains fully visible and readable.
-- [ ] Update `linkedin-demo/src/hooks/useConvexUser.js`: remove the fallback to `featuredUser`. If not authenticated, return null. Components must handle null user gracefully. <- current
-- [ ] Update `linkedin-demo/src/components/profile/Profile.js`: hide Connect and Message buttons when user is null (unauthenticated).
+- [x] Update `linkedin-demo/src/hooks/useConvexUser.js`: remove the fallback to `featuredUser`. If not authenticated, return null. Components must handle null user gracefully.
+- [ ] Update `linkedin-demo/src/components/profile/Profile.js`: hide Connect and Message buttons when user is null (unauthenticated). <- current
 - [ ] Update `linkedin-demo/src/components/network/Network.js`: hide Connect buttons when user is null. Keep the user cards visible (read-only browsing).
 - [x] Run `npx convex dev --once` to push the auth.ts change
 - [x] Run `cd linkedin-demo && npm run build` to verify build passes

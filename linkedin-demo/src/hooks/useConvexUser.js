@@ -5,7 +5,10 @@ import { DEFAULT_PHOTO } from "../constants";
 const useConvexUser = () => {
   const { isAuthenticated } = useConvexAuth();
   const currentUser = useQuery(api.users.getCurrentUser, isAuthenticated ? {} : "skip");
-  const featuredUser = useQuery(api.users.getFeaturedUser);
+
+  if (!isAuthenticated) {
+    return null;
+  }
 
   if (currentUser) {
     return {
@@ -15,7 +18,7 @@ const useConvexUser = () => {
     };
   }
 
-  return featuredUser ?? null;
+  return null;
 };
 
 export default useConvexUser;
