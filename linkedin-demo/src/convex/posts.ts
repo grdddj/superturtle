@@ -439,7 +439,20 @@ export const deletePost = mutation({
     postId: v.id("posts"),
   },
   handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Not authenticated");
+    }
+
     const post = await ctx.db.get(args.postId);
+    if (!post) {
+      throw new Error("Post not found");
+    }
+
+    if (post.authorId !== userId) {
+      throw new Error("Cannot delete another user's post");
+    }
+
     if (post?.imageStorageIds?.length) {
       await Promise.all(post.imageStorageIds.map((storageId) => ctx.storage.delete(storageId)));
     }
