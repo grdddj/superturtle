@@ -1,5 +1,5 @@
 ## Current Task
-Add test: Profile completeness indicator (progress bar or percentage) visible on own profile.
+Add test: Profile edit modal opens and fields are editable (displayName, title, location, about).
 
 ## End Goal with Specs
 Comprehensive E2E test coverage for profile system features: photo display, skills, featured posts, mutual connections, profile completeness indicator. Tests run against live deployment at `https://linkedin-demo-iota.vercel.app`.
@@ -11,8 +11,8 @@ Comprehensive E2E test coverage for profile system features: photo display, skil
 - [x] Add test: Profile education section renders school/degree entries on About tab
 - [x] Add test: Featured posts section visible on profile (if user has pinned posts)
 - [x] Add test: Mutual connections count shown on profile ("X mutual connections" text)
-- [ ] Add test: Profile completeness indicator (progress bar or percentage) visible on own profile <- current
-- [ ] Add test: Profile edit modal opens and fields are editable (displayName, title, location, about)
+- [x] Add test: Profile completeness indicator (progress bar or percentage) visible on own profile
+- [ ] Add test: Profile edit modal opens and fields are editable (displayName, title, location, about) <- current
 - [ ] Run tests: `cd linkedin-demo && npx playwright test e2e/profiles.spec.ts`
 - [ ] Commit
 

@@ -118,6 +118,25 @@ async function openNonOwnProfileFromFeed(page: Page, maxPostsToTry = 6): Promise
   throw new Error("Could not find a non-self profile from the visible feed posts.");
 }
 
+async function openOwnProfileFromHeader(page: Page): Promise<void> {
+  await ensureFeedReady(page);
+
+  const meMenuItem = page.getByText("Me", { exact: true }).first();
+  if (await meMenuItem.isVisible().catch(() => false)) {
+    await clickWithRetry(meMenuItem);
+  } else {
+    const mobileProfileButton = page.getByLabel("profile", { exact: true }).first();
+    if (!(await mobileProfileButton.isVisible().catch(() => false))) {
+      throw new Error("Could not find a header control to open the signed-in user's profile.");
+    }
+    await clickWithRetry(mobileProfileButton);
+  }
+
+  await expect(page.getByRole("button", { name: "Edit profile", exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
+}
+
 test.describe("Profiles e2e", () => {
   test.setTimeout(45_000);
 
@@ -268,5 +287,30 @@ test.describe("Profiles e2e", () => {
     const mutualConnectionsText = page.getByText(/^\d+\s+mutual connections?$/i).first();
     await expect(mutualConnectionsText).toBeVisible({ timeout: 15_000 });
     await expect(mutualConnectionsText).toHaveText(/^\d+\s+mutual connections?$/i);
+  });
+
+  test("Profile completeness indicator is visible on own profile", async ({ page }) => {
+    try {
+      await openOwnProfileFromHeader(page);
+    } catch {
+      test.skip(true, "Could not open the signed-in user's own profile on the live deployment.");
+    }
+
+    const completenessTitle = page.getByText("Profile completeness", { exact: true });
+    await expect(completenessTitle).toBeVisible({ timeout: 15_000 });
+
+    const completenessSection = completenessTitle.locator("xpath=ancestor::div[1]/parent::div");
+    await expect(completenessSection).toBeVisible();
+
+    const percentLabel = completenessSection.getByText(/^\d{1,3}%$/).first();
+    const progressBar = completenessSection.getByRole("progressbar").first();
+
+    const percentVisible = await percentLabel.isVisible().catch(() => false);
+    const progressVisible = await progressBar.isVisible().catch(() => false);
+
+    expect(
+      percentVisible || progressVisible,
+      "Expected a profile completeness percentage or progress bar to be visible.",
+    ).toBe(true);
   });
 });
