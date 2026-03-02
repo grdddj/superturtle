@@ -10,7 +10,6 @@ import Snackbar from "@material-ui/core/Snackbar";
 import TextField from "@material-ui/core/TextField";
 import FiberManualRecordRoundedIcon from "@material-ui/icons/FiberManualRecordRounded";
 import RepeatIcon from "@material-ui/icons/Repeat";
-import DeleteOutlineIcon from "@material-ui/icons/DeleteOutline";
 import ReactPlayer from "react-player";
 import ReactTimeago from "react-timeago";
 import { useNavigate } from "react-router-dom";
@@ -22,6 +21,7 @@ import EditHistoryDialog from "../editHistory/EditHistoryDialog";
 import PollDisplay from "../poll/PollDisplay";
 import ReportDialog from "../report/ReportDialog";
 import PostActions from "./PostActions";
+import PostComments from "./PostComments";
 import PostHeader from "./PostHeader";
 import { getLinkPreviewFromText } from "./post.utils";
 import Style from "./Style";
@@ -124,16 +124,13 @@ const Post = forwardRef(
     const { isAuthenticated } = useConvexAuth();
     const setReaction = useMutation(api.likes.setReaction);
     const removeReaction = useMutation(api.likes.removeReaction);
-    const addComment = useMutation(api.comments.addComment);
     const deletePost = useMutation(api.posts.deletePost);
-    const deleteComment = useMutation(api.comments.deleteComment);
     const updatePost = useMutation(api.posts.updatePost);
     const repostPost = useMutation(api.reposts.repostPost);
     const toggleBookmark = useMutation(api.bookmarks.toggleBookmark);
     const reportPost = useMutation(api.reports.reportPost);
 
     const [showComments, setShowComments] = React.useState(false);
-    const [commentText, setCommentText] = React.useState("");
     const [menuAnchorEl, setMenuAnchorEl] = React.useState(null);
     const [isEditing, setIsEditing] = React.useState(false);
     const [editText, setEditText] = React.useState(description ?? "");
@@ -210,10 +207,6 @@ const Post = forwardRef(
       api.reports.hasReported,
       canInteract && !isOwnPost ? { postId } : "skip"
     );
-    const comments = useQuery(
-      api.comments.listComments,
-      showComments ? { postId } : "skip"
-    );
     const bookmarked = useQuery(api.bookmarks.isBookmarked, { postId });
     const queriedRepostCount = useQuery(api.reposts.getRepostCount, { postId });
     const resolvedRepostCount =
@@ -237,7 +230,6 @@ const Post = forwardRef(
         setOptimisticBookmarked(undefined);
       }
     }, [bookmarked]);
-    const commentsList = comments ?? [];
     const hasReportedPost = Boolean(hasReported || hasReportedOptimistic);
     const canBookmark = canInteract && !isBookmarkMutationPending;
     const canReact = canInteract && !isReactionMutationPending;
@@ -315,26 +307,6 @@ const Post = forwardRef(
         showError("Failed to update reaction. Please try again.");
       } finally {
         setIsReactionMutationPending(false);
-      }
-    };
-
-    const handleCommentSubmit = async (event) => {
-      event.preventDefault();
-      if (!canInteract) {
-        return;
-      }
-
-      const body = commentText.trim();
-      if (!body) {
-        return;
-      }
-
-      try {
-        await addComment({ postId, authorId: user._id, body });
-        setCommentText("");
-      } catch (error) {
-        console.error("Failed to add comment:", error);
-        showError("Failed to save comment. Please try again.");
       }
     };
 
@@ -978,50 +950,14 @@ const Post = forwardRef(
             />
 
           {showComments && (
-            <div className={classes.comments__section}>
-              <div className={classes.comments__list}>
-                {commentsList.map((comment) => (
-                  <div key={comment._id} className={classes.comment__item}>
-                    <Avatar
-                      className={classes.comment__avatar}
-                      src={resolvePhoto(comment.author?.photoURL)}
-                      alt={comment.author?.displayName ?? "Comment author"}
-                    />
-                    <div className={classes.comment__content}>
-                      <div className={classes.comment__meta}>
-                        <h5>{comment.author?.displayName ?? "Unknown user"}</h5>
-                        <span>
-                          <ReactTimeago date={new Date(comment.createdAt).toUTCString()} units="minute" />
-                        </span>
-                        {user?._id && comment.authorId === user._id && (
-                          <DeleteOutlineIcon
-                            className={classes.comment__delete}
-                            onClick={() => deleteComment({ commentId: comment._id, userId: user._id })}
-                            titleAccess="Delete comment"
-                          />
-                        )}
-                      </div>
-                      <p>{comment.body}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {canInteract && (
-                <form className={classes.comment__form} onSubmit={handleCommentSubmit}>
-                  <input
-                    type="text"
-                    value={commentText}
-                    onChange={(event) => setCommentText(event.target.value)}
-                    placeholder="Add a comment"
-                    aria-label="Add a comment"
-                  />
-                  <button type="submit" disabled={!commentText.trim()}>
-                    Send
-                  </button>
-                </form>
-              )}
-            </div>
+            <PostComments
+              classes={classes}
+              postId={postId}
+              canInteract={canInteract}
+              currentUserId={user?._id ?? null}
+              resolvePhoto={resolvePhoto}
+              onError={showError}
+            />
           )}
         </div>
         </Paper>
