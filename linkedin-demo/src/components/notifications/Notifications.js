@@ -27,6 +27,15 @@ const getNotificationMessage = (notification) => {
     return `${displayName} sent you a message`;
   }
 
+  if (notification.type === "company_follow") {
+    const companyName = notification.company?.name;
+    if (companyName) {
+      return `${displayName} started following your company ${companyName}`;
+    }
+
+    return `${displayName} started following your company`;
+  }
+
   return `${displayName} sent you a notification`;
 };
 

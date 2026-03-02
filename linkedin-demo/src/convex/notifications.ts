@@ -43,11 +43,23 @@ export const listNotifications = query({
 
     return await Promise.all(
       sortedNotifications.map(async (notification) => {
-        const fromUser = await ctx.db.get(notification.fromUserId);
+        const [fromUser, company] = await Promise.all([
+          ctx.db.get(notification.fromUserId),
+          notification.companyId ? ctx.db.get(notification.companyId) : Promise.resolve(null),
+        ]);
 
         return {
           ...notification,
           fromUser: await buildAuthorSummary(ctx, fromUser),
+          ...(company
+            ? {
+                company: {
+                  _id: company._id,
+                  name: company.name,
+                  slug: company.slug,
+                },
+              }
+            : {}),
         };
       }),
     );

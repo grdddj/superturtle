@@ -1,5 +1,5 @@
 ## Current Task
-Wire notification display: in notifications component, handle "company_follow" type — show "X started following your company [CompanyName]".
+All backlog items complete.
 
 ## End Goal with Specs
 When users add experience, they can pick from existing companies (autocomplete dropdown). Company logo shows in experience entries. Company pages are mobile responsive. Users get notifications when someone follows their company.
@@ -10,9 +10,9 @@ When users add experience, they can pick from existing companies (autocomplete d
 - [x] Display company logo next to experience entries: if the experience entry has a matching company (by name or companyId), resolve the company's logoStorageId and show the logo as a small avatar next to the entry. Fallback to BusinessIcon if no logo.
 - [x] Make CompanyPage.js mobile responsive: on screens < 768px, stack cover/logo vertically, make tabs scrollable, reduce padding. Use MUI useMediaQuery or CSS @media. Test the layout at 375px width.
 - [x] Add company follow notification: in `src/convex/companyFollowers.ts` followCompany mutation, after inserting the follow, create a notification for each company admin: type "company_follow", fromUserId = follower, include companyId. Add companyId as optional field to notifications schema if needed.
-- [ ] Wire notification display: in notifications component, handle "company_follow" type — show "X started following your company [CompanyName]". <- current
-- [ ] Run `cd linkedin-demo && npx convex dev --once && npm run build` to verify.
-- [ ] Commit with descriptive message.
+- [x] Wire notification display: in notifications component, handle "company_follow" type — show "X started following your company [CompanyName]".
+- [x] Run `cd linkedin-demo && npx convex dev --once && npm run build` to verify.
+- [x] Commit with descriptive message.
 
 ## Notes
 - Project root: /Users/Richard.Mladek/Documents/projects/agentic/linkedin-demo
@@ -24,3 +24,6 @@ When users add experience, they can pick from existing companies (autocomplete d
 - Use getAuthUserId(ctx) for mutations
 - MUI v4: @material-ui/core, @material-ui/icons, @material-ui/lab
 - IMPORTANT: Only modify files in linkedin-demo/ directory
+
+## Loop Control
+STOP
