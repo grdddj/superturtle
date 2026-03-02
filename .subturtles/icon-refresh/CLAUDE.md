@@ -1,5 +1,5 @@
 ## Current Task
-Review post header icon usage and keep `MoreHorizOutlinedIcon` as-is.
+Update form/composer icons in `linkedin-demo/src/components/form/Form.js` to non-branded outlined variants.
 
 ## End Goal with Specs
 Modern, professional icons that match LinkedIn's visual language. Replace generic icons with more appropriate MUI icon variants. Improve post action bar, header nav, and sidebar icons.
@@ -17,9 +17,9 @@ Modern, professional icons that match LinkedIn's visual language. Replace generi
   - `CommentOutlinedIcon` is fine — keep
   - `BookmarkBorderOutlinedIcon` is fine — keep
   - Ensure Like/ThumbUp icons use outlined when not active, filled when active (verify this works)
-- [ ] **Post header** in `linkedin-demo/src/components/posts/post/PostHeader.js`: <- current
+- [x] **Post header** in `linkedin-demo/src/components/posts/post/PostHeader.js`:
   - `MoreHorizOutlinedIcon` is fine — keep
-- [ ] **Form/composer icons** in `linkedin-demo/src/components/form/Form.js`:
+- [ ] **Form/composer icons** in `linkedin-demo/src/components/form/Form.js`: <- current
   - `VideocamRoundedIcon` → `VideocamOutlinedIcon` (consistent outlined style)
   - `YouTubeIcon` → `OndemandVideoOutlinedIcon` or `PlayCircleOutlineIcon` (YouTubeIcon is a branded logo)
   - `PhotoSizeSelectActualIcon` → `ImageOutlinedIcon` or `PhotoOutlinedIcon` (cleaner)
