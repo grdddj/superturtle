@@ -276,3 +276,83 @@ export const getConnectionCount = query({
     return requestedConnections.length + receivedConnections.length;
   },
 });
+
+export const getMutualConnectionsCount = query({
+  args: {
+    viewerUserId: v.id("users"),
+    targetUserId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    if (args.viewerUserId === args.targetUserId) {
+      return 0;
+    }
+
+    const [
+      viewerRequestedConnections,
+      viewerReceivedConnections,
+      targetRequestedConnections,
+      targetReceivedConnections,
+    ] = await Promise.all([
+      ctx.db
+        .query("connections")
+        .withIndex("byUser1", (q) =>
+          q.eq("userId1", args.viewerUserId).eq("status", "accepted"),
+        )
+        .collect(),
+      ctx.db
+        .query("connections")
+        .withIndex("byUser2", (q) =>
+          q.eq("userId2", args.viewerUserId).eq("status", "accepted"),
+        )
+        .collect(),
+      ctx.db
+        .query("connections")
+        .withIndex("byUser1", (q) =>
+          q.eq("userId1", args.targetUserId).eq("status", "accepted"),
+        )
+        .collect(),
+      ctx.db
+        .query("connections")
+        .withIndex("byUser2", (q) =>
+          q.eq("userId2", args.targetUserId).eq("status", "accepted"),
+        )
+        .collect(),
+    ]);
+
+    const viewerConnectionUserIds = new Set([
+      ...viewerRequestedConnections.map((connection) => connection.userId2),
+      ...viewerReceivedConnections.map((connection) => connection.userId1),
+    ]);
+
+    if (viewerConnectionUserIds.size === 0) {
+      return 0;
+    }
+
+    const targetConnectionUserIds = new Set([
+      ...targetRequestedConnections.map((connection) => connection.userId2),
+      ...targetReceivedConnections.map((connection) => connection.userId1),
+    ]);
+
+    if (targetConnectionUserIds.size === 0) {
+      return 0;
+    }
+
+    const smallerSet =
+      viewerConnectionUserIds.size <= targetConnectionUserIds.size
+        ? viewerConnectionUserIds
+        : targetConnectionUserIds;
+    const largerSet =
+      smallerSet === viewerConnectionUserIds
+        ? targetConnectionUserIds
+        : viewerConnectionUserIds;
+
+    let mutualCount = 0;
+    for (const connectionUserId of smallerSet) {
+      if (largerSet.has(connectionUserId)) {
+        mutualCount += 1;
+      }
+    }
+
+    return mutualCount;
+  },
+});

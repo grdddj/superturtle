@@ -113,6 +113,11 @@ export default makeStyles((theme) => ({
     fontSize: "0.75rem",
     marginTop: theme.spacing(0.25),
   },
+  mutualConnectionCount: {
+    color: "#2e7d32",
+    fontSize: "0.75rem",
+    marginTop: theme.spacing(0.25),
+  },
   actionRow: {
     display: "flex",
     alignItems: "center",

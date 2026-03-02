@@ -36,6 +36,12 @@ const NetworkUserCard = ({
     api.connections.getConnectionCount,
     candidateUser?._id ? { userId: candidateUser._id } : "skip",
   );
+  const mutualConnectionsCount = useQuery(
+    api.connections.getMutualConnectionsCount,
+    authUserId
+      ? { viewerUserId: authUserId, targetUserId: candidateUser._id }
+      : "skip",
+  );
   const [isConnectionActionPending, setIsConnectionActionPending] = useState(false);
   const [isConnectedActionHovered, setIsConnectedActionHovered] = useState(false);
   const connectionState = connectionStatus?.status ?? "none";
@@ -222,6 +228,12 @@ const NetworkUserCard = ({
         <Typography className={classes.connectionCount}>
           {(connectionCount ?? 0)} connections
         </Typography>
+        {authUserId && mutualConnectionsCount !== undefined && (
+          <Typography className={classes.mutualConnectionCount}>
+            {mutualConnectionsCount} mutual connection
+            {mutualConnectionsCount === 1 ? "" : "s"}
+          </Typography>
+        )}
       </div>
       {renderConnectionAction()}
     </Paper>
