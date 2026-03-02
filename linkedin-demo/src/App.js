@@ -13,6 +13,7 @@ import Network from "./components/network/Network";
 import Notifications from "./components/notifications/Notifications";
 import Onboarding from "./components/onboarding/Onboarding";
 import Posts from "./components/posts/Posts";
+import ArticleEditor from "./components/articles/ArticleEditor";
 import HashtagFeed from "./components/hashtag/HashtagFeed";
 import Profile from "./components/profile/Profile";
 import Sidebar from "./components/sidebar/Sidebar";
@@ -44,16 +45,22 @@ const AppShell = () => {
   const [showLogin, setShowLogin] = useState(false);
   const navigate = useNavigate();
   const hashtagRouteMatch = useMatch("/hashtag/:tag");
+  const writeArticleRouteMatch = useMatch("/write-article");
   const usernameRouteMatch = useMatch("/:username");
   const profileIdRouteMatch = useMatch("/profile/:userId");
   const routeHashtagParam = hashtagRouteMatch?.params?.tag ?? null;
   const routeHashtag = routeHashtagParam
     ? normalizeHashtag(decodeRouteParam(routeHashtagParam))
     : null;
-  const routeUsername = usernameRouteMatch?.params?.username?.trim().toLowerCase() ?? null;
+  const isWriteArticleRouteActive = Boolean(writeArticleRouteMatch);
+  const routeUsername = isWriteArticleRouteActive
+    ? null
+    : usernameRouteMatch?.params?.username?.trim().toLowerCase() ?? null;
   const routeUserId = profileIdRouteMatch?.params?.userId ?? null;
   const isProfileRouteActive = Boolean(routeUsername || routeUserId);
   const isHashtagRouteActive = Boolean(routeHashtag);
+  const isSpecialRouteActive =
+    isProfileRouteActive || isHashtagRouteActive || isWriteArticleRouteActive;
   const { isAuthenticated, isLoading } = useConvexAuth();
   const seedData = useMutation(api.seed.seedData);
   const currentUser = useQuery(api.users.getCurrentUser, isAuthenticated ? {} : "skip");
@@ -131,7 +138,7 @@ const AppShell = () => {
   };
 
   const handleSetActiveTab = (tab) => {
-    if (isProfileRouteActive || isHashtagRouteActive) {
+    if (isSpecialRouteActive) {
       navigate("/");
     }
     setActiveTab(tab);
@@ -139,7 +146,7 @@ const AppShell = () => {
   };
 
   const onNavigateHome = () => {
-    if (isProfileRouteActive || isHashtagRouteActive) {
+    if (isSpecialRouteActive) {
       navigate("/");
     }
     setActiveTab("home");
@@ -147,7 +154,7 @@ const AppShell = () => {
   };
 
   const onNavigateMessaging = () => {
-    if (isProfileRouteActive || isHashtagRouteActive) {
+    if (isSpecialRouteActive) {
       navigate("/");
     }
     setActiveTab("messaging");
@@ -159,7 +166,7 @@ const AppShell = () => {
       return;
     }
 
-    if (isProfileRouteActive || isHashtagRouteActive) {
+    if (isSpecialRouteActive) {
       navigate("/");
     }
     setActiveTab("home");
@@ -233,8 +240,11 @@ const AppShell = () => {
     width: "100%",
   });
   const shouldShowHashtagView = isHashtagRouteActive;
+  const shouldShowWriteArticleView = isWriteArticleRouteActive;
   const shouldShowProfileView =
-    !shouldShowHashtagView && (isProfileRouteActive || view === "profile");
+    !shouldShowHashtagView &&
+    !shouldShowWriteArticleView &&
+    (isProfileRouteActive || view === "profile");
   const routedProfileUserId = routeUserId || null;
   const routedProfileUsername = routeUsername || null;
 
@@ -291,12 +301,16 @@ const AppShell = () => {
                   onNavigateProfile={onNavigateProfile}
                 />
               )}
+              {shouldShowWriteArticleView && <ArticleEditor />}
 
               {/* Keep-alive tabs — always mounted, shown/hidden via display.
                   This prevents Convex query re-fetching and skeleton flashes. */}
               <div
                 style={showWhen(
-                  !shouldShowProfileView && !shouldShowHashtagView && activeTab === "home",
+                  !shouldShowProfileView &&
+                    !shouldShowHashtagView &&
+                    !shouldShowWriteArticleView &&
+                    activeTab === "home",
                 )}
               >
                 <Grid item className={classes.feed__form}>
@@ -309,7 +323,10 @@ const AppShell = () => {
 
               <div
                 style={showWhen(
-                  !shouldShowProfileView && !shouldShowHashtagView && activeTab === "network",
+                  !shouldShowProfileView &&
+                    !shouldShowHashtagView &&
+                    !shouldShowWriteArticleView &&
+                    activeTab === "network",
                 )}
               >
                 <Network onNavigateProfile={onNavigateProfile} />
@@ -317,7 +334,10 @@ const AppShell = () => {
 
               <div
                 style={showWhen(
-                  !shouldShowProfileView && !shouldShowHashtagView && activeTab === "messaging",
+                  !shouldShowProfileView &&
+                    !shouldShowHashtagView &&
+                    !shouldShowWriteArticleView &&
+                    activeTab === "messaging",
                 )}
               >
                 <Messaging />
@@ -327,6 +347,7 @@ const AppShell = () => {
                 style={showWhen(
                   !shouldShowProfileView &&
                   !shouldShowHashtagView &&
+                  !shouldShowWriteArticleView &&
                   activeTab === "notifications",
                 )}
               >

@@ -20,6 +20,7 @@ export default makeStyles((theme) => ({
     height: "auto",
     display: "flex",
     alignItems: "center",
+    gap: 8,
     padding: "15px 0 5px 0",
   },
 
@@ -86,6 +87,30 @@ export default makeStyles((theme) => ({
       "&:hover": {
         backgroundColor: "#1b5e20",
       },
+    },
+  },
+
+  writeArticleButton: {
+    height: 40,
+    border: 0,
+    outlineWidth: 0,
+    borderRadius: 999,
+    padding: "0 14px",
+    backgroundColor: "rgba(46,125,50,0.1)",
+    color: "#2e7d32",
+    fontWeight: 700,
+    fontSize: 13,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+    transition: "background-color 0.2s ease, color 0.2s ease",
+    "&:hover": {
+      backgroundColor: "rgba(46,125,50,0.18)",
+      color: "#1b5e20",
+    },
+    [theme.breakpoints.down("xs")]: {
+      height: 36,
+      padding: "0 10px",
+      fontSize: 12,
     },
   },
 

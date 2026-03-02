@@ -1,5 +1,6 @@
 import React, { useRef, useState } from "react";
 import { useConvexAuth, useMutation } from "convex/react";
+import { useNavigate } from "react-router-dom";
 import { Chip, Paper } from "@material-ui/core";
 import VideocamRoundedIcon from "@material-ui/icons/VideocamRounded";
 import YouTubeIcon from "@material-ui/icons/YouTube";
@@ -47,6 +48,7 @@ const getActiveMention = (value, caretPosition) => {
 
 const Form = () => {
   const classes = Styles();
+  const navigate = useNavigate();
   const createPost = useMutation(api.posts.createPost);
   const generateImageUploadUrl = useMutation(api.posts.generateImageUploadUrl);
   const { isAuthenticated } = useConvexAuth();
@@ -350,6 +352,10 @@ const Form = () => {
     });
   };
 
+  const onWriteArticle = () => {
+    navigate("/write-article");
+  };
+
   if (!isAuthenticated || !user?._id) {
     return null;
   }
@@ -400,6 +406,9 @@ const Form = () => {
           </select>
           <button type="submit" disabled={isSubmitting}>{isSubmitting ? "Posting..." : "Post"}</button>
         </form>
+        <button type="button" className={classes.writeArticleButton} onClick={onWriteArticle}>
+          Write article
+        </button>
         <MentionAutocomplete
           anchorEl={descriptionInputRef.current}
           open={mentionState.open}
