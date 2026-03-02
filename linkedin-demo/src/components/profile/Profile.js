@@ -114,6 +114,7 @@ const Profile = ({
     Boolean(authUser?._id) &&
     Boolean(resolvedUserId) &&
     authUser?._id === resolvedUserId;
+  const canShowProfileActions = Boolean(authUser?._id) && !isOwnProfile;
   const connectionState = connectionStatus?.status ?? "none";
   const isConnectionStatusLoading =
     Boolean(authUser?._id) &&
@@ -251,7 +252,7 @@ const Profile = ({
               </Typography>
             </div>
 
-            {!isOwnProfile && (
+            {canShowProfileActions && (
               <div className={classes.actionRow}>
                 {connectionState === "none" && (
                   <Button
