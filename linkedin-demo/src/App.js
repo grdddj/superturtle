@@ -14,6 +14,7 @@ import Notifications from "./components/notifications/Notifications";
 import Onboarding from "./components/onboarding/Onboarding";
 import Posts from "./components/posts/Posts";
 import ArticleEditor from "./components/articles/ArticleEditor";
+import ArticleView from "./components/articles/ArticleView";
 import HashtagFeed from "./components/hashtag/HashtagFeed";
 import Profile from "./components/profile/Profile";
 import SavedPosts from "./components/bookmarks/SavedPosts";
@@ -47,6 +48,7 @@ const AppShell = () => {
   const navigate = useNavigate();
   const hashtagRouteMatch = useMatch("/hashtag/:tag");
   const writeArticleRouteMatch = useMatch("/write-article");
+  const articleRouteMatch = useMatch("/article/:id");
   const savedRouteMatch = useMatch("/saved");
   const usernameRouteMatch = useMatch("/:username");
   const profileIdRouteMatch = useMatch("/profile/:userId");
@@ -55,8 +57,9 @@ const AppShell = () => {
     ? normalizeHashtag(decodeRouteParam(routeHashtagParam))
     : null;
   const isWriteArticleRouteActive = Boolean(writeArticleRouteMatch);
+  const isArticleRouteActive = Boolean(articleRouteMatch?.params?.id);
   const isSavedRouteActive = Boolean(savedRouteMatch);
-  const routeUsername = isWriteArticleRouteActive || isSavedRouteActive
+  const routeUsername = isWriteArticleRouteActive || isArticleRouteActive || isSavedRouteActive
     ? null
     : usernameRouteMatch?.params?.username?.trim().toLowerCase() ?? null;
   const routeUserId = profileIdRouteMatch?.params?.userId ?? null;
@@ -66,6 +69,7 @@ const AppShell = () => {
     isProfileRouteActive ||
     isHashtagRouteActive ||
     isWriteArticleRouteActive ||
+    isArticleRouteActive ||
     isSavedRouteActive;
   const { isAuthenticated, isLoading } = useConvexAuth();
   const seedData = useMutation(api.seed.seedData);
@@ -247,10 +251,12 @@ const AppShell = () => {
   });
   const shouldShowHashtagView = isHashtagRouteActive;
   const shouldShowWriteArticleView = isWriteArticleRouteActive;
+  const shouldShowArticleView = isArticleRouteActive;
   const shouldShowSavedView = isSavedRouteActive;
   const shouldShowProfileView =
     !shouldShowSavedView &&
     !shouldShowHashtagView &&
+    !shouldShowArticleView &&
     !shouldShowWriteArticleView &&
     (isProfileRouteActive || view === "profile");
   const routedProfileUserId = routeUserId || null;
@@ -310,6 +316,7 @@ const AppShell = () => {
                 />
               )}
               {shouldShowWriteArticleView && <ArticleEditor />}
+              {shouldShowArticleView && <ArticleView />}
               {shouldShowSavedView && <SavedPosts onNavigateProfile={onNavigateProfile} />}
 
               {/* Keep-alive tabs — always mounted, shown/hidden via display.
@@ -319,6 +326,7 @@ const AppShell = () => {
                   !shouldShowProfileView &&
                     !shouldShowSavedView &&
                     !shouldShowHashtagView &&
+                    !shouldShowArticleView &&
                     !shouldShowWriteArticleView &&
                     activeTab === "home",
                 )}
@@ -336,6 +344,7 @@ const AppShell = () => {
                   !shouldShowProfileView &&
                     !shouldShowSavedView &&
                     !shouldShowHashtagView &&
+                    !shouldShowArticleView &&
                     !shouldShowWriteArticleView &&
                     activeTab === "network",
                 )}
@@ -348,6 +357,7 @@ const AppShell = () => {
                   !shouldShowProfileView &&
                     !shouldShowSavedView &&
                     !shouldShowHashtagView &&
+                    !shouldShowArticleView &&
                     !shouldShowWriteArticleView &&
                     activeTab === "messaging",
                 )}
@@ -360,6 +370,7 @@ const AppShell = () => {
                   !shouldShowProfileView &&
                   !shouldShowSavedView &&
                   !shouldShowHashtagView &&
+                  !shouldShowArticleView &&
                   !shouldShowWriteArticleView &&
                   activeTab === "notifications",
                 )}
