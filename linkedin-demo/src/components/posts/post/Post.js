@@ -28,6 +28,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../../../convex/_generated/api";
 import { DEFAULT_PHOTO } from "../../../constants";
 import useConvexUser from "../../../hooks/useConvexUser";
+import EditHistoryDialog from "../editHistory/EditHistoryDialog";
 import PollDisplay from "../poll/PollDisplay";
 import ReportDialog from "../report/ReportDialog";
 import { getLinkPreviewFromText } from "./post.utils";
@@ -186,6 +187,7 @@ const Post = forwardRef(
     const [isReportDialogOpen, setIsReportDialogOpen] = React.useState(false);
     const [isReportSubmitting, setIsReportSubmitting] = React.useState(false);
     const [hasReportedOptimistic, setHasReportedOptimistic] = React.useState(false);
+    const [isEditHistoryDialogOpen, setIsEditHistoryDialogOpen] = React.useState(false);
     const [reportSnackbarState, setReportSnackbarState] = React.useState({
       open: false,
       message: "",
@@ -684,6 +686,11 @@ const Post = forwardRef(
     };
     const handleEditedBadgeClick = (event) => {
       event.preventDefault();
+      if (!isEdited) {
+        return;
+      }
+
+      setIsEditHistoryDialogOpen(true);
     };
     const handleArticleOpen = () => {
       if (!isArticlePost) {
@@ -1303,6 +1310,11 @@ const Post = forwardRef(
           onClose={handleReportDialogClose}
           onSubmit={handleReportSubmit}
           loading={isReportSubmitting}
+        />
+        <EditHistoryDialog
+          open={isEditHistoryDialogOpen}
+          onClose={() => setIsEditHistoryDialogOpen(false)}
+          postId={postId}
         />
 
         <Snackbar

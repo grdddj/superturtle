@@ -1,5 +1,5 @@
 ## Current Task
-Test and commit.
+All backlog items complete.
 
 ## End Goal with Specs
 Item 35 from Phase 2: When a post is edited, show "Edited" indicator. Users can view previous versions.
@@ -16,9 +16,12 @@ Item 35 from Phase 2: When a post is edited, show "Edited" indicator. Users can 
 - [x] Show "Edited" badge in Post.js next to timestamp — small text, clickable
 - [x] Create `linkedin-demo/src/components/posts/editHistory/EditHistoryDialog.js` — dialog listing previous versions with timestamps
 - [x] Run `cd linkedin-demo && npx convex dev --once` to push schema
-- [ ] Test and commit <- current
+- [x] Test and commit
 
 ## Notes
 - Post component: `linkedin-demo/src/components/posts/post/Post.js`
 - Posts mutations: `linkedin-demo/src/convex/posts.ts` — editPost mutation
 - Schema: `linkedin-demo/src/convex/schema.ts`
+
+## Loop Control
+STOP
