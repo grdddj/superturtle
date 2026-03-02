@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useConvexAuth, useMutation } from "convex/react";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useSelector } from "react-redux";
 import { Grid, Hidden, Modal, Typography } from "@material-ui/core";
 import { ThemeProvider, createMuiTheme } from "@material-ui/core";
@@ -10,6 +10,7 @@ import LoginCard from "./components/login/loginCard/LoginCard";
 import Messaging from "./components/messaging/Messaging";
 import Network from "./components/network/Network";
 import Notifications from "./components/notifications/Notifications";
+import Onboarding from "./components/onboarding/Onboarding";
 import Posts from "./components/posts/Posts";
 import Profile from "./components/profile/Profile";
 import Sidebar from "./components/sidebar/Sidebar";
@@ -27,6 +28,7 @@ const App = () => {
   const [showLogin, setShowLogin] = useState(false);
   const { isAuthenticated, isLoading } = useConvexAuth();
   const seedData = useMutation(api.seed.seedData);
+  const currentUser = useQuery(api.users.getCurrentUser, isAuthenticated ? {} : "skip");
   const seededRef = useRef(false);
 
   const muiTheme = useMemo(
@@ -102,7 +104,10 @@ const App = () => {
     setShowLogin(false);
   };
 
-  if (isLoading) {
+  const isCurrentUserLoading = isAuthenticated && currentUser === undefined;
+  const shouldShowOnboarding = Boolean(isAuthenticated && currentUser && !currentUser.username);
+
+  if (isLoading || isCurrentUserLoading) {
     return (
       <ThemeProvider theme={muiTheme}>
         <Grid
@@ -124,6 +129,20 @@ const App = () => {
               TurtleIn
             </Typography>
           </div>
+        </Grid>
+      </ThemeProvider>
+    );
+  }
+
+  if (shouldShowOnboarding) {
+    return (
+      <ThemeProvider theme={muiTheme}>
+        <Grid
+          container
+          className={`${classes.app} fade-in`}
+          style={{ backgroundColor: mode ? darkPrimary : LinkedInBgColor }}
+        >
+          <Onboarding currentUser={currentUser} />
         </Grid>
       </ThemeProvider>
     );
