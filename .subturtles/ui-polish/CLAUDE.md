@@ -1,5 +1,5 @@
 ## Current Task
-Fix dark mode in `linkedin-demo/src/components/profile/Style.js`.
+Fix dark mode in `linkedin-demo/src/components/header/menuItem/Style.js`.
 
 ## End Goal with Specs
 - All hardcoded white/black colors replaced with theme-aware values
@@ -20,9 +20,9 @@ Fix dark mode in `linkedin-demo/src/components/profile/Style.js`.
   - Line ~292: Comment submit button text color — verify contrast in dark mode
 - [x] Fix dark mode in `linkedin-demo/src/components/messaging/Style.js`:
   - Line ~150: Other user bubble `backgroundColor: "#e0e0e0"` → use `theme.palette.type === "dark" ? "#37474f" : "#e0e0e0"`
-- [ ] Fix dark mode in `linkedin-demo/src/components/profile/Style.js`: <- current
+- [x] Fix dark mode in `linkedin-demo/src/components/profile/Style.js`:
   - Line ~56: Avatar border `border: "4px solid #fff"` → use `theme.palette.background.paper`
-- [ ] Fix dark mode in `linkedin-demo/src/components/header/menuItem/Style.js`:
+- [ ] Fix dark mode in `linkedin-demo/src/components/header/menuItem/Style.js`: <- current
   - Line ~19: `color: "black"` → use `theme.palette.text.primary`
 - [ ] Clean up dead guestBtn styles in `linkedin-demo/src/components/login/loginCard/Style.js`: Remove `.guestBtn` styles (lines ~75-81) since guest auth button was removed.
 - [ ] Add active tab indication to desktop nav in `linkedin-demo/src/components/header/Header.js` and `linkedin-demo/src/components/header/Style.js`: Add a green bottom border or underline (#2e7d32) to the active tab icon in the desktop header nav. The `activeTab` state is available — use it to conditionally apply a style.

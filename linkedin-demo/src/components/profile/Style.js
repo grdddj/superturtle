@@ -53,7 +53,7 @@ export default makeStyles((theme) => ({
   avatar: {
     width: 104,
     height: 104,
-    border: "4px solid #fff",
+    border: `4px solid ${theme.palette.background.paper}`,
     position: "absolute",
     bottom: -52,
     left: 16,
