@@ -72,14 +72,6 @@ export default makeStyles((theme) => ({
     },
   },
 
-  guestBtn: {
-    backgroundColor: "#2e7d32",
-    color: "#ffffff",
-    "&:hover": {
-      backgroundColor: "#1b5e20",
-    },
-  },
-
   githubBtn: {
     backgroundColor: "#24292e",
     color: "#ffffff",

@@ -1,5 +1,5 @@
 ## Current Task
-Clean up dead guestBtn styles in `linkedin-demo/src/components/login/loginCard/Style.js`.
+Add active tab indication to desktop nav in `linkedin-demo/src/components/header/Header.js` and `linkedin-demo/src/components/header/Style.js`.
 
 ## End Goal with Specs
 - All hardcoded white/black colors replaced with theme-aware values
@@ -24,9 +24,10 @@ Clean up dead guestBtn styles in `linkedin-demo/src/components/login/loginCard/S
   - Line ~56: Avatar border `border: "4px solid #fff"` → use `theme.palette.background.paper`
 - [x] Fix dark mode in `linkedin-demo/src/components/header/menuItem/Style.js`:
   - Line ~19: `color: "black"` → use `theme.palette.text.primary`
-- [ ] Clean up dead guestBtn styles in `linkedin-demo/src/components/login/loginCard/Style.js`: <- current
+- [x] Clean up dead guestBtn styles in `linkedin-demo/src/components/login/loginCard/Style.js`:
   - Remove `.guestBtn` styles (lines ~75-81) since guest auth button was removed.
-- [ ] Add active tab indication to desktop nav in `linkedin-demo/src/components/header/Header.js` and `linkedin-demo/src/components/header/Style.js`: Add a green bottom border or underline (#2e7d32) to the active tab icon in the desktop header nav. The `activeTab` state is available — use it to conditionally apply a style.
+- [ ] Add active tab indication to desktop nav in `linkedin-demo/src/components/header/Header.js` and `linkedin-demo/src/components/header/Style.js`: <- current
+  - Add a green bottom border or underline (#2e7d32) to the active tab icon in the desktop header nav. The `activeTab` state is available — use it to conditionally apply a style.
 - [ ] Add loading state to OAuth buttons in `linkedin-demo/src/components/login/loginCard/LoginCard.js`: When a sign-in button is clicked, show a small spinner or "Signing in..." text and disable both buttons to prevent double-clicks. Use a `signingIn` state.
 - [ ] Clean up DEFAULT_PROFILE in `linkedin-demo/src/components/profile/Profile.js`: The fallback object has "Alex Turner", "TurtleIn builder", "San Francisco, CA" — replace with generic fallbacks: displayName → "User", title → "", location → "". Or better, show a minimal profile when data is missing.
 - [ ] Run `cd linkedin-demo && npm run build` to verify build passes
