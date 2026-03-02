@@ -387,7 +387,7 @@ export const createPost = mutation({
 
       const notificationsToCreate = mentionedUsers.filter(
         (mentionedUser): mentionedUser is Doc<"users"> =>
-          Boolean(mentionedUser) && mentionedUser._id !== args.authorId,
+          mentionedUser !== null && mentionedUser._id !== args.authorId,
       );
 
       await Promise.all(
