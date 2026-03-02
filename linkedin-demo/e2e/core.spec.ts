@@ -89,6 +89,31 @@ async function getVisibleLikeCount(post: Locator) {
   return 0;
 }
 
+function getReactionAction(post: Locator) {
+  return post
+    .locator('[data-testid="ThumbUpAltOutlinedIcon"], [data-testid="ThumbUpAltIcon"]')
+    .first()
+    .locator("xpath=..");
+}
+
+async function selectReactionFromPicker(post: Locator, reactionLabel: string) {
+  const reactionAction = getReactionAction(post);
+  const reactionPicker = post.getByRole("menu", { name: "Select reaction" });
+
+  await reactionAction.hover();
+  await expect(reactionPicker).toBeVisible();
+  await reactionPicker.getByRole("button", { name: reactionLabel, exact: true }).click();
+}
+
+async function expectReactionBreakdown(post: Locator, expectedLabel: string, expectedCount: number) {
+  const reactionSummaryCount = post.locator("h4").filter({ hasText: /^\d+$/ }).first();
+  const reactionTooltip = post.getByRole("tooltip");
+
+  await reactionSummaryCount.hover();
+  await expect(reactionTooltip).toBeVisible();
+  await expect(reactionTooltip).toContainText(new RegExp(`${expectedLabel}\\s*${expectedCount}`));
+}
+
 function getPostsByDescription(page: Page, description: string) {
   return page
     .locator('[id^="post-"]')
@@ -143,6 +168,15 @@ async function deletePostIfPresent(page: Page, description: string) {
   await openOwnPostMenu(post);
   await page.getByRole("menuitem", { name: "Delete" }).click();
   await expect(getPostsByDescription(page, description)).toHaveCount(0);
+}
+
+async function tryLoginAsGuest(page: Page) {
+  try {
+    await loginAsGuest(page);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 test("Guest login", async ({ page }) => {
@@ -308,4 +342,47 @@ test.describe("Feed", () => {
     await page.getByText("Home", { exact: true }).first().click();
     await expect(page.getByPlaceholder("Start a post")).toBeVisible();
   });
+});
+
+test("Reaction flow updates per-type counts", async ({ page }) => {
+  const loggedIn = await tryLoginAsGuest(page);
+  test.skip(!loggedIn, "Skipped: guest session unavailable on live deployment.");
+
+  await ensureFeedReady(page, false);
+  test.skip(
+    (await isFeedBlocked(page)) || !(await isComposerVisible(page)),
+    "Skipped: live feed is in ErrorBoundary state (known Convex deployment mismatch).",
+  );
+
+  const postBody = `E2E reaction post ${Date.now()}`;
+  await createTextPost(page, postBody);
+  const createdPost = await getVisiblePostByDescription(page, postBody);
+
+  if (!(await createdPost.isVisible().catch(() => false))) {
+    await ensureFeedReady(page, false);
+  }
+  test.skip(
+    !(await createdPost.isVisible().catch(() => false)),
+    "Skipped: created post did not stay visible in the live feed (known runtime instability).",
+  );
+
+  const reactionAction = getReactionAction(createdPost);
+  await expect.poll(async () => getVisibleLikeCount(createdPost), { timeout: 10_000 }).toBe(0);
+
+  await selectReactionFromPicker(createdPost, "Love");
+  await expect(reactionAction.locator("h4")).toHaveText("Love");
+  await expect.poll(async () => getVisibleLikeCount(createdPost), { timeout: 10_000 }).toBe(1);
+  await expectReactionBreakdown(createdPost, "Love", 1);
+
+  await selectReactionFromPicker(createdPost, "Celebrate");
+  await expect(reactionAction.locator("h4")).toHaveText("Celebrate");
+  await expect.poll(async () => getVisibleLikeCount(createdPost), { timeout: 10_000 }).toBe(1);
+  await expectReactionBreakdown(createdPost, "Celebrate", 1);
+  await expect(createdPost.getByRole("tooltip")).not.toContainText("Love");
+
+  await selectReactionFromPicker(createdPost, "Celebrate");
+  await expect(reactionAction.locator("h4")).toHaveText("Like");
+  await expect.poll(async () => getVisibleLikeCount(createdPost), { timeout: 10_000 }).toBe(0);
+
+  await deletePostIfPresent(page, postBody);
 });

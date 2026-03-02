@@ -21,6 +21,8 @@ Items 19-20 from Phase 2: Full reaction system (👍 Like, ❤️ Love, 🎉 Cel
 - Implemented in `linkedin-demo/src/components/posts/post/Post.js` and `linkedin-demo/src/components/posts/post/Style.js`.
 - Added hover and long-press reaction picker behavior, wired picker selections to `applyReaction`, and improved optimistic per-type count updates for reaction changes.
 - Verification run: `npm run build` passed. `CI=true npm test -- --watch=false` failed on existing `src/App.test.js` auth-button expectation, unrelated to reactions flow.
+- Added E2E coverage in `linkedin-demo/e2e/core.spec.ts` for create post + reaction add/change/remove + per-type breakdown assertions (`Reaction flow updates per-type counts`).
+- Verification run: `npx playwright test e2e/core.spec.ts --grep "Reaction flow updates per-type counts"` completed with `1 skipped` because guest session/composer was unavailable on the live deployment during this run.
 
 ## Notes
 - Mutations already exist: `api.likes.setReaction`, `api.likes.removeReaction`

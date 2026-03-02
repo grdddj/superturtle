@@ -51,8 +51,48 @@ const resolvePostImageUrls = async (
 export const listPosts = query({
   args: {},
   handler: async (ctx) => {
+    const viewerId = await getAuthUserId(ctx);
     const posts = await ctx.db.query("posts").collect();
-    const sortedPosts = [...posts].sort((a, b) => b.createdAt - a.createdAt);
+    const connectedAuthorIds = new Set<Id<"users">>();
+
+    if (viewerId) {
+      const [requestedConnections, receivedConnections] = await Promise.all([
+        ctx.db
+          .query("connections")
+          .withIndex("byUser1", (q) => q.eq("userId1", viewerId).eq("status", "accepted"))
+          .collect(),
+        ctx.db
+          .query("connections")
+          .withIndex("byUser2", (q) => q.eq("userId2", viewerId).eq("status", "accepted"))
+          .collect(),
+      ]);
+
+      for (const connection of requestedConnections) {
+        connectedAuthorIds.add(connection.userId2);
+      }
+
+      for (const connection of receivedConnections) {
+        connectedAuthorIds.add(connection.userId1);
+      }
+    }
+
+    const visiblePosts = posts.filter((post) => {
+      if (post.visibility !== "connections") {
+        return true;
+      }
+
+      if (!viewerId) {
+        return false;
+      }
+
+      if (post.authorId === viewerId) {
+        return true;
+      }
+
+      return connectedAuthorIds.has(post.authorId);
+    });
+
+    const sortedPosts = [...visiblePosts].sort((a, b) => b.createdAt - a.createdAt);
 
     return await Promise.all(
       sortedPosts.map(async (post) => {
