@@ -1,7 +1,8 @@
 import React, { useRef, useState } from "react";
 import { useConvexAuth, useMutation } from "convex/react";
 import { useNavigate } from "react-router-dom";
-import { Chip, Paper } from "@material-ui/core";
+import { Chip, Paper, Snackbar } from "@material-ui/core";
+import Alert from "@material-ui/lab/Alert";
 import VideocamRoundedIcon from "@material-ui/icons/VideocamRounded";
 import YouTubeIcon from "@material-ui/icons/YouTube";
 import PhotoSizeSelectActualIcon from "@material-ui/icons/PhotoSizeSelectActual";
@@ -11,7 +12,6 @@ import AddCircleOutlineIcon from "@material-ui/icons/AddCircleOutline";
 import HighlightOffRoundedIcon from "@material-ui/icons/HighlightOffRounded";
 // Colors import removed — using green branding directly
 import Styles from "./Style";
-import swal from "@sweetalert/with-react";
 import InsertLinkIcon from "@material-ui/icons/InsertLink";
 import HighlightOffIcon from "@material-ui/icons/HighlightOff";
 import { imageUploadHandler } from "./form.utils";
@@ -74,7 +74,32 @@ const Form = () => {
     start: -1,
     end: -1,
   });
+  const [snackbarState, setSnackbarState] = useState({
+    open: false,
+    message: "",
+    severity: "info",
+    autoHideDuration: 4000,
+  });
   const descriptionInputRef = useRef(null);
+
+  const showSnackbar = (message, severity = "info", autoHideDuration = 4000) => {
+    setSnackbarState({
+      open: true,
+      message,
+      severity,
+      autoHideDuration,
+    });
+  };
+
+  const handleSnackbarClose = (_, reason) => {
+    if (reason === "clickaway") {
+      return;
+    }
+    setSnackbarState((previousValue) => ({
+      ...previousValue,
+      open: false,
+    }));
+  };
 
   const closeMentionAutocomplete = () => {
     setMentionState({
@@ -164,30 +189,30 @@ const Form = () => {
     const description = uploadData.description.trim();
 
     if (!description && uploadData.files.length === 0 && !URL) {
-      swal("Empty Post", "Please enter something","warning");
+      showSnackbar("Please enter something", "warning");
       return;
     }
 
     if (!user?._id) {
-      swal("Please wait", "User profile is still loading.", "warning");
+      showSnackbar("User profile is still loading.", "warning");
       return;
     }
 
     if (URL !== "") {
       if (URL.startsWith("data")) {
-        swal("Invalid Image URL", "DATA-URL format is not allowed","warning");
+        showSnackbar("DATA-URL format is not allowed", "warning");
         setURL("");
         return;
       }
 
       if (URL.includes("youtu.be") || URL.includes("youtube")) {
-        swal("Invalid Image URL","Youtube videos are not allowed","warning");
+        showSnackbar("Youtube videos are not allowed", "warning");
         setURL("");
         return;
       }
 
       if (!URL.startsWith("http")) {
-        swal("Invalid Image URL","Please enter valid image url","warning");
+        showSnackbar("Please enter valid image url", "warning");
         setURL("");
         return;
       }
@@ -247,15 +272,10 @@ const Form = () => {
 
       await createPost(payload);
       resetState();
-      swal({
-        icon: "success",
-        title: "Post created!",
-        timer: 1500,
-        buttons: false,
-      });
+      showSnackbar("Post created!", "success", 1500);
     } catch (error) {
       console.error("Failed to create post:", error);
-      swal("Post Failed", "Unable to publish your post right now.", "error");
+      showSnackbar("Unable to publish your post right now.", "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -528,6 +548,16 @@ const Form = () => {
           <h4>{isPollComposerOpen ? "Cancel Poll" : "Create Poll"}</h4>
         </div>
       </div>
+      <Snackbar
+        open={snackbarState.open}
+        autoHideDuration={snackbarState.autoHideDuration}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert onClose={handleSnackbarClose} severity={snackbarState.severity} variant="filled">
+          {snackbarState.message}
+        </Alert>
+      </Snackbar>
     </Paper>
   );
 };
