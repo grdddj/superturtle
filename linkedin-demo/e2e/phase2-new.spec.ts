@@ -219,4 +219,55 @@ test.describe("Phase 2 batch 2 e2e", () => {
       }
     }
   });
+
+  test("Report post marks post as reported and prevents duplicate reports", async ({ page }) => {
+    const client = await createAuthenticatedConvexClient(page);
+    let createdPostId: string | null = null;
+
+    try {
+      const currentUser = await runConvexCallOrSkip("users:getCurrentUser", () =>
+        client.query("users:getCurrentUser", {}),
+      );
+      test.skip(!currentUser?._id, "Skipped: current user lookup failed for guest auth session.");
+
+      createdPostId = await runConvexCallOrSkip("posts:createPost", () =>
+        client.mutation("posts:createPost", {
+          authorId: currentUser._id,
+          description: `E2E report post ${Date.now()}`,
+          visibility: "public",
+        }),
+      );
+
+      const firstReportResult = await runConvexCallOrSkip("reports:reportPost", () =>
+        client.mutation("reports:reportPost", {
+          postId: createdPostId!,
+          reason: "Spam",
+          details: "Automated E2E report validation",
+        }),
+      );
+      expect(firstReportResult?.reported).toBe(true);
+      expect(firstReportResult?.alreadyReported).toBe(false);
+
+      const hasReported = await runConvexCallOrSkip("reports:hasReported", () =>
+        client.query("reports:hasReported", { postId: createdPostId! }),
+      );
+      expect(hasReported).toBe(true);
+
+      const duplicateReportResult = await runConvexCallOrSkip("reports:reportPost", () =>
+        client.mutation("reports:reportPost", {
+          postId: createdPostId!,
+          reason: "Spam",
+          details: "Duplicate report should be prevented",
+        }),
+      );
+      expect(duplicateReportResult?.reported).toBe(false);
+      expect(duplicateReportResult?.alreadyReported).toBe(true);
+    } finally {
+      if (createdPostId) {
+        await client
+          .mutation("posts:deletePost", { postId: createdPostId })
+          .catch(() => {});
+      }
+    }
+  });
 });
