@@ -24,6 +24,18 @@ const MIN_POLL_OPTIONS = 2;
 const MAX_POLL_OPTIONS = 4;
 const MENTION_TRIGGER_REGEX = /(^|\s)@([a-z0-9-]*)$/i;
 
+const getNormalizedPollPayload = (pollDraft) => {
+  const question = pollDraft.question.trim();
+  const options = pollDraft.options
+    .map((option) => option.trim())
+    .filter((option) => option.length > 0);
+
+  return {
+    question,
+    options,
+  };
+};
+
 const getActiveMention = (value, caretPosition) => {
   if (typeof value !== "string") {
     return null;
@@ -50,6 +62,7 @@ const Form = () => {
   const classes = Styles();
   const navigate = useNavigate();
   const createPost = useMutation(api.posts.createPost);
+  const createPoll = useMutation(api.polls.createPoll);
   const generateImageUploadUrl = useMutation(api.posts.generateImageUploadUrl);
   const { isAuthenticated } = useConvexAuth();
   const user = useConvexUser();
@@ -198,6 +211,25 @@ const Form = () => {
       return;
     }
 
+    const shouldCreatePoll = isPollComposerOpen;
+    const normalizedPollPayload = shouldCreatePoll
+      ? getNormalizedPollPayload(pollDraft)
+      : null;
+
+    if (shouldCreatePoll && !normalizedPollPayload.question) {
+      showSnackbar("Please add a poll question.", "warning");
+      return;
+    }
+
+    if (
+      shouldCreatePoll &&
+      (normalizedPollPayload.options.length < MIN_POLL_OPTIONS ||
+        normalizedPollPayload.options.length > MAX_POLL_OPTIONS)
+    ) {
+      showSnackbar("Poll must include between 2 and 4 options.", "warning");
+      return;
+    }
+
     if (URL !== "") {
       if (URL.startsWith("data")) {
         showSnackbar("DATA-URL format is not allowed", "warning");
@@ -270,7 +302,16 @@ const Form = () => {
         }
       }
 
-      await createPost(payload);
+      const postId = await createPost(payload);
+
+      if (shouldCreatePoll && normalizedPollPayload) {
+        await createPoll({
+          postId,
+          question: normalizedPollPayload.question,
+          options: normalizedPollPayload.options,
+        });
+      }
+
       resetState();
       showSnackbar("Post created!", "success", 1500);
     } catch (error) {
