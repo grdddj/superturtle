@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query, type QueryCtx } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import type { Doc, Id } from "./_generated/dataModel";
+import { buildAuthorSummary } from "./helpers";
 
 const MAX_POST_IMAGES = 4;
 const HASHTAG_REGEX = /(^|[^a-zA-Z0-9_])#([a-zA-Z0-9_]+)/g;
@@ -64,20 +65,6 @@ const resolvePostImageUrls = async (
   return [];
 };
 
-const buildAuthorSummary = (author: Doc<"users"> | null) => {
-  if (!author) {
-    return null;
-  }
-
-  return {
-    _id: author._id,
-    displayName: author.displayName ?? author.name ?? "Guest User",
-    photoURL: author.photoURL ?? author.image ?? "",
-    title: author.title ?? "",
-    username: author.username ?? "",
-  };
-};
-
 const buildFeedPostPayload = async (ctx: QueryCtx, post: Doc<"posts">) => {
   const [author, imageUrls, likes, comments, reposts] = await Promise.all([
     ctx.db.get(post.authorId),
@@ -103,7 +90,7 @@ const buildFeedPostPayload = async (ctx: QueryCtx, post: Doc<"posts">) => {
     commentsCount: comments.length,
     repostCount: reposts.length,
     imageUrls,
-    author: buildAuthorSummary(author),
+    author: await buildAuthorSummary(ctx, author),
   };
 };
 
@@ -215,7 +202,7 @@ export const listPosts = query({
           commentsCount: originalPostPayload.commentsCount,
           repostCount: originalPostPayload.repostCount,
           imageUrls: [],
-          author: buildAuthorSummary(reposter),
+          author: await buildAuthorSummary(ctx, reposter),
           feedItemType: "repost" as const,
           feedItemId: repost._id,
           targetPostId: originalPostPayload._id,
@@ -319,15 +306,7 @@ export const searchPosts = query({
           fileType: post.fileType,
           fileData: resolvedFileData,
           imageUrls,
-          author: author
-            ? {
-                _id: author._id,
-                displayName: author.displayName ?? author.name ?? "Guest User",
-                photoURL: author.photoURL ?? author.image ?? "",
-                title: author.title ?? "",
-                username: author.username ?? "",
-              }
-            : null,
+          author: await buildAuthorSummary(ctx, author),
         };
       }),
     );

@@ -1,7 +1,8 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import { mutation, query, type QueryCtx } from "./_generated/server";
-import type { Doc, Id } from "./_generated/dataModel";
+import type { Doc } from "./_generated/dataModel";
+import { buildAuthorSummaryById } from "./helpers";
 
 const resolvePostImageUrls = async (ctx: QueryCtx, post: Doc<"posts">) => {
   if (post.imageStorageIds?.length) {
@@ -19,35 +20,9 @@ const resolvePostImageUrls = async (ctx: QueryCtx, post: Doc<"posts">) => {
   return [];
 };
 
-const resolveUserPhotoURL = async (ctx: QueryCtx, user: Doc<"users">) => {
-  if (user.photoStorageId) {
-    const storagePhotoURL = await ctx.storage.getUrl(user.photoStorageId);
-    if (storagePhotoURL) {
-      return storagePhotoURL;
-    }
-  }
-
-  return user.photoURL ?? user.image ?? "";
-};
-
-const buildAuthorSummary = async (ctx: QueryCtx, authorId: Id<"users">) => {
-  const author = await ctx.db.get(authorId);
-  if (!author) {
-    return null;
-  }
-
-  return {
-    _id: author._id,
-    displayName: author.displayName ?? author.name ?? "Guest User",
-    photoURL: await resolveUserPhotoURL(ctx, author),
-    title: author.title ?? "",
-    username: author.username ?? "",
-  };
-};
-
 const buildBookmarkedPostPayload = async (ctx: QueryCtx, post: Doc<"posts">) => {
   const [author, imageUrls, likes, comments, reposts] = await Promise.all([
-    buildAuthorSummary(ctx, post.authorId),
+    buildAuthorSummaryById(ctx, post.authorId),
     resolvePostImageUrls(ctx, post),
     ctx.db
       .query("likes")

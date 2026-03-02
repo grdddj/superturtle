@@ -1,7 +1,8 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import { mutation, query, type QueryCtx } from "./_generated/server";
-import type { Doc, Id } from "./_generated/dataModel";
+import type { Id } from "./_generated/dataModel";
+import { buildAuthorSummaryById } from "./helpers";
 
 const normalizeRequiredField = (value: string, fieldName: string) => {
   const trimmedValue = value.trim();
@@ -29,32 +30,6 @@ const buildArticleDescription = (body: string, description?: string) => {
 
   const compactBody = body.replace(/\s+/g, " ").trim();
   return compactBody.slice(0, 280);
-};
-
-const resolveUserPhotoURL = async (ctx: QueryCtx, user: Doc<"users">) => {
-  if (user.photoStorageId) {
-    const storagePhotoURL = await ctx.storage.getUrl(user.photoStorageId);
-    if (storagePhotoURL) {
-      return storagePhotoURL;
-    }
-  }
-
-  return user.photoURL ?? user.image ?? "";
-};
-
-const buildAuthorSummary = async (ctx: QueryCtx, authorId: Id<"users">) => {
-  const author = await ctx.db.get(authorId);
-  if (!author) {
-    return null;
-  }
-
-  return {
-    _id: author._id,
-    displayName: author.displayName ?? author.name ?? "Guest User",
-    photoURL: await resolveUserPhotoURL(ctx, author),
-    title: author.title ?? "",
-    username: author.username ?? "",
-  };
 };
 
 const canViewConnectionsOnlyArticle = async (
@@ -141,7 +116,7 @@ export const getArticle = query({
 
     return {
       ...article,
-      author: await buildAuthorSummary(ctx, article.authorId),
+      author: await buildAuthorSummaryById(ctx, article.authorId),
     };
   },
 });

@@ -17,6 +17,8 @@ All duplicated helpers (resolvePhoto, resolveUserPhotoURL, buildAuthorSummary, R
 
 ## Notes
 - 2026-03-02: Shared photo helper import migration is complete across components; `npm run build` passes.
+- 2026-03-02: Progress on Convex helper migration: `posts.ts`, `bookmarks.ts`, and `articles.ts` now import shared author helpers; additional Convex files still need migration.
+- 2026-03-02: `npm run build` currently fails on pre-existing lint error in `src/components/profile/ExperienceSection.js` (`useTheme` called inside callback, react-hooks/rules-of-hooks).
 - Client-side shared utils go in `linkedin-demo/src/utils/`
 - Server-side (Convex) shared helpers go in `linkedin-demo/src/convex/helpers.ts`
 - resolvePhoto pattern: takes URL string, returns Convex storage URL or fallback
