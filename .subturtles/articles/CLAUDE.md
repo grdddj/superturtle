@@ -1,5 +1,5 @@
 ## Current Task
-Run `cd linkedin-demo && npx convex dev --once` to push schema.
+All backlog items for this subtask are complete.
 
 ## End Goal with Specs
 Item 32 from Phase 2: Long-form article posts with rich text editing and dedicated article view page.
@@ -17,11 +17,14 @@ Item 32 from Phase 2: Long-form article posts with rich text editing and dedicat
 - [x] Create article view page `linkedin-demo/src/components/articles/ArticleView.js` — full-page layout with title, author info, body, reactions
 - [x] Add `/article/:id` route in App.js
 - [x] Render articles in feed with title + truncated preview (different card style from regular posts)
-- [ ] Run `cd linkedin-demo && npx convex dev --once` to push schema <- current
-- [ ] Test and commit
+- [x] Run `cd linkedin-demo && npx convex dev --once` to push schema
+- [x] Test and commit
 
 ## Notes
 - Schema: `linkedin-demo/src/convex/schema.ts`
 - Router: `linkedin-demo/src/App.js`
 - Post composer: `linkedin-demo/src/components/posts/postMaker/PostMaker.js`
 - Post component: `linkedin-demo/src/components/posts/post/Post.js`
+
+## Loop Control
+STOP
