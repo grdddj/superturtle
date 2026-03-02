@@ -66,10 +66,16 @@ export default defineSchema({
     fileType: v.optional(v.string()),
     fileData: v.optional(v.string()),
     imageStorageIds: v.optional(v.array(v.id("_storage"))),
+    isEdited: v.optional(v.boolean()),
     createdAt: v.number(),
     likesCount: v.number(),
     commentsCount: v.number(),
   }),
+  postEdits: defineTable({
+    postId: v.id("posts"),
+    previousDescription: v.string(),
+    editedAt: v.number(),
+  }).index("byPostId", ["postId"]),
   polls: defineTable({
     postId: v.id("posts"),
     question: v.string(),
@@ -128,6 +134,15 @@ export default defineSchema({
     body: v.string(),
     createdAt: v.number(),
   }),
+  reports: defineTable({
+    userId: v.id("users"),
+    postId: v.id("posts"),
+    reason: v.string(),
+    details: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("byPostId", ["postId"])
+    .index("byUserId", ["userId"]),
   conversations: defineTable({
     participants: v.array(v.id("users")),
     createdAt: v.number(),

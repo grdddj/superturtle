@@ -448,8 +448,24 @@ export const updatePost = mutation({
     description: v.string(),
   },
   handler: async (ctx, args) => {
+    const existingPost = await ctx.db.get(args.postId);
+    if (!existingPost) {
+      throw new Error("Post not found");
+    }
+
+    if (existingPost.description === args.description) {
+      return;
+    }
+
+    await ctx.db.insert("postEdits", {
+      postId: args.postId,
+      previousDescription: existingPost.description,
+      editedAt: Date.now(),
+    });
+
     await ctx.db.patch(args.postId, {
       description: args.description,
+      isEdited: true,
     });
   },
 });
