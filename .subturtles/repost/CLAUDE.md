@@ -1,5 +1,5 @@
 ## Current Task
-Render reposted posts in feed with "X reposted" header and embedded original post.
+Run `cd linkedin-demo && npx convex dev --once` to push schema.
 
 ## End Goal with Specs
 Items 21-22 from Phase 2: Users can repost to their feed with optional commentary. Original post shows repost count.
@@ -10,8 +10,8 @@ Items 21-22 from Phase 2: Users can repost to their feed with optional commentar
 - [x] Add "Repost" button to post footer in `linkedin-demo/src/components/posts/post/Post.js` (next to Like and Comment)
 - [x] Repost dialog — small modal with optional commentary text field + "Repost" button
 - [x] Show repost count on original post (next to reactions and comments count)
-- [ ] Reposted posts appear in feed with "X reposted" header and original post embedded <- current
-- [ ] Run `cd linkedin-demo && npx convex dev --once` to push schema
+- [x] Reposted posts appear in feed with "X reposted" header and original post embedded
+- [ ] Run `cd linkedin-demo && npx convex dev --once` to push schema <- current
 - [ ] Test and commit
 
 ## Notes

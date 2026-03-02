@@ -36,6 +36,33 @@ const resolvePhoto = (photoURL) => {
   return photoURL;
 };
 
+const resolvePostImages = ({ fileType, fileData, imageUrls }) => {
+  if (fileType !== "image") {
+    return [];
+  }
+
+  if (Array.isArray(imageUrls) && imageUrls.length > 0) {
+    return imageUrls
+      .filter((imageUrl) => typeof imageUrl === "string" && imageUrl.length > 0)
+      .slice(0, 4);
+  }
+
+  if (fileData) {
+    return [fileData];
+  }
+
+  return [];
+};
+
+const getImageGridClassName = (classes, imageCount) =>
+  imageCount <= 1
+    ? classes.imageGrid1
+    : imageCount === 2
+      ? classes.imageGrid2
+      : imageCount === 3
+        ? classes.imageGrid3
+        : classes.imageGrid4;
+
 const REACTION_ITEMS = [
   {
     key: "like",
@@ -93,6 +120,8 @@ const Post = forwardRef(
       fileType,
       fileData,
       imageUrls,
+      isRepost = false,
+      originalPost = null,
       onNavigateProfile,
     },
     ref
@@ -198,10 +227,16 @@ const Post = forwardRef(
     const commentsList = comments ?? [];
     const canInteract = Boolean(isAuthenticated && user?._id);
     const canReact = canInteract && !isReactionMutationPending;
-    const isOwnPost = Boolean(canInteract && authorId && authorId === user._id);
+    const isOwnPost = Boolean(!isRepost && canInteract && authorId && authorId === user._id);
     const isMenuOpen = Boolean(menuAnchorEl);
     const canNavigateProfile =
       typeof onNavigateProfile === "function" && Boolean(authorId || authorUsername);
+    const canNavigateOriginalProfile =
+      Boolean(isRepost && originalPost) &&
+      typeof onNavigateProfile === "function" &&
+      Boolean(originalPost?.authorId || originalPost?.author?.username);
+    const hasDescription = typeof description === "string" && description.trim().length > 0;
+    const originalAuthorDisplayName = originalPost?.author?.displayName ?? "Unknown user";
 
     React.useEffect(() => {
       if (!isEditing) {
@@ -220,36 +255,30 @@ const Post = forwardRef(
       };
     }, []);
 
-    const capitalize = (_string = "") => {
-      return _string.charAt(0).toUpperCase() + _string.slice(1);
+    const capitalize = (value = "") => {
+      const normalizedValue = typeof value === "string" ? value : "";
+      return normalizedValue.charAt(0).toUpperCase() + normalizedValue.slice(1);
     };
 
-    const postImages = React.useMemo(() => {
-      if (fileType !== "image") {
-        return [];
-      }
+    const postImages = React.useMemo(
+      () =>
+        resolvePostImages({
+          fileType,
+          fileData,
+          imageUrls,
+        }),
+      [fileData, fileType, imageUrls],
+    );
 
-      if (Array.isArray(imageUrls) && imageUrls.length > 0) {
-        return imageUrls
-          .filter((imageUrl) => typeof imageUrl === "string" && imageUrl.length > 0)
-          .slice(0, 4);
-      }
-
-      if (fileData) {
-        return [fileData];
-      }
-
-      return [];
-    }, [fileData, fileType, imageUrls]);
-
-    const imageGridClassName =
-      postImages.length <= 1
-        ? classes.imageGrid1
-        : postImages.length === 2
-          ? classes.imageGrid2
-          : postImages.length === 3
-            ? classes.imageGrid3
-            : classes.imageGrid4;
+    const originalPostImages = React.useMemo(
+      () =>
+        resolvePostImages({
+          fileType: originalPost?.fileType,
+          fileData: originalPost?.fileData,
+          imageUrls: originalPost?.imageUrls,
+        }),
+      [originalPost],
+    );
 
     const applyReaction = async (nextReaction) => {
       if (!canReact || !user?._id) {
@@ -477,6 +506,16 @@ const Post = forwardRef(
         });
       }
     };
+    const handleOriginalProfileClick = () => {
+      if (!canNavigateOriginalProfile) {
+        return;
+      }
+
+      onNavigateProfile({
+        username: originalPost?.author?.username ?? null,
+        userId: originalPost?.authorId ?? null,
+      });
+    };
     const handleHashtagClick = (tag) => {
       if (!tag) {
         return;
@@ -591,6 +630,50 @@ const Post = forwardRef(
       );
     }
 
+    const renderMedia = (mediaType, mediaData, mediaImages, keyPrefix) => {
+      if (mediaType === "image") {
+        if (mediaImages.length === 0) {
+          return null;
+        }
+
+        const mediaGridClassName = getImageGridClassName(classes, mediaImages.length);
+
+        return (
+          <div className={classes.body__image}>
+            <div className={`${classes.body__imageGrid} ${mediaGridClassName}`}>
+              {mediaImages.map((imageUrl, index) => (
+                <div
+                  key={`${keyPrefix}-image-${index}`}
+                  className={classes.imageGridItem}
+                  style={
+                    mediaImages.length === 3 && index === 0
+                      ? { gridColumn: "1 / span 2" }
+                      : undefined
+                  }
+                >
+                  <img src={imageUrl} alt={`post media ${index + 1}`} loading="lazy" />
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      }
+
+      if (!mediaData) {
+        return null;
+      }
+
+      return (
+        <div className={classes.body__image}>
+          <ReactPlayer
+            url={mediaData}
+            controls={true}
+            style={{ height: "auto !important" }}
+          />
+        </div>
+      );
+    };
+
     const Reactions = () => {
       if (!hasStats) return null;
 
@@ -651,140 +734,185 @@ const Post = forwardRef(
     return (
       <>
         <Paper ref={ref} className={classes.post} id={`post-${postId}`}>
-        <div className={classes.post__header}>
-          <Avatar
-            src={resolvePhoto(profile)}
-            onClick={canNavigateProfile ? handleProfileClick : undefined}
-            style={canNavigateProfile ? { cursor: "pointer" } : undefined}
-          />
-          <div className={classes.header__info}>
-            <h4
-              onClick={canNavigateProfile ? handleProfileClick : undefined}
-              style={canNavigateProfile ? { cursor: "pointer" } : { cursor: "default" }}
-            >
-              {capitalize(username)}
-            </h4>
-            <p>
-              <ReactTimeago date={new Date(timestamp).toUTCString()} units="minute" />
-            </p>
-          </div>
-          {isOwnPost && (
-            <>
-              <MoreHorizOutlinedIcon onClick={handleMenuOpen} />
-              <Menu
-                anchorEl={menuAnchorEl}
-                keepMounted
-                open={isMenuOpen}
-                onClose={handleMenuClose}
-              >
-                <MenuItem onClick={handleEditClick}>Edit</MenuItem>
-                <MenuItem onClick={handleDeleteClick}>Delete</MenuItem>
-              </Menu>
-            </>
-          )}
-        </div>
-        <div className={classes.post__body}>
-          <div className={classes.body__description}>
-            {isEditing ? (
-              <div style={{ width: "100%" }}>
-                <textarea
-                  className={classes.editTextarea}
-                  value={editText}
-                  onChange={(event) => setEditText(event.target.value)}
-                  rows={3}
-                  aria-label="Edit post description"
-                />
-                <div className={classes.editActions}>
-                  <button
-                    type="button"
-                    className={classes.saveButton}
-                    onClick={handleEditSave}
-                    disabled={!editText.trim()}
-                  >
-                    Save
-                  </button>
-                  <button
-                    type="button"
-                    className={classes.cancelButton}
-                    onClick={handleEditCancel}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <p>
-                {descriptionSegments.length === 0
-                  ? description
-                  : descriptionSegments.map((segment, index) => {
-                    if (segment.type !== "hashtag") {
-                      return <React.Fragment key={`text-${index}`}>{renderTextWithMentions(segment.value, index)}</React.Fragment>;
+          {isRepost && (
+            <div className={classes.repost__header}>
+              <RepeatIcon className={classes.repost__headerIcon} />
+              <span
+                className={classes.repost__headerText}
+                onClick={canNavigateProfile ? handleProfileClick : undefined}
+                role={canNavigateProfile ? "button" : undefined}
+                tabIndex={canNavigateProfile ? 0 : undefined}
+                onKeyDown={
+                  canNavigateProfile
+                    ? (event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        handleProfileClick();
+                      }
                     }
+                    : undefined
+                }
+              >
+                {`${capitalize(username ?? "Someone")} reposted`}
+              </span>
+            </div>
+          )}
 
-                    return (
-                      <span
-                        key={`hashtag-${index}`}
-                        role="link"
-                        tabIndex={0}
-                        className={classes.hashtag}
-                        onClick={() => handleHashtagClick(segment.tag)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            handleHashtagClick(segment.tag);
-                          }
-                        }}
-                      >
-                        {segment.value}
-                      </span>
-                    );
-                  })}
+          <div className={classes.post__header}>
+            <Avatar
+              src={resolvePhoto(profile)}
+              onClick={canNavigateProfile ? handleProfileClick : undefined}
+              style={canNavigateProfile ? { cursor: "pointer" } : undefined}
+            />
+            <div className={classes.header__info}>
+              <h4
+                onClick={canNavigateProfile ? handleProfileClick : undefined}
+                style={canNavigateProfile ? { cursor: "pointer" } : { cursor: "default" }}
+              >
+                {capitalize(username)}
+              </h4>
+              <p>
+                <ReactTimeago date={new Date(timestamp).toUTCString()} units="minute" />
               </p>
+            </div>
+            {isOwnPost && (
+              <>
+                <MoreHorizOutlinedIcon onClick={handleMenuOpen} />
+                <Menu
+                  anchorEl={menuAnchorEl}
+                  keepMounted
+                  open={isMenuOpen}
+                  onClose={handleMenuClose}
+                >
+                  <MenuItem onClick={handleEditClick}>Edit</MenuItem>
+                  <MenuItem onClick={handleDeleteClick}>Delete</MenuItem>
+                </Menu>
+              </>
             )}
           </div>
-          {!isEditing && linkPreview && (
-            <div className={classes.body__linkPreview}>
-              <a
-                className={classes.linkPreviewCard}
-                href={linkPreview.href}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <h5>{linkPreview.hostname}</h5>
-                <p>{linkPreview.href}</p>
-              </a>
-            </div>
-          )}
-          {((fileType === "image" && postImages.length > 0) ||
-            (fileType !== "image" && fileData)) && (
-            <div className={classes.body__image}>
-              {fileType === "image" ? (
-                <div className={`${classes.body__imageGrid} ${imageGridClassName}`}>
-                  {postImages.map((imageUrl, index) => (
-                    <div
-                      key={`${postId}-image-${index}`}
-                      className={classes.imageGridItem}
+          <div className={classes.post__body}>
+            {(isEditing || hasDescription) && (
+              <div className={classes.body__description}>
+                {isEditing ? (
+                  <div style={{ width: "100%" }}>
+                    <textarea
+                      className={classes.editTextarea}
+                      value={editText}
+                      onChange={(event) => setEditText(event.target.value)}
+                      rows={3}
+                      aria-label="Edit post description"
+                    />
+                    <div className={classes.editActions}>
+                      <button
+                        type="button"
+                        className={classes.saveButton}
+                        onClick={handleEditSave}
+                        disabled={!editText.trim()}
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        className={classes.cancelButton}
+                        onClick={handleEditCancel}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p>
+                    {descriptionSegments.length === 0
+                      ? description
+                      : descriptionSegments.map((segment, index) => {
+                        if (segment.type !== "hashtag") {
+                          return (
+                            <React.Fragment key={`text-${index}`}>
+                              {renderTextWithMentions(segment.value, index)}
+                            </React.Fragment>
+                          );
+                        }
+
+                        return (
+                          <span
+                            key={`hashtag-${index}`}
+                            role="link"
+                            tabIndex={0}
+                            className={classes.hashtag}
+                            onClick={() => handleHashtagClick(segment.tag)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                handleHashtagClick(segment.tag);
+                              }
+                            }}
+                          >
+                            {segment.value}
+                          </span>
+                        );
+                      })}
+                  </p>
+                )}
+              </div>
+            )}
+            {!isEditing && linkPreview && hasDescription && (
+              <div className={classes.body__linkPreview}>
+                <a
+                  className={classes.linkPreviewCard}
+                  href={linkPreview.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <h5>{linkPreview.hostname}</h5>
+                  <p>{linkPreview.href}</p>
+                </a>
+              </div>
+            )}
+            {isRepost && originalPost && (
+              <div className={classes.repost__embed}>
+                <div className={classes.repost__embedHeader}>
+                  <Avatar
+                    className={classes.repost__embedAvatar}
+                    src={resolvePhoto(originalPost.author?.photoURL)}
+                    onClick={canNavigateOriginalProfile ? handleOriginalProfileClick : undefined}
+                    style={canNavigateOriginalProfile ? { cursor: "pointer" } : undefined}
+                  />
+                  <div className={classes.repost__embedInfo}>
+                    <h5
+                      onClick={canNavigateOriginalProfile ? handleOriginalProfileClick : undefined}
                       style={
-                        postImages.length === 3 && index === 0
-                          ? { gridColumn: "1 / span 2" }
-                          : undefined
+                        canNavigateOriginalProfile
+                          ? { cursor: "pointer" }
+                          : { cursor: "default" }
                       }
                     >
-                      <img src={imageUrl} alt={`post media ${index + 1}`} loading="lazy" />
-                    </div>
-                  ))}
+                      {originalAuthorDisplayName}
+                    </h5>
+                    <p>
+                      <ReactTimeago
+                        date={new Date(originalPost.createdAt).toUTCString()}
+                        units="minute"
+                      />
+                    </p>
+                  </div>
                 </div>
-              ) : (
-                <ReactPlayer
-                  url={fileData}
-                  controls={true}
-                  style={{ height: "auto !important" }}
-                />
-              )}
-            </div>
-          )}
-        </div>
-        <div className={classes.post__footer}>
+                {typeof originalPost.description === "string" &&
+                  originalPost.description.trim().length > 0 && (
+                    <p className={classes.repost__embedDescription}>
+                      {originalPost.description}
+                    </p>
+                )}
+                {renderMedia(
+                  originalPost.fileType,
+                  originalPost.fileData,
+                  originalPostImages,
+                  `embedded-${postId}`,
+                )}
+              </div>
+            )}
+            {!isRepost && renderMedia(fileType, fileData, postImages, postId)}
+          </div>
+          <div className={classes.post__footer}>
           <Reactions />
           <div className={classes.footer__actions}>
             <div

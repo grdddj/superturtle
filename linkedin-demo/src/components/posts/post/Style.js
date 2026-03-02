@@ -16,6 +16,35 @@ export default makeStyles((theme) => ({
       boxShadow: "none",
     },
   },
+  repost__header: {
+    width: "100%",
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "10px 10px 0",
+    color: theme.palette.text.secondary,
+  },
+  repost__headerIcon: {
+    fontSize: "16px !important",
+    color: theme.palette.text.secondary,
+  },
+  repost__headerText: {
+    fontSize: 12,
+    lineHeight: 1.4,
+    fontWeight: 500,
+    color: theme.palette.text.secondary,
+    "&[role='button']": {
+      cursor: "pointer",
+    },
+    "&[role='button']:hover": {
+      textDecoration: "underline",
+    },
+    "&[role='button']:focus": {
+      outline: `2px solid ${theme.palette.primary.main}`,
+      outlineOffset: 1,
+      borderRadius: 3,
+    },
+  },
   post__header: {
     width: "100%",
     height: "auto",
@@ -170,6 +199,48 @@ export default makeStyles((theme) => ({
     "& > div": {
       height: "auto",
     },
+  },
+  repost__embed: {
+    width: "100%",
+    marginTop: 6,
+    border: `1px solid ${theme.palette.type === "dark" ? "#455a64" : "#d7dbe0"}`,
+    borderRadius: 8,
+    overflow: "hidden",
+    backgroundColor: theme.palette.background.paper,
+  },
+  repost__embedHeader: {
+    width: "100%",
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "10px 10px 8px",
+  },
+  repost__embedAvatar: {
+    width: 36,
+    height: 36,
+  },
+  repost__embedInfo: {
+    flex: 1,
+    minWidth: 0,
+    "& > h5": {
+      margin: 0,
+      fontSize: 14,
+      fontWeight: 600,
+      color: theme.palette.type === "dark" ? "lightgrey" : "#1d2226",
+    },
+    "& > p": {
+      margin: "2px 0 0",
+      fontSize: 12,
+      color: "grey",
+    },
+  },
+  repost__embedDescription: {
+    margin: 0,
+    padding: "0 10px 10px",
+    fontSize: 14,
+    color: theme.palette.type === "dark" ? "lightgrey" : "#1d2226",
+    wordBreak: "break-word",
+    whiteSpace: "pre-wrap",
   },
   body__imageGrid: {
     width: "100%",

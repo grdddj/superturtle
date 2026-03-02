@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, type QueryCtx } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import type { Doc, Id } from "./_generated/dataModel";
 
@@ -46,7 +46,7 @@ const normalizeImageStorageIds = (storageIds?: Id<"_storage">[]) => {
 };
 
 const resolvePostImageUrls = async (
-  ctx: { storage: { getUrl: (storageId: Id<"_storage">) => Promise<string | null> } },
+  ctx: QueryCtx,
   post: Doc<"posts">,
 ) => {
   if (post.imageStorageIds?.length) {
@@ -62,6 +62,49 @@ const resolvePostImageUrls = async (
   }
 
   return [];
+};
+
+const buildAuthorSummary = (author: Doc<"users"> | null) => {
+  if (!author) {
+    return null;
+  }
+
+  return {
+    _id: author._id,
+    displayName: author.displayName ?? author.name ?? "Guest User",
+    photoURL: author.photoURL ?? author.image ?? "",
+    title: author.title ?? "",
+    username: author.username ?? "",
+  };
+};
+
+const buildFeedPostPayload = async (ctx: QueryCtx, post: Doc<"posts">) => {
+  const [author, imageUrls, likes, comments, reposts] = await Promise.all([
+    ctx.db.get(post.authorId),
+    resolvePostImageUrls(ctx, post),
+    ctx.db
+      .query("likes")
+      .filter((q) => q.eq(q.field("postId"), post._id))
+      .collect(),
+    ctx.db
+      .query("comments")
+      .filter((q) => q.eq(q.field("postId"), post._id))
+      .collect(),
+    ctx.db
+      .query("reposts")
+      .withIndex("byOriginalPost", (q) => q.eq("originalPostId", post._id))
+      .collect(),
+  ]);
+
+  return {
+    ...post,
+    fileData: post.fileType === "image" && imageUrls.length > 0 ? imageUrls[0] : post.fileData,
+    likesCount: likes.length,
+    commentsCount: comments.length,
+    repostCount: reposts.length,
+    imageUrls,
+    author: buildAuthorSummary(author),
+  };
 };
 
 export const listPosts = query({
@@ -108,45 +151,71 @@ export const listPosts = query({
       return connectedAuthorIds.has(post.authorId);
     });
 
-    const sortedPosts = [...visiblePosts].sort((a, b) => b.createdAt - a.createdAt);
+    const visiblePostById = new Map(visiblePosts.map((post) => [`${post._id}`, post]));
+    const [feedPosts, allReposts] = await Promise.all([
+      Promise.all(
+        visiblePosts.map(async (post) => {
+          const payload = await buildFeedPostPayload(ctx, post);
+          return {
+            ...payload,
+            feedItemType: "post" as const,
+            feedItemId: post._id,
+            targetPostId: post._id,
+            feedCreatedAt: post.createdAt,
+          };
+        }),
+      ),
+      ctx.db.query("reposts").collect(),
+    ]);
 
-    return await Promise.all(
-      sortedPosts.map(async (post) => {
-        const author = await ctx.db.get(post.authorId);
-        const imageUrls = await resolvePostImageUrls(ctx, post);
-        const resolvedFileData =
-          post.fileType === "image" && imageUrls.length > 0 ? imageUrls[0] : post.fileData;
-        const likes = await ctx.db
-          .query("likes")
-          .filter((q) => q.eq(q.field("postId"), post._id))
-          .collect();
-        const comments = await ctx.db
-          .query("comments")
-          .filter((q) => q.eq(q.field("postId"), post._id))
-          .collect();
-        const reposts = await ctx.db
-          .query("reposts")
-          .withIndex("byOriginalPost", (q) => q.eq("originalPostId", post._id))
-          .collect();
+    const repostFeedPosts = await Promise.all(
+      allReposts.map(async (repost) => {
+        const originalPost = visiblePostById.get(`${repost.originalPostId}`);
+        if (!originalPost) {
+          return null;
+        }
+
+        const [reposter, originalPostPayload] = await Promise.all([
+          ctx.db.get(repost.userId),
+          buildFeedPostPayload(ctx, originalPost),
+        ]);
 
         return {
-          ...post,
-          fileData: resolvedFileData,
-          likesCount: likes.length,
-          commentsCount: comments.length,
-          repostCount: reposts.length,
-          imageUrls,
-          author: author
-            ? {
-                displayName: author.displayName ?? author.name ?? "Guest User",
-                photoURL: author.photoURL ?? author.image ?? "",
-                title: author.title ?? "",
-                username: author.username ?? "",
-              }
-            : null,
+          _id: originalPostPayload._id,
+          authorId: repost.userId,
+          description: repost.commentary ?? "",
+          visibility: originalPostPayload.visibility,
+          fileType: undefined,
+          fileData: undefined,
+          imageStorageIds: undefined,
+          createdAt: repost.createdAt,
+          likesCount: originalPostPayload.likesCount,
+          commentsCount: originalPostPayload.commentsCount,
+          repostCount: originalPostPayload.repostCount,
+          imageUrls: [],
+          author: buildAuthorSummary(reposter),
+          feedItemType: "repost" as const,
+          feedItemId: repost._id,
+          targetPostId: originalPostPayload._id,
+          originalPost: {
+            _id: originalPostPayload._id,
+            authorId: originalPostPayload.authorId,
+            description: originalPostPayload.description,
+            createdAt: originalPostPayload.createdAt,
+            fileType: originalPostPayload.fileType,
+            fileData: originalPostPayload.fileData,
+            imageUrls: originalPostPayload.imageUrls,
+            author: originalPostPayload.author,
+          },
+          feedCreatedAt: repost.createdAt,
         };
       }),
     );
+
+    return [...feedPosts, ...repostFeedPosts]
+      .filter((feedItem): feedItem is NonNullable<typeof feedItem> => feedItem !== null)
+      .sort((a, b) => b.feedCreatedAt - a.feedCreatedAt)
+      .map(({ feedCreatedAt, ...feedItem }) => feedItem);
   },
 });
 
@@ -161,43 +230,7 @@ export const listPostsByUser = query({
       .collect();
     const sortedPosts = [...posts].sort((a, b) => b.createdAt - a.createdAt);
 
-    return await Promise.all(
-      sortedPosts.map(async (post) => {
-        const author = await ctx.db.get(post.authorId);
-        const imageUrls = await resolvePostImageUrls(ctx, post);
-        const resolvedFileData =
-          post.fileType === "image" && imageUrls.length > 0 ? imageUrls[0] : post.fileData;
-        const likes = await ctx.db
-          .query("likes")
-          .filter((q) => q.eq(q.field("postId"), post._id))
-          .collect();
-        const comments = await ctx.db
-          .query("comments")
-          .filter((q) => q.eq(q.field("postId"), post._id))
-          .collect();
-        const reposts = await ctx.db
-          .query("reposts")
-          .withIndex("byOriginalPost", (q) => q.eq("originalPostId", post._id))
-          .collect();
-
-        return {
-          ...post,
-          fileData: resolvedFileData,
-          likesCount: likes.length,
-          commentsCount: comments.length,
-          repostCount: reposts.length,
-          imageUrls,
-          author: author
-            ? {
-                displayName: author.displayName ?? author.name ?? "Guest User",
-                photoURL: author.photoURL ?? author.image ?? "",
-                title: author.title ?? "",
-                username: author.username ?? "",
-              }
-            : null,
-        };
-      }),
-    );
+    return await Promise.all(sortedPosts.map((post) => buildFeedPostPayload(ctx, post)));
   },
 });
 

@@ -16,14 +16,34 @@ const Posts = ({ onNavigateProfile }) => {
   const user = useConvexUser();
   const isLoading = posts === undefined;
 
-  const postIds = React.useMemo(
-    () => (posts ?? []).map((post) => post._id),
-    [posts],
-  );
+  const postIds = React.useMemo(() => {
+    if (!Array.isArray(posts) || posts.length === 0) {
+      return [];
+    }
 
-  const likeStatuses = useQuery(
-    api.likes.getLikeStatuses,
+    const seenPostIds = new Set();
+    const resolvedPostIds = [];
+
+    for (const post of posts) {
+      const targetPostId = post.targetPostId ?? post._id;
+      if (!targetPostId || seenPostIds.has(targetPostId)) {
+        continue;
+      }
+
+      seenPostIds.add(targetPostId);
+      resolvedPostIds.push(targetPostId);
+    }
+
+    return resolvedPostIds;
+  }, [posts]);
+
+  const userReactions = useQuery(
+    api.likes.getUserReactionsByPostIds,
     user?._id && postIds.length > 0 ? { userId: user._id, postIds } : "skip",
+  );
+  const reactionCounts = useQuery(
+    api.likes.getReactionCountsByPostIds,
+    postIds.length > 0 ? { postIds } : "skip",
   );
 
   const getProfilePhoto = (photoURL) => {
@@ -44,19 +64,24 @@ const Posts = ({ onNavigateProfile }) => {
           <FlipMove style={{ width: "100%" }}>
             {posts?.map((post) => (
               <Post
-                key={post._id}
-                postId={post._id}
+                key={post.feedItemId ?? post._id}
+                postId={post.targetPostId ?? post._id}
                 authorId={post.authorId}
                 authorUsername={post.author?.username ?? null}
                 likesCount={post.likesCount}
                 commentsCount={post.commentsCount}
-                liked={likeStatuses?.[post._id] ?? undefined}
+                repostCount={post.repostCount}
+                currentReaction={userReactions?.[post.targetPostId ?? post._id] ?? undefined}
+                reactionCounts={reactionCounts?.[post.targetPostId ?? post._id]}
                 profile={getProfilePhoto(post.authorPhotoURL ?? post.author?.photoURL)}
                 username={post.authorName ?? post.author?.displayName}
                 timestamp={post.createdAt}
                 description={post.description}
                 fileType={post.fileType}
                 fileData={post.fileData}
+                imageUrls={post.imageUrls}
+                isRepost={post.feedItemType === "repost"}
+                originalPost={post.originalPost ?? null}
                 onNavigateProfile={onNavigateProfile}
               />
             ))}
