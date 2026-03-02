@@ -5,11 +5,8 @@ import Dialog from "@material-ui/core/Dialog";
 import DialogActions from "@material-ui/core/DialogActions";
 import DialogContent from "@material-ui/core/DialogContent";
 import DialogTitle from "@material-ui/core/DialogTitle";
-import Menu from "@material-ui/core/Menu";
-import MenuItem from "@material-ui/core/MenuItem";
 import Paper from "@material-ui/core/Paper";
 import Snackbar from "@material-ui/core/Snackbar";
-import MoreHorizOutlinedIcon from "@material-ui/icons/MoreHorizOutlined";
 import ThumbUpAltIcon from "@material-ui/icons/ThumbUpAlt";
 import ThumbUpAltOutlinedIcon from "@material-ui/icons/ThumbUpAltOutlined";
 import FavoriteIcon from "@material-ui/icons/Favorite";
@@ -31,6 +28,7 @@ import useConvexUser from "../../../hooks/useConvexUser";
 import EditHistoryDialog from "../editHistory/EditHistoryDialog";
 import PollDisplay from "../poll/PollDisplay";
 import ReportDialog from "../report/ReportDialog";
+import PostHeader from "./PostHeader";
 import { getLinkPreviewFromText } from "./post.utils";
 import Style from "./Style";
 
@@ -924,61 +922,27 @@ const Post = forwardRef(
             </div>
           )}
 
-          <div className={classes.post__header}>
-            <Avatar
-              src={resolvePhoto(profile)}
-              onClick={canNavigateProfile ? handleProfileClick : undefined}
-              style={canNavigateProfile ? { cursor: "pointer" } : undefined}
-            />
-            <div className={classes.header__info}>
-              <h4
-                onClick={canNavigateProfile ? handleProfileClick : undefined}
-                style={canNavigateProfile ? { cursor: "pointer" } : { cursor: "default" }}
-              >
-                {capitalize(username)}
-              </h4>
-              <div className={classes.header__meta}>
-                <p>
-                  <ReactTimeago date={new Date(timestamp).toUTCString()} units="minute" />
-                </p>
-                {isEdited && (
-                  <button
-                    type="button"
-                    className={classes.editedBadge}
-                    onClick={handleEditedBadgeClick}
-                    aria-label="View edit history"
-                  >
-                    Edited
-                  </button>
-                )}
-              </div>
-            </div>
-            {canShowPostMenu && (
-              <>
-                <MoreHorizOutlinedIcon onClick={handleMenuOpen} />
-                <Menu
-                  anchorEl={menuAnchorEl}
-                  keepMounted
-                  open={isMenuOpen}
-                  onClose={handleMenuClose}
-                >
-                  {isOwnPost ? (
-                    <>
-                      <MenuItem onClick={handleEditClick}>Edit</MenuItem>
-                      <MenuItem onClick={handleDeleteClick}>Delete</MenuItem>
-                    </>
-                  ) : (
-                    <MenuItem
-                      onClick={handleReportClick}
-                      disabled={hasReportedPost || isReportSubmitting}
-                    >
-                      {hasReportedPost ? "Reported" : "Report"}
-                    </MenuItem>
-                  )}
-                </Menu>
-              </>
-            )}
-          </div>
+          <PostHeader
+            classes={classes}
+            avatarSrc={resolvePhoto(profile)}
+            displayName={capitalize(username)}
+            timestamp={timestamp}
+            isEdited={isEdited}
+            canNavigateProfile={canNavigateProfile}
+            onProfileClick={handleProfileClick}
+            onEditedBadgeClick={handleEditedBadgeClick}
+            canShowPostMenu={canShowPostMenu}
+            onMenuOpen={handleMenuOpen}
+            menuAnchorEl={menuAnchorEl}
+            isMenuOpen={isMenuOpen}
+            onMenuClose={handleMenuClose}
+            isOwnPost={isOwnPost}
+            onEditClick={handleEditClick}
+            onDeleteClick={handleDeleteClick}
+            onReportClick={handleReportClick}
+            hasReportedPost={hasReportedPost}
+            isReportSubmitting={isReportSubmitting}
+          />
           <div className={classes.post__body}>
             {isEditing && (
               <div className={classes.body__description}>
