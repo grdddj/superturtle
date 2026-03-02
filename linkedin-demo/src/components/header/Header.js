@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useConvexAuth, useQuery } from "convex/react";
+import { useNavigate } from "react-router-dom";
 import { useTheme } from "@material-ui/core/styles";
 import { ChangeTheme } from "../../store/actions/util";
 import {
@@ -25,6 +26,7 @@ import NightsStayOutlinedIcon from "@material-ui/icons/NightsStayOutlined";
 import WbSunnyOutlinedIcon from "@material-ui/icons/WbSunnyOutlined";
 import PersonIcon from "@material-ui/icons/Person";
 import PersonOutlineIcon from "@material-ui/icons/PersonOutline";
+import BusinessIcon from "@material-ui/icons/Business";
 import { api } from "../../convex/_generated/api";
 import useConvexUser from "../../hooks/useConvexUser";
 import MenuItem from "./menuItem/MenuItem";
@@ -40,6 +42,7 @@ const Header = ({
   const classes = Style();
   const theme = useTheme();
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const mode = useSelector((state) => state.util);
   const authActions = useAuthActions();
   const { isAuthenticated } = useConvexAuth();
@@ -61,6 +64,10 @@ const Header = ({
     api.posts.searchPosts,
     debouncedTerm ? { query: debouncedTerm } : "skip"
   );
+  const companies = useQuery(
+    api.companies.searchCompanies,
+    debouncedTerm ? { query: debouncedTerm } : "skip"
+  );
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -74,9 +81,11 @@ const Header = ({
 
   const userResults = users ?? [];
   const postResults = posts ?? [];
+  const companyResults = companies ?? [];
   const showSearchResults = isSearchOpen && searchTerm.trim().length > 0;
   const isSearchLoading =
-    Boolean(debouncedTerm) && (users === undefined || posts === undefined);
+    Boolean(debouncedTerm) &&
+    (users === undefined || posts === undefined || companies === undefined);
 
   const getDescriptionSnippet = (description = "") => {
     if (description.length <= 60) {
@@ -88,6 +97,13 @@ const Header = ({
 
   const closeSearch = () => {
     setIsSearchOpen(false);
+  };
+
+  const getFollowerLabel = (count) => {
+    if (count === 1) {
+      return "1 follower";
+    }
+    return `${count} followers`;
   };
 
   const clearSearch = () => {
@@ -137,6 +153,15 @@ const Header = ({
         postElement.scrollIntoView({ behavior: "smooth", block: "center" });
       }
     }, 100);
+  };
+
+  const handleCompanyResultClick = (slug) => {
+    if (!slug) {
+      return;
+    }
+
+    navigate(`/company/${encodeURIComponent(slug)}`);
+    clearSearch();
   };
 
   const isHomeActive = activeTab === "home";
@@ -374,6 +399,46 @@ const Header = ({
                       ) : (
                         <Typography className={classes.searchEmptyState}>
                           No posts found.
+                        </Typography>
+                      )}
+
+                      <Typography className={classes.searchSectionHeader}>Companies</Typography>
+                      {companyResults.length > 0 ? (
+                        companyResults.map((company) => (
+                          <div
+                            key={company.slug}
+                            className={classes.searchResultItem}
+                            onClick={() => handleCompanyResultClick(company.slug)}
+                            onKeyDown={(event) =>
+                              handleResultKeyDown(event, () =>
+                                handleCompanyResultClick(company.slug)
+                              )
+                            }
+                            role="button"
+                            tabIndex={0}
+                          >
+                            <Avatar
+                              src={company.logoURL ?? undefined}
+                              alt={company.name}
+                              className={classes.searchResultAvatar}
+                            >
+                              {!company.logoURL ? <BusinessIcon fontSize="small" /> : null}
+                            </Avatar>
+                            <div className={classes.searchResultContent}>
+                              <Typography className={classes.searchResultPrimary}>
+                                {company.name}
+                              </Typography>
+                              <Typography className={classes.searchResultSecondary}>
+                                {`${company.industry || "Unknown industry"} • ${getFollowerLabel(
+                                  company.followerCount
+                                )}`}
+                              </Typography>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <Typography className={classes.searchEmptyState}>
+                          No companies found.
                         </Typography>
                       )}
                     </>
