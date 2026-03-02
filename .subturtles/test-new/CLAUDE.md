@@ -1,5 +1,5 @@
 ## Current Task
-Add UI smoke tests: if features are deployed, verify poll UI renders in feed, article page loads at `/article/:id`, bookmark icon appears on posts, report option in post menu, "Edited" badge on edited posts.
+All backlog items are complete.
 
 ## End Goal with Specs
 E2E test coverage for the Phase 2 batch 2 features currently being built. These tests should be written now so they're ready when features ship. Tests run against `https://linkedin-demo-iota.vercel.app`. Use Convex HTTP client for backend-level assertions where UI may not be fully deployed yet.
@@ -11,7 +11,7 @@ E2E test coverage for the Phase 2 batch 2 features currently being built. These 
 - [x] Add test: Bookmark toggle — use Convex client to bookmark a post (`bookmarks:toggleBookmark`), verify `bookmarks:isBookmarked` returns true, toggle again to unbookmark
 - [x] Add test: Report post — use Convex client to report a post (`reports:reportPost`), verify `reports:hasReported` returns true, verify duplicate report is prevented
 - [x] Add test: Edit history — use Convex client to create post, edit it (`posts:editPost`), verify `postEdits:getEditHistory` returns previous version
-- [ ] Add UI smoke tests: if features are deployed, verify poll UI renders in feed, article page loads at `/article/:id`, bookmark icon appears on posts, report option in post menu, "Edited" badge on edited posts <- current
+- [x] Add UI smoke tests: if features are deployed, verify poll UI renders in feed, article page loads at `/article/:id`, bookmark icon appears on posts, report option in post menu, "Edited" badge on edited posts
 - [x] Run tests: `cd linkedin-demo && npx playwright test e2e/phase2-new.spec.ts`
 - [x] Commit
 
@@ -24,3 +24,6 @@ E2E test coverage for the Phase 2 batch 2 features currently being built. These 
 - Wrap each Convex call in try/catch and skip gracefully on 404/not-found errors
 - DO NOT modify existing test files — only create new ones
 - Clean up any test data created (delete posts, etc.) in `finally` blocks
+
+## Loop Control
+STOP

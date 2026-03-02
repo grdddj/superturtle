@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { ConvexHttpClient } from "convex/browser";
 import { loginAsGuest } from "./helpers";
 
@@ -81,6 +81,41 @@ async function createAuthenticatedConvexClient(page: Page): Promise<ConvexHttpCl
   const client = new ConvexHttpClient(CONVEX_URL);
   client.setAuth(token);
   return client;
+}
+
+async function ensureFeedReady(page: Page): Promise<void> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await loginAsGuest(page);
+    } catch {
+      test.skip(true, "Skipped: guest login was unavailable in live deployment.");
+    }
+
+    const refreshButton = page.getByRole("button", { name: "Refresh" });
+    if (await refreshButton.isVisible().catch(() => false)) {
+      await refreshButton.click().catch(() => {});
+      await page.waitForLoadState("domcontentloaded").catch(() => {});
+    }
+
+    const composer = page.getByPlaceholder("Start a post");
+    if (await composer.isVisible().catch(() => false)) {
+      const posts = page.locator('[id^="post-"]');
+      if ((await posts.count()) > 0) {
+        await expect(posts.first()).toBeVisible({ timeout: 20_000 });
+        return;
+      }
+    }
+
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+  }
+
+  test.skip(true, "Skipped: feed posts were unavailable in live deployment.");
+}
+
+function getPostsByDescription(page: Page, description: string): Locator {
+  return page
+    .locator('[id^="post-"]')
+    .filter({ has: page.getByText(description, { exact: true }) });
 }
 
 test.describe("Phase 2 batch 2 e2e", () => {
@@ -305,6 +340,168 @@ test.describe("Phase 2 batch 2 e2e", () => {
       expect(editHistory.length).toBeGreaterThanOrEqual(1);
       expect(editHistory[0]?.previousDescription).toBe(originalDescription);
       expect(editHistory[0]?.editedAt).toBeGreaterThan(0);
+    } finally {
+      if (createdPostId) {
+        await client
+          .mutation("posts:deletePost", { postId: createdPostId })
+          .catch(() => {});
+      }
+    }
+  });
+
+  test("UI smoke: poll UI renders in feed", async ({ page }) => {
+    const client = await createAuthenticatedConvexClient(page);
+    let createdPostId: string | null = null;
+    const description = `E2E UI poll smoke ${Date.now()}`;
+    const question = `E2E UI poll question ${Date.now()}`;
+    const pollOptions = ["Option one", "Option two", "Option three"];
+
+    try {
+      const currentUser = await runConvexCallOrSkip("users:getCurrentUser", () =>
+        client.query("users:getCurrentUser", {}),
+      );
+      test.skip(!currentUser?._id, "Skipped: current user lookup failed for guest auth session.");
+
+      createdPostId = await runConvexCallOrSkip("posts:createPost", () =>
+        client.mutation("posts:createPost", {
+          authorId: currentUser._id,
+          description,
+          visibility: "public",
+        }),
+      );
+
+      await runConvexCallOrSkip("polls:createPoll", () =>
+        client.mutation("polls:createPoll", {
+          postId: createdPostId!,
+          question,
+          options: pollOptions,
+        }),
+      );
+
+      await page.goto("/", { waitUntil: "domcontentloaded" });
+      await ensureFeedReady(page);
+
+      const pollPost = getPostsByDescription(page, description).first();
+      await expect(pollPost).toBeVisible({ timeout: 20_000 });
+      await expect(pollPost.getByText(question, { exact: true })).toBeVisible();
+      await expect(pollPost.getByRole("button", { name: pollOptions[0], exact: true })).toBeVisible();
+      await expect(pollPost.getByText("votes")).toBeVisible();
+    } finally {
+      if (createdPostId) {
+        await client
+          .mutation("posts:deletePost", { postId: createdPostId })
+          .catch(() => {});
+      }
+    }
+  });
+
+  test("UI smoke: article page loads at /article/:id", async ({ page }) => {
+    const client = await createAuthenticatedConvexClient(page);
+    let createdArticleId: string | null = null;
+    const articleTitle = `E2E UI article smoke ${Date.now()}`;
+    const articleBody = `E2E article body smoke ${Date.now()}`;
+
+    try {
+      createdArticleId = await runConvexCallOrSkip("articles:createArticle", () =>
+        client.mutation("articles:createArticle", {
+          title: articleTitle,
+          body: articleBody,
+          description: `E2E article description ${Date.now()}`,
+        }),
+      );
+
+      await page.goto(`/article/${createdArticleId}`, { waitUntil: "domcontentloaded" });
+
+      await expect(page.getByText(articleTitle, { exact: true })).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByText(articleBody, { exact: false })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Back", exact: true })).toBeVisible();
+    } finally {
+      if (createdArticleId) {
+        await client
+          .mutation("posts:deletePost", { postId: createdArticleId })
+          .catch(() => {});
+      }
+    }
+  });
+
+  test("UI smoke: bookmark icon appears on feed posts", async ({ page }) => {
+    await ensureFeedReady(page);
+
+    const firstPost = page.locator('[id^="post-"]').first();
+    await expect(firstPost).toBeVisible();
+    await expect(
+      firstPost.locator('[data-testid="BookmarkBorderOutlinedIcon"], [data-testid="BookmarkIcon"]'),
+    ).toBeVisible();
+    await expect(firstPost.getByText(/Save|Saved/)).toBeVisible();
+  });
+
+  test("UI smoke: report option appears in post menu", async ({ page }) => {
+    await ensureFeedReady(page);
+
+    const posts = page.locator('[id^="post-"]');
+    const maxPostsToScan = Math.min(await posts.count(), 10);
+    let foundReportOption = false;
+
+    for (let index = 0; index < maxPostsToScan; index += 1) {
+      const post = posts.nth(index);
+      const menuTrigger = post.locator('[data-testid="MoreHorizOutlinedIcon"]').first();
+      if (!(await menuTrigger.isVisible().catch(() => false))) {
+        continue;
+      }
+
+      await menuTrigger.click();
+
+      const reportOption = page.getByRole("menuitem", { name: /^Report(?:ed)?$/i });
+      if (await reportOption.first().isVisible().catch(() => false)) {
+        await expect(reportOption.first()).toBeVisible();
+        foundReportOption = true;
+        await page.keyboard.press("Escape").catch(() => {});
+        break;
+      }
+
+      await page.keyboard.press("Escape").catch(() => {});
+    }
+
+    test.skip(
+      !foundReportOption,
+      "Skipped: no visible non-owned post menu with Report option was found.",
+    );
+  });
+
+  test("UI smoke: edited badge appears on edited posts", async ({ page }) => {
+    const client = await createAuthenticatedConvexClient(page);
+    let createdPostId: string | null = null;
+    const originalDescription = `E2E UI edited badge original ${Date.now()}`;
+    const editedDescription = `E2E UI edited badge updated ${Date.now()}`;
+
+    try {
+      const currentUser = await runConvexCallOrSkip("users:getCurrentUser", () =>
+        client.query("users:getCurrentUser", {}),
+      );
+      test.skip(!currentUser?._id, "Skipped: current user lookup failed for guest auth session.");
+
+      createdPostId = await runConvexCallOrSkip("posts:createPost", () =>
+        client.mutation("posts:createPost", {
+          authorId: currentUser._id,
+          description: originalDescription,
+          visibility: "public",
+        }),
+      );
+
+      await runConvexCallOrSkip("posts:editPost", () =>
+        client.mutation("posts:editPost", {
+          postId: createdPostId!,
+          description: editedDescription,
+        }),
+      );
+
+      await page.goto("/", { waitUntil: "domcontentloaded" });
+      await ensureFeedReady(page);
+
+      const editedPost = getPostsByDescription(page, editedDescription).first();
+      await expect(editedPost).toBeVisible({ timeout: 20_000 });
+      await expect(editedPost.getByRole("button", { name: "View edit history" })).toBeVisible();
+      await expect(editedPost.getByText("Edited", { exact: true })).toBeVisible();
     } finally {
       if (createdPostId) {
         await client
