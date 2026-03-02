@@ -263,6 +263,12 @@ const Profile = ({
     api.connections.getConnectionCount,
     resolvedUserId ? { userId: resolvedUserId } : "skip",
   );
+  const mutualConnectionsCount = useQuery(
+    api.connections.getMutualConnectionsCount,
+    authUser?._id && resolvedUserId && authUser._id !== resolvedUserId
+      ? { viewerUserId: authUser._id, targetUserId: resolvedUserId }
+      : "skip",
+  );
   const profileConnections = useQuery(
     api.connections.listConnections,
     showConnections && resolvedUserId ? { userId: resolvedUserId } : "skip",
@@ -1077,6 +1083,12 @@ const Profile = ({
               >
                 {connections} connections
               </Typography>
+              {canShowProfileActions && mutualConnectionsCount !== undefined && (
+                <Typography variant="body2" color="textSecondary">
+                  {mutualConnectionsCount} mutual connection
+                  {mutualConnectionsCount === 1 ? "" : "s"}
+                </Typography>
+              )}
             </div>
             <div className={classes.completenessSection}>
               <div className={classes.completenessHeader}>

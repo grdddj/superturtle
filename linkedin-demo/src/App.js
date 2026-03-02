@@ -3,6 +3,7 @@ import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useSelector } from "react-redux";
 import { Grid, Hidden, Modal, Typography } from "@material-ui/core";
 import { ThemeProvider, createMuiTheme } from "@material-ui/core";
+import { BrowserRouter, useMatch, useNavigate } from "react-router-dom";
 import ErrorBoundary from "./components/ErrorBoundary";
 import Header from "./components/header/Header";
 import Form from "./components/form/Form";
@@ -19,13 +20,19 @@ import { api } from "./convex/_generated/api";
 import Styles from "./Style";
 import { LinkedInBgColor, darkPrimary } from "./assets/Colors";
 
-const App = () => {
+const AppShell = () => {
   const classes = Styles();
   const mode = useSelector((state) => state.util);
   const [activeTab, setActiveTab] = useState("home");
   const [view, setView] = useState("feed");
   const [profileUserId, setProfileUserId] = useState(null);
   const [showLogin, setShowLogin] = useState(false);
+  const navigate = useNavigate();
+  const usernameRouteMatch = useMatch("/:username");
+  const profileIdRouteMatch = useMatch("/profile/:userId");
+  const routeUsername = usernameRouteMatch?.params?.username?.trim().toLowerCase() ?? null;
+  const routeUserId = profileIdRouteMatch?.params?.userId ?? null;
+  const isProfileRouteActive = Boolean(routeUsername || routeUserId);
   const { isAuthenticated, isLoading } = useConvexAuth();
   const seedData = useMutation(api.seed.seedData);
   const currentUser = useQuery(api.users.getCurrentUser, isAuthenticated ? {} : "skip");
@@ -58,22 +65,70 @@ const App = () => {
     }
   }, [isAuthenticated]);
 
-  const onNavigateProfile = (userId) => {
-    setProfileUserId(userId ?? null);
+  useEffect(() => {
+    if (routeUsername || routeUserId) {
+      setProfileUserId(routeUserId ?? null);
+      setView("profile");
+    }
+  }, [routeUsername, routeUserId]);
+
+  const resolveProfileTarget = (target) => {
+    if (!target) {
+      return { userId: null, username: null };
+    }
+
+    if (typeof target === "string") {
+      return { userId: target, username: null };
+    }
+
+    if (typeof target === "object") {
+      const rawUsername =
+        typeof target.username === "string" ? target.username.trim().toLowerCase() : "";
+
+      return {
+        userId: target.userId ?? null,
+        username: rawUsername.length > 0 ? rawUsername : null,
+      };
+    }
+
+    return { userId: null, username: null };
+  };
+
+  const onNavigateProfile = (target) => {
+    const profileTarget = resolveProfileTarget(target);
+    setProfileUserId(profileTarget.userId);
     setView("profile");
+
+    if (profileTarget.username) {
+      navigate(`/${encodeURIComponent(profileTarget.username)}`);
+      return;
+    }
+
+    if (profileTarget.userId) {
+      navigate(`/profile/${encodeURIComponent(profileTarget.userId)}`);
+    }
   };
 
   const handleSetActiveTab = (tab) => {
+    if (isProfileRouteActive) {
+      navigate("/");
+    }
     setActiveTab(tab);
     setView("feed");
   };
 
   const onNavigateHome = () => {
+    if (isProfileRouteActive) {
+      navigate("/");
+    }
     setActiveTab("home");
     setView("feed");
   };
 
   const onNavigateMessaging = () => {
+    if (isProfileRouteActive) {
+      navigate("/");
+    }
     setActiveTab("messaging");
     setView("feed");
   };
@@ -83,6 +138,9 @@ const App = () => {
       return;
     }
 
+    if (isProfileRouteActive) {
+      navigate("/");
+    }
     setActiveTab("home");
     setView("feed");
 
@@ -153,6 +211,9 @@ const App = () => {
     display: condition ? undefined : "none",
     width: "100%",
   });
+  const shouldShowProfileView = isProfileRouteActive || view === "profile";
+  const routedProfileUserId = routeUserId || null;
+  const routedProfileUsername = routeUsername || null;
 
   return (
     <ThemeProvider theme={muiTheme}>
@@ -186,10 +247,17 @@ const App = () => {
           <Grid item className={classes.body__feed} xs={12} sm={8} md={5}>
             <ErrorBoundary>
               {/* Profile overlay — conditionally rendered (unique per user) */}
-              {view === "profile" && (
+              {shouldShowProfileView && (
                 <Profile
-                  userId={profileUserId}
-                  onBack={() => setView("feed")}
+                  userId={routedProfileUserId ?? profileUserId}
+                  username={routedProfileUsername}
+                  onBack={() => {
+                    if (isProfileRouteActive) {
+                      navigate("/");
+                      setActiveTab("home");
+                    }
+                    setView("feed");
+                  }}
                   onNavigateMessaging={onNavigateMessaging}
                   onViewProfile={onNavigateProfile}
                 />
@@ -197,7 +265,7 @@ const App = () => {
 
               {/* Keep-alive tabs — always mounted, shown/hidden via display.
                   This prevents Convex query re-fetching and skeleton flashes. */}
-              <div style={showWhen(view !== "profile" && activeTab === "home")}>
+              <div style={showWhen(!shouldShowProfileView && activeTab === "home")}>
                 <Grid item className={classes.feed__form}>
                   <Form />
                 </Grid>
@@ -206,15 +274,15 @@ const App = () => {
                 </Grid>
               </div>
 
-              <div style={showWhen(view !== "profile" && activeTab === "network")}>
+              <div style={showWhen(!shouldShowProfileView && activeTab === "network")}>
                 <Network onNavigateProfile={onNavigateProfile} />
               </div>
 
-              <div style={showWhen(view !== "profile" && activeTab === "messaging")}>
+              <div style={showWhen(!shouldShowProfileView && activeTab === "messaging")}>
                 <Messaging />
               </div>
 
-              <div style={showWhen(view !== "profile" && activeTab === "notifications")}>
+              <div style={showWhen(!shouldShowProfileView && activeTab === "notifications")}>
                 <Notifications
                   onViewPost={onViewPost}
                   onNavigateProfile={onNavigateProfile}
@@ -247,5 +315,11 @@ const App = () => {
     </ThemeProvider>
   );
 };
+
+const App = () => (
+  <BrowserRouter>
+    <AppShell />
+  </BrowserRouter>
+);
 
 export default App;
