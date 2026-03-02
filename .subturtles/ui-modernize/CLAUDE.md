@@ -1,5 +1,5 @@
 ## Current Task
-Move inline styles from ErrorBoundary.js (lines 26-95) to makeStyles.
+Replace all hardcoded `#2e7d32` colors with `theme.palette.primary.main` — check ArticleEditor.js:33, ArticleView.js:115, HashtagFeed.js:55, and grep for others.
 
 ## End Goal with Specs
 All raw HTML buttons, inputs, textareas replaced with MUI equivalents. Consistent styling. No sweetalert. No hardcoded colors. Skeleton loaders instead of spinners.
@@ -11,8 +11,8 @@ All raw HTML buttons, inputs, textareas replaced with MUI equivalents. Consisten
 - [x] Replace raw `<button>` elements in Messaging.js (lines ~159-175) with MUI Button/IconButton
 - [x] Replace raw `<button>` elements in Notifications.js (lines ~148-170) with MUI Button
 - [x] Replace raw button elements in Network.js (lines ~237-258, ~376-397) with MUI Button
-- [ ] Move inline styles from ErrorBoundary.js (lines 26-95) to makeStyles <- current
-- [ ] Replace all hardcoded `#2e7d32` colors with `theme.palette.primary.main` — check ArticleEditor.js:33, ArticleView.js:115, HashtagFeed.js:55, and grep for others
+- [x] Move inline styles from ErrorBoundary.js (lines 26-95) to makeStyles
+- [ ] Replace all hardcoded `#2e7d32` colors with `theme.palette.primary.main` — check ArticleEditor.js:33, ArticleView.js:115, HashtagFeed.js:55, and grep for others <- current
 - [ ] Add MUI Skeleton loaders to replace CircularProgress spinners in: Profile.js, Network.js, Notifications.js feed loading states (import Skeleton from @material-ui/lab)
 - [ ] Test build: `cd linkedin-demo && npm run build`
 - [ ] Commit
