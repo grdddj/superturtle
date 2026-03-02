@@ -38,7 +38,6 @@ const Header = ({
   setActiveTab,
   onNavigateProfile,
   onNavigateHome,
-  onSignInClick,
 }) => {
   const classes = Style();
   const theme = useTheme();
@@ -219,27 +218,18 @@ const Header = ({
       onClick: () => setActiveTab("notifications"),
       isActive: isNotificationsActive,
     },
-    isAuthenticated
-      ? {
-          key: "profile",
-          Icon: <Avatar src={photoURL} />,
-          title: "Me",
-          arrow: true,
-          onClick: () =>
-            onNavigateProfile({
-              username: user?.username ?? null,
-              userId: user?._id ?? null,
-            }),
-          isActive: false,
-        }
-      : {
-          key: "sign-in",
-          Icon: <PersonOutlineIcon />,
-          title: "Sign In",
-          arrow: false,
-          onClick: () => onSignInClick?.(),
-          isActive: false,
-        },
+    {
+      key: "profile",
+      Icon: <Avatar src={photoURL} />,
+      title: "Me",
+      arrow: true,
+      onClick: () =>
+        onNavigateProfile({
+          username: user?.username ?? null,
+          userId: user?._id ?? null,
+        }),
+      isActive: false,
+    },
   ];
 
   const navigateToHome = () => {
@@ -281,16 +271,11 @@ const Header = ({
     {
       key: "profile",
       icon: activeTab === "profile" ? PersonIcon : PersonOutlineIcon,
-      onClick: () => {
-        if (isAuthenticated) {
-          onNavigateProfile({
-            username: user?.username ?? null,
-            userId: user?._id ?? null,
-          });
-          return;
-        }
-        onSignInClick?.();
-      },
+      onClick: () =>
+        onNavigateProfile({
+          username: user?.username ?? null,
+          userId: user?._id ?? null,
+        }),
       isActive: false,
     },
   ];
@@ -456,22 +441,16 @@ const Header = ({
               )}
             </div>
           </ClickAwayListener>
-          {isAuthenticated ? (
-            <Avatar
-              src={photoURL}
-              onClick={() =>
-                onNavigateProfile({
-                  username: user?.username ?? null,
-                  userId: user?._id ?? null,
-                })
-              }
-              style={{ cursor: "pointer" }}
-            />
-          ) : (
-            <Button className={classes.mobileSignInButton} onClick={() => onSignInClick?.()}>
-              Sign In
-            </Button>
-          )}
+          <Avatar
+            src={photoURL}
+            onClick={() =>
+              onNavigateProfile({
+                username: user?.username ?? null,
+                userId: user?._id ?? null,
+              })
+            }
+            style={{ cursor: "pointer" }}
+          />
         </div>
         <div className={classes.header__nav}>
           {items.map(({ key, Icon, title, arrow, onClick, isActive }) => (
@@ -492,19 +471,9 @@ const Header = ({
             />
           </div>
         </div>
-        {isAuthenticated ? (
-          <Button className={classes.signOutButton} onClick={() => signOut()} variant="outlined">
-            Sign Out
-          </Button>
-        ) : (
-          <Button
-            className={classes.signInButton}
-            onClick={() => onSignInClick?.()}
-            variant="contained"
-          >
-            Sign In
-          </Button>
-        )}
+        <Button className={classes.signOutButton} onClick={() => signOut()} variant="outlined">
+          Sign Out
+        </Button>
         <Paper className={classes.header__bottom__nav}>
           {tabItems.map(({ key, icon: Icon, onClick, isActive }) => (
             <Icon

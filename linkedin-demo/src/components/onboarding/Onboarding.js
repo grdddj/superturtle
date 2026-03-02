@@ -28,13 +28,13 @@ const Onboarding = ({ currentUser }) => {
   const [saveError, setSaveError] = useState("");
 
   useEffect(() => {
-    const initialDisplayName = (currentUser?.displayName ?? currentUser?.name ?? "").trim();
+    const initialDisplayName = (currentUser?.displayName ?? "").trim();
     setDisplayName(initialDisplayName);
     setTitle((currentUser?.title ?? "").trim());
     setLocation((currentUser?.location ?? "").trim());
     setUsername(slugifyUsername(initialDisplayName || "user"));
     setHasEditedUsername(false);
-  }, [currentUser?._id, currentUser?.displayName, currentUser?.name, currentUser?.title, currentUser?.location]);
+  }, [currentUser?._id, currentUser?.displayName, currentUser?.title, currentUser?.location]);
 
   const normalizedUsername = useMemo(() => username.trim().toLowerCase(), [username]);
   const usernameIsValid = USERNAME_REGEX.test(normalizedUsername);
@@ -110,7 +110,7 @@ const Onboarding = ({ currentUser }) => {
     setIsSkipping(true);
     setSaveError("");
 
-    const fallbackName = (currentUser?.displayName ?? currentUser?.name ?? currentUser?.email ?? "user").trim();
+    const fallbackName = (currentUser?.displayName ?? currentUser?.email ?? "user").trim();
     const autoUsername = slugifyUsername(fallbackName) || `user-${Date.now().toString(36)}`;
 
     try {

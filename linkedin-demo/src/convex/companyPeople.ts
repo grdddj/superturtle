@@ -22,11 +22,11 @@ export const getCompanyPeople = query({
             (entry) => entry.company.trim().toLowerCase() === normalizedCompanyName,
           );
         })
-        .sort((a, b) => (a.displayName ?? a.name ?? "").localeCompare(b.displayName ?? b.name ?? ""))
+        .sort((a, b) => (a.displayName ?? "").localeCompare(b.displayName ?? ""))
         .map(async (user) => ({
           _id: user._id,
           username: user.username ?? null,
-          displayName: user.displayName ?? user.name ?? "Guest User",
+          displayName: user.displayName ?? "TurtleIn User",
           title: user.title ?? "",
           photoURL: await resolveUserPhotoURL(ctx, user),
         })),

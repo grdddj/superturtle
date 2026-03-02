@@ -16,8 +16,8 @@ const useConvexUser = () => {
 
     return {
       ...currentUser,
-      displayName: currentUser.displayName ?? currentUser.name ?? "Guest User",
-      photoURL: storageBackedPhotoURL ?? currentUser.photoURL ?? currentUser.image ?? DEFAULT_PHOTO,
+      displayName: currentUser.displayName ?? "TurtleIn User",
+      photoURL: storageBackedPhotoURL ?? currentUser.photoURL ?? DEFAULT_PHOTO,
     };
   }
 

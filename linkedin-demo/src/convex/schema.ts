@@ -173,12 +173,14 @@ export default defineSchema({
   conversations: defineTable({
     participants: v.array(v.id("users")),
     createdAt: v.number(),
+    encryptionKey: v.optional(v.string()),
   }),
   messages: defineTable({
     conversationId: v.id("conversations"),
     senderId: v.id("users"),
     body: v.string(),
     createdAt: v.number(),
+    encrypted: v.optional(v.boolean()),
   }),
   connections: defineTable({
     userId1: v.id("users"),

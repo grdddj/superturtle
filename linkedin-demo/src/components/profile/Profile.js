@@ -23,6 +23,7 @@ import CameraAltIcon from "@material-ui/icons/CameraAlt";
 import LocationOnIcon from "@material-ui/icons/LocationOn";
 import ReactTimeago from "react-timeago";
 import { api } from "../../convex/_generated/api";
+import { generateConversationKey } from "../../utils/crypto";
 import { DEFAULT_PHOTO } from "../../constants";
 import useConvexUser from "../../hooks/useConvexUser";
 import useErrorToast from "../../hooks/useErrorToast";
@@ -335,12 +336,11 @@ const Profile = ({
   const coverPhotoInputRef = useRef(null);
 
   const userAvatar = resolveProfilePhoto(
-    resolvedUser?.photoURL ?? resolvedUser?.image ?? DEFAULT_PROFILE.photoURL,
+    resolvedUser?.photoURL ?? DEFAULT_PROFILE.photoURL,
   );
   const coverPhotoURL = resolveCoverPhoto(resolvedUser?.coverURL);
   const userName =
-    resolveProfileText(resolvedUser?.displayName) ||
-    resolveProfileText(resolvedUser?.name, DEFAULT_PROFILE.displayName);
+    resolveProfileText(resolvedUser?.displayName, DEFAULT_PROFILE.displayName);
   const userTitle = resolveProfileText(resolvedUser?.title, DEFAULT_PROFILE.title);
   const userHeadline = resolveProfileText(resolvedUser?.headline, DEFAULT_PROFILE.headline);
   const location = resolveProfileText(resolvedUser?.location, DEFAULT_PROFILE.location);
@@ -360,7 +360,7 @@ const Profile = ({
     : [];
   const skills = Array.isArray(resolvedUser?.skills) ? resolvedUser.skills : [];
   const profileCompleteness = computeProfileCompleteness({
-    photoURL: resolvedUser?.photoURL ?? resolvedUser?.image ?? "",
+    photoURL: resolvedUser?.photoURL ?? "",
     coverURL: resolvedUser?.coverURL ?? "",
     title: userTitle,
     headline: userHeadline,
@@ -466,9 +466,11 @@ const Profile = ({
 
     try {
       if (authUser._id !== resolvedUserId) {
+        const encryptionKey = await generateConversationKey();
         await getOrCreateConversation({
           userId1: authUser._id,
           userId2: resolvedUserId,
+          encryptionKey,
         });
       }
       onNavigateMessaging();

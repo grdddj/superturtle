@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { buildAuthorSummary } from "./helpers";
 
@@ -18,6 +18,7 @@ const sameParticipants = (a: string[], b: string[]) => {
 export const createConversation = mutation({
   args: {
     participantIds: v.array(v.id("users")),
+    encryptionKey: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const normalizedArgs = normalizeParticipants(args.participantIds.map(String));
@@ -37,10 +38,20 @@ export const createConversation = mutation({
       return existingConversation._id;
     }
 
-    return await ctx.db.insert("conversations", {
+    const record: {
+      participants: typeof args.participantIds;
+      createdAt: number;
+      encryptionKey?: string;
+    } = {
       participants: args.participantIds,
       createdAt: Date.now(),
-    });
+    };
+
+    if (args.encryptionKey) {
+      record.encryptionKey = args.encryptionKey;
+    }
+
+    return await ctx.db.insert("conversations", record);
   },
 });
 
@@ -48,6 +59,7 @@ export const getOrCreateConversation = mutation({
   args: {
     userId1: v.id("users"),
     userId2: v.id("users"),
+    encryptionKey: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     if (args.userId1 === args.userId2) {
@@ -70,10 +82,20 @@ export const getOrCreateConversation = mutation({
       return existingConversation._id;
     }
 
-    return await ctx.db.insert("conversations", {
+    const record: {
+      participants: [typeof args.userId1, typeof args.userId2];
+      createdAt: number;
+      encryptionKey?: string;
+    } = {
       participants: [args.userId1, args.userId2],
       createdAt: Date.now(),
-    });
+    };
+
+    if (args.encryptionKey) {
+      record.encryptionKey = args.encryptionKey;
+    }
+
+    return await ctx.db.insert("conversations", record);
   },
 });
 
@@ -82,6 +104,7 @@ export const sendMessage = mutation({
     conversationId: v.id("conversations"),
     senderId: v.id("users"),
     body: v.string(),
+    encrypted: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const body = args.body.trim();
@@ -94,12 +117,24 @@ export const sendMessage = mutation({
       throw new Error("Conversation not found");
     }
 
-    const messageId = await ctx.db.insert("messages", {
+    const messageRecord: {
+      conversationId: typeof args.conversationId;
+      senderId: typeof args.senderId;
+      body: string;
+      createdAt: number;
+      encrypted?: boolean;
+    } = {
       conversationId: args.conversationId,
       senderId: args.senderId,
       body,
       createdAt: Date.now(),
-    });
+    };
+
+    if (args.encrypted) {
+      messageRecord.encrypted = true;
+    }
+
+    const messageId = await ctx.db.insert("messages", messageRecord);
 
     const recipients = conversation.participants.filter(
       (participantId) => participantId !== args.senderId,
@@ -187,5 +222,58 @@ export const listMessages = query({
         };
       }),
     );
+  },
+});
+
+export const patchConversationKey = internalMutation({
+  args: {
+    conversationId: v.id("conversations"),
+    encryptionKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.conversationId, { encryptionKey: args.encryptionKey });
+  },
+});
+
+const generateKeyBase64 = async () => {
+  const key = await crypto.subtle.generateKey(
+    { name: "AES-GCM", length: 256 },
+    true,
+    ["encrypt", "decrypt"],
+  );
+  const raw = await crypto.subtle.exportKey("raw", key);
+  const bytes = new Uint8Array(raw);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+};
+
+export const listAllConversations = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db.query("conversations").collect();
+  },
+});
+
+export const backfillEncryptionKeys = action({
+  args: {},
+  handler: async (ctx): Promise<{ patched: number; total: number }> => {
+    const conversations = await ctx.runQuery(internal.messaging.listAllConversations);
+    let patched = 0;
+
+    for (const conversation of conversations) {
+      if (!conversation.encryptionKey) {
+        const encryptionKey = await generateKeyBase64();
+        await ctx.runMutation(internal.messaging.patchConversationKey, {
+          conversationId: conversation._id,
+          encryptionKey,
+        });
+        patched += 1;
+      }
+    }
+
+    return { patched, total: conversations.length };
   },
 });

@@ -272,7 +272,7 @@ export const getRecentActivity = query({
       postId: post._id,
       content: post.description,
       postPreview: post.description,
-      postAuthorName: user.displayName ?? user.name ?? "User",
+      postAuthorName: user.displayName ?? "TurtleIn User",
     }));
 
     const commentActivity = comments.map((comment) => {
@@ -287,7 +287,7 @@ export const getRecentActivity = query({
         content: comment.body,
         postPreview: commentPost?.description ?? "",
         postAuthorName:
-          commentPostAuthor?.displayName ?? commentPostAuthor?.name ?? "Unknown user",
+          commentPostAuthor?.displayName ?? "Unknown user",
       };
     });
 
@@ -338,7 +338,7 @@ export const searchUsersByPrefix = query({
         .filter((user) => typeof user.username === "string" && user.username.length > 0)
         .map(async (user) => ({
           username: user.username as string,
-          displayName: user.displayName ?? user.name ?? "Guest User",
+          displayName: user.displayName ?? "TurtleIn User",
           photoURL: await resolveUserPhotoURL(ctx, user),
         })),
     );
@@ -362,7 +362,7 @@ export const ensureUsername = mutation({
       return user.username;
     }
 
-    const baseUsername = slugifyUsername(user.displayName ?? user.name ?? "user");
+    const baseUsername = slugifyUsername(user.displayName ?? "user");
     let candidateUsername = baseUsername;
     let suffix = 2;
 
@@ -657,7 +657,7 @@ export const saveProfilePhoto = mutation({
 
     return {
       photoStorageId: args.storageId,
-      photoURL: resolvedPhotoURL ?? user.photoURL ?? user.image ?? "",
+      photoURL: resolvedPhotoURL ?? user.photoURL ?? "",
     };
   },
 });
@@ -734,7 +734,7 @@ export const listNetworkUsers = query({
       }
 
       const fields = [
-        user.displayName ?? user.name ?? "",
+        user.displayName ?? "",
         user.title ?? "",
         user.location ?? "",
         user.username ?? "",
@@ -745,7 +745,7 @@ export const listNetworkUsers = query({
 
     const sortedUsers = normalizedSearchTerm
       ? [...filteredUsers].sort((a, b) =>
-          (a.displayName ?? a.name ?? "").localeCompare(b.displayName ?? b.name ?? ""),
+          (a.displayName ?? "").localeCompare(b.displayName ?? ""),
         )
       : filteredUsers;
 
@@ -892,7 +892,7 @@ export const listNetworkUsers = query({
 
         return {
           _id: user._id,
-          displayName: user.displayName ?? user.name ?? "Guest User",
+          displayName: user.displayName ?? "TurtleIn User",
           photoURL: await resolveUserPhotoURL(ctx, user),
           username: user.username ?? null,
           title: user.title ?? "",
@@ -920,10 +920,10 @@ export const listAllUsers = query({
 
     return await Promise.all(
       [...users]
-        .sort((a, b) => (a.displayName ?? a.name ?? "").localeCompare(b.displayName ?? b.name ?? ""))
+        .sort((a, b) => (a.displayName ?? "").localeCompare(b.displayName ?? ""))
         .map(async (user) => ({
           _id: user._id,
-          displayName: user.displayName ?? user.name ?? "Guest User",
+          displayName: user.displayName ?? "TurtleIn User",
           photoURL: await resolveUserPhotoURL(ctx, user),
           title: user.title ?? "",
           location: user.location ?? "",
@@ -1167,19 +1167,19 @@ export const searchUsers = query({
     const matchedUsers = combinedUsers
       .filter((user) =>
         [
-          user.displayName ?? user.name ?? "",
+          user.displayName ?? "",
           user.title ?? "",
           user.location ?? "",
           user.username ?? "",
         ].some((field) => field.toLowerCase().includes(normalizedQuery)),
       )
-      .sort((a, b) => (a.displayName ?? a.name ?? "").localeCompare(b.displayName ?? b.name ?? ""))
+      .sort((a, b) => (a.displayName ?? "").localeCompare(b.displayName ?? ""))
       .slice(0, 10);
 
     return await Promise.all(
       matchedUsers.map(async (user) => ({
         _id: user._id,
-        displayName: user.displayName ?? user.name ?? "Guest User",
+        displayName: user.displayName ?? "TurtleIn User",
         photoURL: await resolveUserPhotoURL(ctx, user),
         title: user.title ?? "",
         username: user.username ?? null,

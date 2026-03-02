@@ -1,7 +1,7 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useSelector } from "react-redux";
-import { Grid, Hidden, Modal, Typography } from "@material-ui/core";
+import { Grid, Hidden, Typography } from "@material-ui/core";
 import { ThemeProvider, createMuiTheme } from "@material-ui/core";
 import { BrowserRouter, useMatch, useNavigate } from "react-router-dom";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -47,7 +47,6 @@ const AppShell = () => {
   const [activeTab, setActiveTab] = useState("home");
   const [view, setView] = useState("feed");
   const [profileUserId, setProfileUserId] = useState(null);
-  const [showLogin, setShowLogin] = useState(false);
   const navigate = useNavigate();
   const hashtagRouteMatch = useMatch("/hashtag/:tag");
   const writeArticleRouteMatch = useMatch("/write-article");
@@ -117,12 +116,6 @@ const AppShell = () => {
       console.error("Failed to seed Convex data:", error);
     });
   }, [seedData]);
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      setShowLogin(false);
-    }
-  }, [isAuthenticated]);
 
   useEffect(() => {
     if (routeUsername || routeUserId) {
@@ -211,16 +204,6 @@ const AppShell = () => {
     }, 200);
   };
 
-  const handleOpenLogin = () => {
-    if (!isAuthenticated) {
-      setShowLogin(true);
-    }
-  };
-
-  const handleCloseLogin = () => {
-    setShowLogin(false);
-  };
-
   const isCurrentUserLoading = isAuthenticated && currentUser === undefined;
   const shouldShowOnboarding = Boolean(isAuthenticated && currentUser && !currentUser.username);
 
@@ -246,6 +229,25 @@ const AppShell = () => {
               TurtleIn
             </Typography>
           </div>
+        </Grid>
+      </ThemeProvider>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <ThemeProvider theme={muiTheme}>
+        <Grid
+          container
+          className={`${classes.app} fade-in`}
+          style={{
+            backgroundColor: mode ? darkPrimary : LinkedInBgColor,
+            justifyContent: "center",
+            alignItems: "center",
+            minHeight: "100vh",
+          }}
+        >
+          <LoginCard />
         </Grid>
       </ThemeProvider>
     );
@@ -310,7 +312,6 @@ const AppShell = () => {
             setActiveTab={handleSetActiveTab}
             onNavigateProfile={onNavigateProfile}
             onNavigateHome={onNavigateHome}
-            onSignInClick={handleOpenLogin}
           />
         </Grid>
         <Grid item container className={classes.app__body}>
@@ -403,20 +404,6 @@ const AppShell = () => {
             </Grid>
           </Hidden>
         </Grid>
-        <Modal open={showLogin && !isAuthenticated} onClose={handleCloseLogin}>
-          <div
-            style={{
-              minHeight: "100vh",
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              padding: 16,
-              outline: "none",
-            }}
-          >
-            <LoginCard onClose={handleCloseLogin} />
-          </div>
-        </Modal>
       </Grid>
     </ThemeProvider>
   );

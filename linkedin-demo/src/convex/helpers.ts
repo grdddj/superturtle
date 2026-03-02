@@ -31,7 +31,7 @@ export const resolveUserPhotoURL = async (
     }
   }
 
-  return user.photoURL ?? user.image ?? "";
+  return user.photoURL ?? "";
 };
 
 export const buildAuthorSummary = async (
@@ -44,7 +44,7 @@ export const buildAuthorSummary = async (
 
   return {
     _id: author._id,
-    displayName: author.displayName ?? author.name ?? "Guest User",
+    displayName: author.displayName ?? "TurtleIn User",
     photoURL: await resolveUserPhotoURL(ctx, author),
     title: author.title ?? "",
     username: author.username ?? "",

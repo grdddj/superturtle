@@ -14,6 +14,7 @@ import SendIcon from "@material-ui/icons/Send";
 import { api } from "../../convex/_generated/api";
 import useConvexUser from "../../hooks/useConvexUser";
 import useErrorToast from "../../hooks/useErrorToast";
+import { encryptMessage, decryptMessageSafe } from "../../utils/crypto";
 import { resolvePhoto } from "../../utils/photo";
 import LoadingGate from "../LoadingGate";
 import useStyles from "./Style";
@@ -79,6 +80,57 @@ const Messaging = () => {
     selectedConversationId ? { conversationId: selectedConversationId } : "skip"
   );
 
+  const [decryptedBodies, setDecryptedBodies] = useState({});
+  const [decryptedPreviews, setDecryptedPreviews] = useState({});
+
+  useEffect(() => {
+    if (!messages || !selectedConversation?.encryptionKey) {
+      return;
+    }
+
+    const encryptionKey = selectedConversation.encryptionKey;
+    let cancelled = false;
+
+    const decryptAll = async () => {
+      const results = {};
+      for (const message of messages) {
+        if (message.encrypted && encryptionKey) {
+          results[message._id] = await decryptMessageSafe(message.body, encryptionKey);
+        }
+      }
+      if (!cancelled) {
+        setDecryptedBodies(results);
+      }
+    };
+
+    decryptAll();
+    return () => { cancelled = true; };
+  }, [messages, selectedConversation?.encryptionKey]);
+
+  useEffect(() => {
+    if (!conversations) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const decryptPreviews = async () => {
+      const results = {};
+      for (const conversation of conversations) {
+        const msg = conversation.latestMessage;
+        if (msg?.encrypted && conversation.encryptionKey) {
+          results[conversation._id] = await decryptMessageSafe(msg.body, conversation.encryptionKey);
+        }
+      }
+      if (!cancelled) {
+        setDecryptedPreviews(results);
+      }
+    };
+
+    decryptPreviews();
+    return () => { cancelled = true; };
+  }, [conversations]);
+
   useEffect(() => {
     if (!selectedConversationId || !conversations) {
       return;
@@ -108,11 +160,22 @@ const Messaging = () => {
     }
 
     try {
-      await sendMessage({
-        conversationId: selectedConversationId,
-        senderId: user._id,
-        body: trimmedBody,
-      });
+      const encryptionKey = selectedConversation?.encryptionKey;
+      if (encryptionKey) {
+        const ciphertext = await encryptMessage(trimmedBody, encryptionKey);
+        await sendMessage({
+          conversationId: selectedConversationId,
+          senderId: user._id,
+          body: ciphertext,
+          encrypted: true,
+        });
+      } else {
+        await sendMessage({
+          conversationId: selectedConversationId,
+          senderId: user._id,
+          body: trimmedBody,
+        });
+      }
       setBody("");
     } catch (error) {
       console.error("Failed to send message:", error);
@@ -150,7 +213,10 @@ const Messaging = () => {
                 </div>
               ) : (
                 conversations?.map((conversation) => {
-                  const preview = conversation.latestMessage?.body ?? "No messages yet";
+                  const rawPreview = conversation.latestMessage?.body ?? "No messages yet";
+                  const preview = conversation.latestMessage?.encrypted
+                    ? (decryptedPreviews[conversation._id] ?? "[encrypted]")
+                    : rawPreview;
                   const displayName = conversation.otherParticipant?.displayName ?? "Unknown user";
                   const photoURL = resolvePhoto(conversation.otherParticipant?.photoURL);
                   const timestamp = conversation.latestMessage?.createdAt ?? conversation.createdAt;
@@ -225,7 +291,9 @@ const Messaging = () => {
                       isOwnMessage ? classes.ownBubble : classes.otherBubble
                     }`}
                   >
-                    <Typography className={classes.messageText}>{message.body}</Typography>
+                    <Typography className={classes.messageText}>
+                      {message.encrypted ? (decryptedBodies[message._id] ?? "[decrypting...]") : message.body}
+                    </Typography>
                     <Typography className={classes.messageMeta}>
                       {formatTimeAgo(message.createdAt)}
                     </Typography>
