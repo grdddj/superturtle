@@ -147,7 +147,7 @@ export default makeStyles((theme) => ({
     borderBottomRightRadius: 6,
   },
   otherBubble: {
-    backgroundColor: "#e0e0e0",
+    backgroundColor: theme.palette.type === "dark" ? "#37474f" : "#e0e0e0",
     color: theme.palette.text.primary,
     borderBottomLeftRadius: 6,
   },

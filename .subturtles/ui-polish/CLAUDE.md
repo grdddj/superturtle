@@ -1,5 +1,5 @@
 ## Current Task
-Fix dark mode in `linkedin-demo/src/components/messaging/Style.js`.
+Fix dark mode in `linkedin-demo/src/components/profile/Style.js`.
 
 ## End Goal with Specs
 - All hardcoded white/black colors replaced with theme-aware values
@@ -18,9 +18,9 @@ Fix dark mode in `linkedin-demo/src/components/messaging/Style.js`.
   - Line ~86: Save button `color: "white"` — change to `color: theme.palette.common.white` (this is intentional white-on-green)
   - Line ~275: Comment input `backgroundColor: "white"` → use `theme.palette.background.paper`
   - Line ~292: Comment submit button text color — verify contrast in dark mode
-- [ ] Fix dark mode in `linkedin-demo/src/components/messaging/Style.js`: <- current
+- [x] Fix dark mode in `linkedin-demo/src/components/messaging/Style.js`:
   - Line ~150: Other user bubble `backgroundColor: "#e0e0e0"` → use `theme.palette.type === "dark" ? "#37474f" : "#e0e0e0"`
-- [ ] Fix dark mode in `linkedin-demo/src/components/profile/Style.js`:
+- [ ] Fix dark mode in `linkedin-demo/src/components/profile/Style.js`: <- current
   - Line ~56: Avatar border `border: "4px solid #fff"` → use `theme.palette.background.paper`
 - [ ] Fix dark mode in `linkedin-demo/src/components/header/menuItem/Style.js`:
   - Line ~19: `color: "black"` → use `theme.palette.text.primary`
