@@ -68,6 +68,22 @@ export default defineSchema({
     userId: v.id("users"),
     postId: v.id("posts"),
   }),
+  hashtags: defineTable({
+    tag: v.string(),
+    postId: v.id("posts"),
+  })
+    .index("byTag", ["tag"])
+    .index("byPostId", ["postId"])
+    .index("byTagAndPost", ["tag", "postId"]),
+  reposts: defineTable({
+    userId: v.id("users"),
+    originalPostId: v.id("posts"),
+    commentary: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("byUserAndPost", ["userId", "originalPostId"])
+    .index("byOriginalPost", ["originalPostId"])
+    .index("byUser", ["userId"]),
   reactions: defineTable({
     userId: v.id("users"),
     postId: v.id("posts"),
