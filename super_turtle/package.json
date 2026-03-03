@@ -1,12 +1,53 @@
 {
   "name": "superturtle",
   "version": "0.1.0",
-  "description": "Code from anywhere. Autonomous coding system controlled from Telegram.",
+  "description": "Code from anywhere with your voice. Autonomous coding system controlled from Telegram.",
+  "author": {
+    "name": "Richard Mladek",
+    "url": "https://github.com/Rigos0"
+  },
   "bin": {
     "superturtle": "./bin/superturtle.js"
   },
+  "files": [
+    "bin/",
+    "claude-telegram-bot/src/**/*.ts",
+    "!claude-telegram-bot/src/**/*.test.ts",
+    "claude-telegram-bot/src/handlers/__fixtures__/",
+    "claude-telegram-bot/bot_control_mcp/",
+    "claude-telegram-bot/send_turtle_mcp/",
+    "claude-telegram-bot/scripts/",
+    "claude-telegram-bot/systemd/",
+    "claude-telegram-bot/package.json",
+    "claude-telegram-bot/tsconfig.json",
+    "claude-telegram-bot/mcp-config.ts",
+    "claude-telegram-bot/mcp-config.example.ts",
+    "claude-telegram-bot/live.sh",
+    "claude-telegram-bot/run-loop.sh",
+    "claude-telegram-bot/.env.example",
+    "meta/*.md",
+    "meta/claude-meta",
+    "subturtle/__main__.py",
+    "subturtle/pyproject.toml",
+    "subturtle/ctl",
+    "subturtle/browser-screenshot.sh",
+    "subturtle/start-tunnel.sh",
+    "subturtle/README.md",
+    "subturtle/claude-md-guard/*.sh",
+    "subturtle/claude-md-guard/config.sh",
+    "subturtle/claude-md-guard/README.md",
+    "subturtle/subturtle_loop/__main__.py",
+    "subturtle/subturtle_loop/agents.py",
+    "state/run_state_writer.py",
+    "templates/",
+    "templates/.claude/",
+    "setup",
+    "LICENSE",
+    "README.md"
+  ],
   "engines": {
-    "node": ">=18"
+    "node": ">=18",
+    "bun": ">=1.0.0"
   },
   "os": [
     "darwin",
@@ -18,9 +59,19 @@
     "ai",
     "coding",
     "agent",
-    "autonomous"
+    "autonomous",
+    "voice",
+    "mobile",
+    "bun",
+    "tmux",
+    "claude-code",
+    "mcp"
   ],
   "license": "MIT",
+  "homepage": "https://www.superturtle.dev",
+  "bugs": {
+    "url": "https://github.com/Rigos0/superturtle/issues"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/Rigos0/superturtle.git"

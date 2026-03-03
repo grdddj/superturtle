@@ -15,14 +15,15 @@ import {
   META_CODEX_APPROVAL_POLICY,
   META_CODEX_NETWORK_ACCESS,
   META_CODEX_SANDBOX_MODE,
+  TOKEN_PREFIX,
 } from "./config";
 import { formatCodexToolStatus } from "./formatting";
 import type { StatusCallback, McpCompletionCallback, RecentMessage, SavedSession, SessionHistory } from "./types";
 import { codexLog } from "./logger";
 
 // Prefs file for Codex (separate from Claude)
-const CODEX_PREFS_FILE = "/tmp/codex-telegram-prefs.json";
-const CODEX_SESSION_FILE = "/tmp/codex-telegram-session.json";
+const CODEX_PREFS_FILE = `/tmp/codex-telegram-${TOKEN_PREFIX}-prefs.json`;
+const CODEX_SESSION_FILE = `/tmp/codex-telegram-${TOKEN_PREFIX}-session.json`;
 const MAX_CODEX_SESSIONS = 5;
 const APP_SERVER_TIMEOUT_MS = 6000;
 const MODEL_CACHE_TTL_MS = 60_000;

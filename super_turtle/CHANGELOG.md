@@ -1,0 +1,30 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [0.1.0] - 2026-03-03
+
+Initial public release.
+
+### Added
+- `superturtle` CLI with `init`, `start`, `stop`, `status` commands
+- Telegram bot runtime (Bun + grammY) with text, voice, photo, document, video handlers
+- Claude Code driver with streaming responses
+- Optional Codex driver with quota-aware routing
+- SubTurtle orchestration system (spawn, stop, status, logs, watchdog)
+- Meta agent prompts (META_SHARED.md, orchestrator, decomposition)
+- MCP servers: send-turtle (stickers), bot-control (session/model/usage), ask-user (inline buttons)
+- Voice transcription via OpenAI API
+- User allowlist, rate limiting, audit logging
+- Deferred voice message queue (max 10 per chat)
+- Multi-instance isolation via TOKEN_PREFIX namespacing
+- Tunnel support (cloudflared) for frontend preview links
+- Browser screenshot support (Playwright)
+- Orchestrator cron mode for full-auto operation
+- CLAUDE.md and .claude config templates for target projects
+- systemd service template for Linux deployment

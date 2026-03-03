@@ -3,9 +3,15 @@ set -uo pipefail
 
 cd "$(dirname "$0")"
 
+# Default CLAUDE_WORKING_DIR to repo root (two levels up from claude-telegram-bot/)
+export CLAUDE_WORKING_DIR="${CLAUDE_WORKING_DIR:-$(cd ../.. && pwd)}"
+
 SESSION_NAME="${SUPERTURTLE_TMUX_SESSION:-superturtle-bot}"
 WINDOW_NAME="${SUPERTURTLE_TMUX_WINDOW:-bot}"
-LOOP_LOG_PATH="${SUPERTURTLE_LOOP_LOG_PATH:-/tmp/claude-telegram-bot-ts.log}"
+TELEGRAM_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
+TOKEN_PREFIX="${TELEGRAM_TOKEN%%:*}"
+TOKEN_PREFIX="${TOKEN_PREFIX:-default}"
+LOOP_LOG_PATH="${SUPERTURTLE_LOOP_LOG_PATH:-/tmp/claude-telegram-${TOKEN_PREFIX}-bot-ts.log}"
 
 # Platform-aware sleep prevention wrapper.
 # macOS: caffeinate -s (prevent system sleep while process runs)

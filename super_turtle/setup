@@ -15,21 +15,35 @@ Options:
   --skip-install                 Skip dependency install
   --skip-docs-install            Skip docs npm install
   --overwrite-env                Overwrite existing bot .env without prompt
-  --no-default-driver            Do not write /tmp/claude-telegram-prefs.json
+  --no-default-driver            Do not write default driver prefs file
   --non-interactive              Fail instead of prompting for missing values
   -h, --help                     Show this help
 EOF
 }
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BOT_DIR="${ROOT_DIR}/super_turtle/claude-telegram-bot"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PACKAGE_DIR="${SCRIPT_DIR}"
+
+# Support both layouts:
+# - Dev monorepo: <repo>/super_turtle/setup (parent has AGENTS.md)
+# - Published npm package: <pkg>/setup (no monorepo parent)
+MONOREPO_ROOT="$(cd "${PACKAGE_DIR}/.." && pwd)"
+if [[ -f "${MONOREPO_ROOT}/AGENTS.md" ]]; then
+  ROOT_DIR="${MONOREPO_ROOT}"
+else
+  ROOT_DIR="${PACKAGE_DIR}"
+fi
+
+BOT_DIR="${PACKAGE_DIR}/claude-telegram-bot"
 DOCS_DIR="${ROOT_DIR}/docs"
 ENV_FILE="${BOT_DIR}/.env"
 ENV_EXAMPLE="${BOT_DIR}/.env.example"
-PREFS_FILE="/tmp/claude-telegram-prefs.json"
 
 DRIVER="claude"
 TELEGRAM_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
+TOKEN_PREFIX="${TELEGRAM_TOKEN%%:*}"
+TOKEN_PREFIX="${TOKEN_PREFIX:-default}"
+PREFS_FILE="/tmp/claude-telegram-${TOKEN_PREFIX}-prefs.json"
 TELEGRAM_USERS="${TELEGRAM_ALLOWED_USERS:-}"
 OPENAI_KEY="${OPENAI_API_KEY:-}"
 INSTALL_DEPS=1
@@ -88,8 +102,13 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ ! -f "${ROOT_DIR}/AGENTS.md" ]]; then
-  echo "[setup] Run this from the agentic repo root." >&2
+if [[ ! -d "${BOT_DIR}" ]]; then
+  echo "[setup] Bot directory not found at ${BOT_DIR}." >&2
+  exit 1
+fi
+
+if [[ ! -f "${ENV_EXAMPLE}" ]]; then
+  echo "[setup] Missing env template at ${ENV_EXAMPLE}." >&2
   exit 1
 fi
 
@@ -208,6 +227,9 @@ if [[ "${INSTALL_DEPS}" -eq 1 ]]; then
 fi
 
 prompt_if_missing TELEGRAM_TOKEN "Telegram bot token"
+TOKEN_PREFIX="${TELEGRAM_TOKEN%%:*}"
+TOKEN_PREFIX="${TOKEN_PREFIX:-default}"
+PREFS_FILE="/tmp/claude-telegram-${TOKEN_PREFIX}-prefs.json"
 prompt_if_missing TELEGRAM_USERS "Telegram allowed user ID(s), comma-separated"
 
 if [[ ! "${TELEGRAM_USERS}" =~ ^[0-9]+(,[0-9]+)*$ ]]; then
@@ -252,7 +274,8 @@ upsert_env_key() {
 
 upsert_env_key "${ENV_FILE}" "TELEGRAM_BOT_TOKEN" "${TELEGRAM_TOKEN}"
 upsert_env_key "${ENV_FILE}" "TELEGRAM_ALLOWED_USERS" "${TELEGRAM_USERS}"
-upsert_env_key "${ENV_FILE}" "CLAUDE_WORKING_DIR" "${ROOT_DIR}"
+WORKING_DIR_VALUE="${CLAUDE_WORKING_DIR:-${ROOT_DIR}}"
+upsert_env_key "${ENV_FILE}" "CLAUDE_WORKING_DIR" "${WORKING_DIR_VALUE}"
 upsert_env_key "${ENV_FILE}" "CODEX_ENABLED" "${CODEX_ENABLED_VALUE}"
 
 if [[ -n "${OPENAI_KEY}" ]]; then
