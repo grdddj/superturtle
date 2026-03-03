@@ -89,20 +89,12 @@ You (Telegram) → Meta Agent → SubTurtles (parallel workers)
 
 ## Development
 
-Clone and set up for local development:
-
 ```bash
 git clone https://github.com/Rigos0/superturtle.git
-cd superturtle
-claude
-```
-
-When prompted: `Set up Super Turtle for me.`
-
-Or run setup directly:
-
-```bash
-./super_turtle/setup --telegram-token "<token>" --telegram-user "<id>"
+cd superturtle/super_turtle/claude-telegram-bot
+bun install
+cp .env.example .env  # fill in your tokens
+bun run start
 ```
 
 ## Star History
