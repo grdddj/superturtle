@@ -1,174 +1,115 @@
-# Super Turtle Onboarding Agent Runbook
+# SuperTurtle Onboarding Agent Runbook
 
-This file is ONLY for first-run onboarding behavior in this repository.
-When the user clones this repo and opens Claude Code, follow these steps exactly.
+This file guides Claude Code through first-run onboarding when a developer clones this repo.
 
 ## Rules
 
-1. Be concrete and step-by-step. Do not give vague summaries.
+1. Be concrete and step-by-step. No vague summaries.
 2. Do not ask users to manually edit `.env` or config files.
-3. Execute local setup commands yourself (the agent runs with high permissions).
+3. Execute setup commands yourself (the agent runs with permissions).
 4. Ask the user only for external actions (Telegram/BotFather/userinfobot) and secrets.
-5. If the `ask_user` tool is available, use it for onboarding choices to make setup seamless.
 
 ## Onboarding Trigger
 
-Run this flow when either is true:
+Run this flow when:
 
 - This is the user's first setup in this clone.
-- The user asks to set up Super Turtle.
+- The user asks to set up SuperTurtle.
 
-## Exact Onboarding Sequence
+## Onboarding Sequence
 
 ### 0. Verify prerequisites
 
-Before anything else, confirm the user has Telegram installed:
+Confirm the user has **Telegram** installed (phone or desktop): https://telegram.org/
 
-- **Telegram must be installed** on their phone or desktop before the bot can work.
-  - Download: https://telegram.org/
-- Confirm they have an active Telegram account.
+Then verify local tools (run commands yourself):
 
-Do not proceed past this step until the user confirms Telegram is installed.
+- `claude --version` (required)
+- `bun --version` (required)
+- `tmux -V` (required)
 
-Then verify local prerequisites (run commands yourself and report clearly):
+If any are missing, tell the user which one and provide the install link. Do not proceed.
 
-- `claude` CLI is installed (setup will fail without it)
-- `bun` is installed (bot dependencies use Bun)
-- `python3` is installed and version is **3.11+** (required for SubTurtle loops)
-- `npm` is installed **only if** you plan to install docs dependencies
-- `git` is installed (recommended for normal workflow)
+Platform note: macOS is fully supported. Linux is alpha. On Mac laptops, advise enabling `System Settings > Battery > Options > Prevent automatic sleeping when the display is off` (on power adapter).
 
-If any are missing:
-- Tell the user exactly which one is missing
-- Provide the official install link
-- Do **not** proceed until the missing tool is installed
-
-### 1. Open with platform reality
-
-Always tell the user:
-
-- macOS is currently the only fully supported platform.
-- Linux is untested alpha.
-- On Mac laptops, enable: `System Settings -> Battery -> Options -> Prevent automatic sleeping when the display is off` (on power adapter).
-- Keep the laptop lid open while the bot runs.
-
-If host OS is not macOS, explicitly warn that runtime behavior may be unstable.
-
-### 2. Guide BotFather token creation (handholding)
+### 1. Guide BotFather token creation
 
 Tell the user exactly:
 
 1. Open Telegram and message `@BotFather`
 2. Send `/newbot`
-3. BotFather will ask **"What name should I give the bot?"** — this is the **display name**,
-   can be anything (e.g., "My Super Turtle"). It does not need to be unique.
-4. BotFather will then ask **"Now let's choose a username for your bot."**
-   - The username **must end in `bot`** (e.g., `MySuperTurtleBot` or `my_super_turtle_bot`)
-   - It must be **globally unique** across all Telegram bots
-   - If BotFather says "Sorry, this username is already taken" — just try a different one
-     (add your name, numbers, or any variation)
-5. Copy the bot token BotFather gives you (looks like: `123456789:ABCDefGhijKLmNoPqrsTUVwxyz`)
-6. Paste it back here
+3. BotFather asks for a **display name** (can be anything, e.g. "My SuperTurtle")
+4. BotFather asks for a **username** (must end in `bot`, must be globally unique). If taken, try variations with their name or numbers.
+5. Copy the bot token (looks like `123456789:ABCDefGhijKLmNoPqrsTUVwxyz`)
+6. Paste it here
 
-Validate token format before continuing (`^\d+:[A-Za-z0-9_-]+$`).
-If invalid, explain and ask again.
+Validate token format (`^\d+:[A-Za-z0-9_-]+$`). If invalid, explain and ask again.
 
-### 3. Guide Telegram user ID discovery
+### 2. Guide Telegram user ID discovery
 
-Tell the user exactly:
+Tell the user:
 
 1. Open Telegram and message `@userinfobot`
-2. Copy numeric user ID
-3. Paste it back here
+2. Copy the numeric user ID
+3. Paste it here
 
 Validate as digits only.
 
-### 4. Ask about voice transcription
+### 3. Ask about voice transcription
 
-If `ask_user` is available, ask with buttons/options:
+Ask with buttons if `ask_user` is available:
 
 - `Yes, enable voice transcription`
 - `No, skip for now`
 
-If user chooses yes, collect `OPENAI_API_KEY`.
-If no, continue without it.
+If yes, collect `OPENAI_API_KEY`. If no, continue without it.
 
-### 5. Run setup command yourself
+### 4. Run init
 
-Always run:
-
-```bash
-./super_turtle/setup --driver claude --telegram-token "<token>" --telegram-user "<id>"
-```
-
-If OpenAI key was provided, run:
+Run with the collected values:
 
 ```bash
-./super_turtle/setup --driver claude --telegram-token "<token>" --telegram-user "<id>" --openai-api-key "<key>"
+node super_turtle/bin/superturtle.js init --token "<token>" --user "<id>"
 ```
 
-After running setup, verify it succeeded:
-- Check that `super_turtle/claude-telegram-bot/.env` exists and contains `TELEGRAM_BOT_TOKEN`
-- If the file does not exist, re-run the setup command — do NOT attempt to create `.env` manually
-- The setup script creates `.env` from `.env.example` automatically; never bypass this by writing
-  `.env` by hand or via heredoc
+If OpenAI key was provided, add `--openai-key "<key>"`.
 
-### 6. Summarize what was configured
+After init completes, verify `.superturtle/.env` exists and contains `TELEGRAM_BOT_TOKEN`. If it doesn't, re-run init. Do not create `.env` manually.
 
-After setup succeeds, state explicitly:
+### 5. Hand off bot start to user
 
-- Bot env file written: `super_turtle/claude-telegram-bot/.env`
-- Bot dependencies installed via `bun install`
-- Docs dependencies installed (`npm install`, or skipped if npm missing)
-- Default driver preference written to `/tmp/claude-telegram-prefs.json`
+**CRITICAL: Never run `bun run start` or `superturtle start` as an agent command.**
 
-### 7. Hand off bot start to user (DO NOT run this yourself)
+These use tmux which requires an interactive terminal. Running from an agent always fails.
 
-**CRITICAL: Never run `bun run start` as an agent command.**
-
-`bun run start` calls `live.sh`, which calls `tmux attach`. This requires an actual interactive
-terminal session. Running it from a background process, a non-interactive shell, or as an agent
-tool call will always fail with "open terminal failed: not a terminal" or "[exited]".
-
-Tell the user to run this themselves in their own terminal:
+Tell the user to run in their own terminal:
 
 ```bash
 cd super_turtle/claude-telegram-bot
 bun run start
 ```
 
-Explain to the user:
+Explain:
 - This opens a tmux session called `superturtle-bot`
-- The bot runs inside tmux and survives terminal disconnects
-- If they see a tmux window with the bot output, it is running correctly
-- To re-attach later: `tmux attach -t superturtle-bot`
-- To stop: `tmux kill-session -t superturtle-bot`
+- The bot survives terminal disconnects
+- Re-attach later: `tmux attach -t superturtle-bot`
+- Stop: `tmux kill-session -t superturtle-bot`
 
-Wait for the user to confirm the bot started before proceeding to Step 8.
+Wait for user confirmation before proceeding.
 
-### 8. Telegram verification
+### 6. Telegram verification
 
-Tell user:
+Tell the user:
 
 1. Open Telegram
 2. Find their bot
-3. Send `/start` (or any message)
+3. Send `/start` or any message
 
-Confirm bot is responding.
-If not, diagnose and retry before declaring setup done.
+Confirm the bot responds. If not, check logs at `/tmp/claude-telegram-*-bot-ts.log` and diagnose.
 
-### 9. Final onboarding handoff
+### 7. Done
 
-After verification, send:
-
-- Setup is complete
-- They can now request build tasks in plain language
-
-The first Telegram interaction handoff message is defined in:
-
-- `super_turtle/meta/META_SHARED.md`
-
-Keep that behavior prompt-driven (do not add custom runtime first-message hooks).
+Tell the user setup is complete. They can now send coding tasks to the bot in plain language via text or voice.
 
 ---
 
@@ -186,22 +127,19 @@ On the very first message of a new session, before responding to whatever the us
    or default to: `send_turtle({ emoji: "👋" })`
 2. Then respond naturally to what the user asked or said.
 
-Do not send a generic "Hi how is it going what are we working on?" — just send the turtle
-and respond naturally to what they actually said.
+Do not send a generic "Hi how is it going what are we working on?" greeting.
 
 ### You Are the Meta Agent
 
-- You run from Telegram. The user communicates with you via text, voice, and media.
+- You run from Telegram. The user communicates via text, voice, and media.
 - Delegate coding tasks to SubTurtles. Do small tasks yourself.
-- Keep responses concise — this is a chat interface, not a terminal.
+- Keep responses concise. This is a chat interface, not a terminal.
 - Use `send_turtle` freely for reactions, celebrations, and personality.
 
 ### Onboarding Prompt After First Message
 
-After your first-message greeting and response, if this is a brand new session (user's first interaction):
+After your first-message greeting, if this is a brand new session:
 
-1. **Prompt `/status`** — Tell the user: "Try `/status` to see your bot's capabilities (model, effort level, available drivers)."
-2. **Offer CLAUDE.md cleanup** — Ask if they want to set up their first task: "The project has a CLAUDE.md file with onboarding instructions that could use cleanup based on your actual intent and workflow. Want to refine it together?"
-3. If yes, spawn a SubTurtle or do it directly to update CLAUDE.md to reflect the user's preferences and actual use case.
-
-This establishes: what tools are available, and invites them to customize their environment for their workflow.
+1. Tell the user to try `/status` to see capabilities (model, effort, drivers).
+2. Offer CLAUDE.md cleanup: "Want to refine project instructions based on your workflow?"
+3. If yes, spawn a SubTurtle or do it directly.
