@@ -7,6 +7,13 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+- `superturtle init`: polished output with ANSI colors and step indicators
+- `superturtle init`: added `--token`, `--user`, `--openai-key` flags for non-interactive use
+- `superturtle init`: detect non-TTY and fail fast with usage message
+- `live.sh`: pass `CLAUDE_WORKING_DIR` into tmux session (was not sourcing `.env`)
+- npm README: use absolute image URLs so images render on npmjs.com
+
 ## [0.1.0] - 2026-03-03
 
 Initial public release.
