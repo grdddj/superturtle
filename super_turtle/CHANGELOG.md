@@ -7,6 +7,8 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-03-04
+
 ### Fixed
 - `superturtle init`: polished output with ANSI colors and step indicators
 - `superturtle init`: added `--token`, `--user`, `--openai-key` flags for non-interactive use
