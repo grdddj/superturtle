@@ -1,7 +1,9 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
-cd /Users/linuz90/Dev/claude-telegram-bot-ts
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BOT_DIR="${BOT_DIR:-"$(cd "${SCRIPT_DIR}/.." && pwd)"}"
+cd "${BOT_DIR}"
 
 # Source environment variables
 if [ -f .env ]; then
@@ -11,4 +13,4 @@ if [ -f .env ]; then
 fi
 
 # Run the bot
-exec /Users/linuz90/.bun/bin/bun run src/index.ts
+exec "${BUN:-bun}" run src/index.ts

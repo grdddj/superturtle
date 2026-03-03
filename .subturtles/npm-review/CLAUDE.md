@@ -1,5 +1,5 @@
 ## Current Task
-Spot-check key source files for hardcoded paths or issues.
+Review package.json fields.
 
 ## End Goal with Specs
 A markdown report at `docs/reviews/npm-package-review.md` covering:
@@ -19,8 +19,8 @@ Run `npm pack --dry-run` from `super_turtle/` to see the exact file list.
 - [x] Read `bin/superturtle.js` — audit all CLI commands for correctness and error handling
 - [x] Read `setup` script — audit the init/onboarding flow
 - [x] Check templates (.env.example, CLAUDE.md.template) for completeness
-- [ ] Spot-check key source files for hardcoded paths or issues <- current
-- [ ] Review package.json fields
+- [x] Spot-check key source files for hardcoded paths or issues
+- [ ] Review package.json fields <- current
 - [ ] Write the review report to `docs/reviews/npm-package-review.md`
 - [ ] Commit the report
 
