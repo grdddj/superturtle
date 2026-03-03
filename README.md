@@ -13,7 +13,7 @@
 
 ---
 
-superturtle is an autonomous coding agent you control from Telegram. Send a voice message or text from your phone, and it runs [Claude Code](https://claude.ai/code) (or [Codex](https://openai.com/index/introducing-codex/), beta) on your machine to write code, run tests, fix bugs, and ship features. You can be on the couch, on a walk, or on a completely different machine. For bigger tasks it spins up parallel workers called SubTurtles, each in their own git worktree, and supervises them to completion. You get milestone updates as things land, not a wall of logs.
+superturtle is an autonomous coding agent you control from Telegram. Send a voice message or text from your phone, and it runs [Claude Code](https://claude.ai/code) (or [Codex](https://openai.com/index/introducing-codex/), beta) on your machine to write code, run tests, fix bugs, and ship features. You can be on the couch, on a walk, or on a completely different machine. For bigger tasks it spins up parallel workers called SubTurtles and supervises them to completion. You get milestone updates as things land, not a wall of logs.
 
 ## Install
 
