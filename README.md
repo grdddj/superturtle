@@ -60,17 +60,20 @@ Loop types:
 ## Architecture
 
 ```
-You (Telegram) → Meta Agent → SubTurtles (looped workers)
-                     ↓
-              plans, delegates, supervises
-                     ↓
-              CLAUDE.md · .subturtles/ · git history
+┌─────────────┐       ┌──────────────┐       ┌─────────────────┐
+│  You         │       │  Meta Agent   │       │  SubTurtles     │
+│  (Telegram)  │──────▶│  (the bot)    │──────▶│  yolo / slow /  │
+│  text/voice  │◀──────│  plans, delegates,    │  yolo-codex     │
+└─────────────┘       │  supervises   │◀──────│  (ralph loops)  │
+                       └──────┬───────┘       └────────┬────────┘
+                              │                        │
+                       ┌──────▼───────┐         ┌──────▼────────┐
+                       │  MCP servers  │         │  .subturtles/  │
+                       │  stickers,    │         │  task files,   │
+                       │  bot-control, │         │  CLAUDE.md,    │
+                       │  ask-user     │         │  logs, git     │
+                       └──────────────┘         └───────────────┘
 ```
-
-- **Meta Agent** — the bot itself. Plans, delegates, supervises.
-- **SubTurtles** — autonomous workers running in ralph loops (yolo, slow, yolo-codex).
-- **MCP servers** — stickers, bot control, inline buttons.
-- **Drivers** — Claude Code (primary), Codex (optional, beta).
 
 <p align="center">
   <img src="assets/readme-stickers/architecture-gear-turtle.png" width="108" alt="Architecture" />
