@@ -17,6 +17,8 @@ import {
   CODEX_USER_ENABLED,
   IS_MACOS,
   IS_LINUX,
+  CTL_PATH,
+  BOT_DIR,
   getCodexUnavailableReason,
 } from "../config";
 import { getContextReport } from "../context-command";
@@ -24,6 +26,7 @@ import { isAuthorized } from "../security";
 import { escapeHtml, convertMarkdownToHtml } from "../formatting";
 import { getJobs } from "../cron";
 import { isAnyDriverRunning, isBackgroundRunActive, wasBackgroundRunPreempted, stopActiveDriverQuery } from "./driver-routing";
+import { handleStop } from "./stop";
 import { clearPreparedSnapshots, getPreparedSnapshotCount } from "../cron-supervision-queue";
 import { getAllDeferredQueues } from "../deferred-queue";
 import { cmdLog } from "../logger";
@@ -42,6 +45,7 @@ export function getCommandLines(): string[] {
     : `/switch - Driver controls (Codex unavailable)`;
   return [
     `/new - Fresh session`,
+    `/stop - Stop all work`,
     `/model - Switch model/effort`,
     switchLine,
     `/usage - Subscription usage`,
@@ -53,6 +57,21 @@ export function getCommandLines(): string[] {
     `/sub - SubTurtles`,
     `/cron - Scheduled jobs`,
   ];
+}
+
+/**
+ * /stop command — explicit slash command to stop all work.
+ * Same behavior as typing "stop" or saying "stop" via voice.
+ */
+export async function handleStopCommand(ctx: Context): Promise<void> {
+  const chatId = ctx.chat?.id;
+  const userId = ctx.from?.id;
+  if (!chatId || !userId) return;
+  if (!isAuthorized(userId, ALLOWED_USERS)) {
+    await ctx.reply("Unauthorized.");
+    return;
+  }
+  await handleStop(ctx, chatId);
 }
 
 function getCodexUnavailableMessage(): string {
@@ -1528,7 +1547,7 @@ export async function handleRestart(ctx: Context): Promise<void> {
   // In run-loop mode, just exit; run-loop respawns in the same tmux terminal.
   if (!inRunLoop) {
     // Re-exec this same command so /restart works even when launched directly.
-    const botDir = `${WORKING_DIR}/super_turtle/claude-telegram-bot`;
+    const botDir = BOT_DIR;
     const child = Bun.spawn(process.argv, {
       cwd: botDir,
       stdin: "ignore",
@@ -1556,7 +1575,7 @@ export async function handleSubturtle(ctx: Context): Promise<void> {
   }
 
   // Run ctl list command
-  const ctlPath = `${WORKING_DIR}/super_turtle/subturtle/ctl`;
+  const ctlPath = CTL_PATH;
   const proc = Bun.spawnSync([ctlPath, "list"], { cwd: WORKING_DIR });
   const output = proc.stdout.toString().trim();
 

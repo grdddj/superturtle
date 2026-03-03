@@ -1,4 +1,4 @@
-import { WORKING_DIR, DASHBOARD_ENABLED, DASHBOARD_AUTH_TOKEN, DASHBOARD_BIND_ADDR, DASHBOARD_PORT } from "./config";
+import { WORKING_DIR, CTL_PATH, DASHBOARD_ENABLED, DASHBOARD_AUTH_TOKEN, DASHBOARD_BIND_ADDR, DASHBOARD_PORT } from "./config";
 import { getJobs } from "./cron";
 import { parseCtlListOutput, getSubTurtleElapsed, type ListedSubTurtle } from "./handlers/commands";
 import { logger } from "./logger";
@@ -47,8 +47,7 @@ export function isAuthorized(request: Request): boolean {
 
 async function readSubturtles(): Promise<ListedSubTurtle[]> {
   try {
-    const ctlPath = `${WORKING_DIR}/super_turtle/subturtle/ctl`;
-    const proc = Bun.spawnSync([ctlPath, "list"], { cwd: WORKING_DIR });
+    const proc = Bun.spawnSync([CTL_PATH, "list"], { cwd: WORKING_DIR });
     const output = proc.stdout.toString().trim();
     return parseCtlListOutput(output);
   } catch {

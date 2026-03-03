@@ -7,12 +7,16 @@
 import { run, sequentialize } from "@grammyjs/runner";
 import {
   WORKING_DIR,
+  SUPER_TURTLE_DIR,
+  SUPERTURTLE_DATA_DIR,
+  CTL_PATH,
   ALLOWED_USERS,
   RESTART_FILE,
   CLAUDE_CLI_AVAILABLE,
   CODEX_AVAILABLE,
   CODEX_CLI_AVAILABLE,
   CODEX_USER_ENABLED,
+  TELEGRAM_TOKEN,
 } from "./config";
 import { unlinkSync, readFileSync, existsSync, writeFileSync, openSync, closeSync } from "fs";
 import {
@@ -28,6 +32,7 @@ import {
   handleCron,
   handleDebug,
   handleRestart,
+  handleStopCommand,
   handleText,
   handleVoice,
   handlePhoto,
@@ -72,11 +77,13 @@ import { botLog, cronLog } from "./logger";
 // Re-export for any existing consumers
 export { bot };
 
-const INSTANCE_LOCK_FILE = "/tmp/claude-telegram-bot.instance.lock";
-const RUN_STATE_DIR = `${WORKING_DIR}/super_turtle/state`;
-const RUN_STATE_WRITER = `${RUN_STATE_DIR}/run_state_writer.py`;
+// Use bot token prefix in lock file so multiple bots can run on one machine
+const tokenPrefix = TELEGRAM_TOKEN.split(":")[0] || "default";
+const INSTANCE_LOCK_FILE = `/tmp/claude-telegram-bot.${tokenPrefix}.instance.lock`;
+const RUN_STATE_WRITER = `${SUPER_TURTLE_DIR}/state/run_state_writer.py`;
+const RUN_STATE_DIR = `${SUPERTURTLE_DATA_DIR}/state`;
 const RUN_STATE_LEDGER = `${RUN_STATE_DIR}/runs.jsonl`;
-const SUBTURTLE_VENV_PYTHON = `${WORKING_DIR}/super_turtle/subturtle/.venv/bin/python3`;
+const SUBTURTLE_VENV_PYTHON = `${SUPER_TURTLE_DIR}/subturtle/.venv/bin/python3`;
 const telegramUpdateDedupe = new UpdateDedupeCache();
 
 interface RunLedgerEntry {
@@ -296,8 +303,7 @@ function extractCheckedSubturtleName(prompt: string): string | null {
 }
 
 function isSubturtleRunning(name: string): boolean {
-  const ctlPath = `${WORKING_DIR}/super_turtle/subturtle/ctl`;
-  const proc = Bun.spawnSync([ctlPath, "status", name], { cwd: WORKING_DIR });
+  const proc = Bun.spawnSync([CTL_PATH, "status", name], { cwd: WORKING_DIR });
   const output = proc.stdout.toString();
   return output.includes("running as");
 }
@@ -323,8 +329,7 @@ async function prepareSubturtleSnapshot(
     prepErrors.push(handoffRefreshError);
   }
 
-  const ctlPath = `${WORKING_DIR}/super_turtle/subturtle/ctl`;
-  const statusProc = Bun.spawnSync([ctlPath, "status", subturtleName], {
+  const statusProc = Bun.spawnSync([CTL_PATH, "status", subturtleName], {
     cwd: WORKING_DIR,
   });
   const statusOutput = statusProc.stdout.toString().trim() || statusProc.stderr.toString().trim();
@@ -575,6 +580,7 @@ bot.use(
 // ============== Command Handlers ==============
 
 bot.command("new", handleNew);
+bot.command("stop", handleStopCommand);
 bot.command("status", handleStatus);
 bot.command("looplogs", handleLooplogs);
 bot.command("pinologs", handlePinologs);

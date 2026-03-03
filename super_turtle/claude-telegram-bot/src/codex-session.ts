@@ -9,6 +9,7 @@ import { existsSync, readFileSync } from "fs";
 import { resolve } from "path";
 import {
   WORKING_DIR,
+  BOT_DIR,
   META_PROMPT,
   MCP_SERVERS,
   META_CODEX_APPROVAL_POLICY,
@@ -191,7 +192,7 @@ function formatCodexInitError(error: unknown): string {
     message.includes("Cannot find module") ||
     message.includes("module not found")
   ) {
-    return "Codex SDK is unavailable. Run `bun install` in super_turtle/claude-telegram-bot.";
+    return "Codex SDK is unavailable. Run `bun install` in the bot directory.";
   }
   return `Failed to initialize Codex SDK: ${message.slice(0, 160)}`;
 }
@@ -371,8 +372,8 @@ function getCodexBinaryPath(): string {
 
 function getCodexSdkPathOverride(): string {
   const wrapperPath = resolve(
-    WORKING_DIR,
-    "super_turtle/claude-telegram-bot/scripts/codex-yolo-wrapper.sh"
+    BOT_DIR,
+    "scripts/codex-yolo-wrapper.sh"
   );
   if (existsSync(wrapperPath)) {
     return wrapperPath;

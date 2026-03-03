@@ -59,7 +59,20 @@ export const ALLOWED_USERS: number[] = (
   .filter((x) => !isNaN(x));
 
 export const WORKING_DIR = process.env.CLAUDE_WORKING_DIR || HOME;
+
+// Package root: where Super Turtle code is installed.
+// In dev: /path/to/repo/super_turtle
+// As npm package: /path/to/node_modules/superturtle (or global install path)
+// import.meta.dir = .../claude-telegram-bot/src → dirname → .../claude-telegram-bot → .. → .../super_turtle
+export const SUPER_TURTLE_DIR = process.env.SUPER_TURTLE_DIR
+  || resolve(dirname(import.meta.dir), "..");
+
 export const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
+
+// Derived paths — package code vs user runtime data
+export const CTL_PATH = `${SUPER_TURTLE_DIR}/subturtle/ctl`;
+export const BOT_DIR = `${SUPER_TURTLE_DIR}/claude-telegram-bot`;
+export const SUPERTURTLE_DATA_DIR = `${WORKING_DIR}/.superturtle`;
 export const CODEX_USER_ENABLED =
   (process.env.CODEX_ENABLED || "false").toLowerCase() === "true";
 export const CODEX_ENABLED = CODEX_USER_ENABLED;
@@ -228,14 +241,34 @@ export const ALLOWED_PATHS: string[] = allowedPathsStr
 // Load META_SHARED.md as system prompt so the bot acts as the meta agent
 let META_PROMPT = "";
 try {
-  const metaPath = resolve(WORKING_DIR, "super_turtle/meta/META_SHARED.md");
-  META_PROMPT = readFileSync(metaPath, "utf-8").trim();
+  const metaPath = resolve(SUPER_TURTLE_DIR, "meta/META_SHARED.md");
+  META_PROMPT = readFileSync(metaPath, "utf-8")
+    .replace(/\{\{SUPER_TURTLE_DIR\}\}/g, SUPER_TURTLE_DIR)
+    .replace(/\{\{CTL_PATH\}\}/g, CTL_PATH)
+    .replace(/\{\{DATA_DIR\}\}/g, SUPERTURTLE_DATA_DIR)
+    .trim();
   configLog.info({ metaPath }, `Loaded meta prompt from ${metaPath}`);
 } catch {
   configLog.warn("Failed to load META_SHARED.md - running without meta prompt");
 }
 
 export { META_PROMPT };
+
+// Load ORCHESTRATOR_PROMPT.md for full-auto overnight mode cron jobs
+let ORCHESTRATOR_PROMPT = "";
+try {
+  const orchPath = resolve(SUPER_TURTLE_DIR, "meta/ORCHESTRATOR_PROMPT.md");
+  ORCHESTRATOR_PROMPT = readFileSync(orchPath, "utf-8")
+    .replace(/\{\{CTL_PATH\}\}/g, CTL_PATH)
+    .replace(/\{\{DATA_DIR\}\}/g, SUPERTURTLE_DATA_DIR)
+    .replace(/\{\{SUPER_TURTLE_DIR\}\}/g, SUPER_TURTLE_DIR)
+    .trim();
+  configLog.info({ orchPath }, `Loaded orchestrator prompt from ${orchPath}`);
+} catch {
+  configLog.info("No ORCHESTRATOR_PROMPT.md found - orchestrator mode unavailable");
+}
+
+export { ORCHESTRATOR_PROMPT };
 
 // Dangerous command patterns to block.
 // Each entry is a regex string (case-insensitive match against the full command).

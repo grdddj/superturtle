@@ -14,6 +14,7 @@ import {
   CODEX_CLI_AVAILABLE,
   CODEX_USER_ENABLED,
   WORKING_DIR,
+  CTL_PATH,
 } from "../config";
 import { isAuthorized } from "../security";
 import { auditLog, startTypingIndicator } from "../utils";
@@ -515,8 +516,7 @@ async function handleSubturtleStopCallback(
   }
 
   try {
-    const ctlPath = `${WORKING_DIR}/super_turtle/subturtle/ctl`;
-    const proc = Bun.spawnSync([ctlPath, "stop", name], { cwd: WORKING_DIR });
+    const proc = Bun.spawnSync([CTL_PATH, "stop", name], { cwd: WORKING_DIR });
     const output = proc.stdout.toString();
 
     // Check if the output indicates success
