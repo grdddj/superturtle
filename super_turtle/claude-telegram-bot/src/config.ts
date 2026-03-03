@@ -9,6 +9,7 @@ import { resolve, dirname } from "path";
 import { existsSync, readFileSync } from "fs";
 import type { McpServerConfig } from "./types";
 import { logger } from "./logger";
+import { TOKEN_PREFIX } from "./token-prefix";
 
 const configLog = logger.child({ module: "config" });
 
@@ -50,7 +51,9 @@ const IS_TEST_ENV =
 
 export const TELEGRAM_TOKEN =
   process.env.TELEGRAM_BOT_TOKEN || (IS_TEST_ENV ? "test-token" : "");
-export const TOKEN_PREFIX = TELEGRAM_TOKEN.split(":")[0] || "default";
+export { TOKEN_PREFIX };
+export const IPC_DIR = `/tmp/superturtle-${TOKEN_PREFIX}`;
+process.env.SUPERTURTLE_IPC_DIR ||= IPC_DIR;
 export const ALLOWED_USERS: number[] = (
   process.env.TELEGRAM_ALLOWED_USERS || (IS_TEST_ENV ? "123" : "")
 )
@@ -358,7 +361,7 @@ export const DASHBOARD_HOST = process.env.DASHBOARD_HOST || "http://localhost";
 // ============== Audit Logging ==============
 
 export const AUDIT_LOG_PATH =
-  process.env.AUDIT_LOG_PATH || "/tmp/claude-telegram-audit.log";
+  process.env.AUDIT_LOG_PATH || `/tmp/claude-telegram-${TOKEN_PREFIX}-audit.log`;
 export const AUDIT_LOG_JSON =
   (process.env.AUDIT_LOG_JSON || "false").toLowerCase() === "true";
 

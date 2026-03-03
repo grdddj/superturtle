@@ -15,7 +15,7 @@ Options:
   --skip-install                 Skip dependency install
   --skip-docs-install            Skip docs npm install
   --overwrite-env                Overwrite existing bot .env without prompt
-  --no-default-driver            Do not write /tmp/claude-telegram-prefs.json
+  --no-default-driver            Do not write default driver prefs file
   --non-interactive              Fail instead of prompting for missing values
   -h, --help                     Show this help
 EOF

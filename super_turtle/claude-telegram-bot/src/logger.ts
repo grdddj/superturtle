@@ -1,6 +1,7 @@
 import pino from "pino";
+import { TOKEN_PREFIX } from "./token-prefix";
 
-export const PINO_LOG_PATH = "/tmp/claude-telegram-bot.log.jsonl";
+export const PINO_LOG_PATH = `/tmp/claude-telegram-${TOKEN_PREFIX}-bot.log.jsonl`;
 
 /**
  * Detect if we're running inside an MCP server subprocess.

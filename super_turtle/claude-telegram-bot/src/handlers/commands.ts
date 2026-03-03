@@ -19,6 +19,7 @@ import {
   IS_LINUX,
   CTL_PATH,
   BOT_DIR,
+  TOKEN_PREFIX,
   getCodexUnavailableReason,
 } from "../config";
 import { getContextReport } from "../context-command";
@@ -32,7 +33,7 @@ import { getAllDeferredQueues } from "../deferred-queue";
 import { cmdLog } from "../logger";
 
 // Canonical main-loop log written by live.sh (tmux + caffeinate + run-loop).
-export const MAIN_LOOP_LOG_PATH = "/tmp/claude-telegram-bot-ts.log";
+export const MAIN_LOOP_LOG_PATH = `/tmp/claude-telegram-${TOKEN_PREFIX}-bot-ts.log`;
 const LOOPLOGS_LINE_COUNT = 50;
 const RESUME_SESSIONS_LIMIT = 5;
 
