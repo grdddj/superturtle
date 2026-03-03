@@ -10,7 +10,7 @@
  *   superturtle status  — show bot and SubTurtle status
  */
 
-const { execSync, spawn, spawnSync } = require("child_process");
+const { execSync, spawnSync } = require("child_process");
 const { resolve, dirname } = require("path");
 const fs = require("fs");
 const readline = require("readline");
@@ -19,6 +19,23 @@ const PACKAGE_ROOT = resolve(__dirname, "..");
 const BOT_DIR = resolve(PACKAGE_ROOT, "claude-telegram-bot");
 const TEMPLATES_DIR = resolve(PACKAGE_ROOT, "templates");
 const TMUX_SESSION = process.env.SUPERTURTLE_TMUX_SESSION || "superturtle";
+
+function exitFromSpawn(result, context) {
+  if (!result) {
+    console.error(`Error: failed to run ${context}.`);
+    process.exit(1);
+  }
+  if (result.error) {
+    console.error(`Error: failed to run ${context}: ${result.error.message}`);
+    process.exit(1);
+  }
+  if (typeof result.status === "number" && result.status !== 0) {
+    const stderr = result.stderr?.toString()?.trim();
+    if (stderr) console.error(stderr);
+    console.error(`Error: ${context} exited with code ${result.status}.`);
+    process.exit(result.status || 1);
+  }
+}
 
 function checkBun() {
   try {
@@ -146,7 +163,8 @@ async function init() {
 
   // Install bot dependencies
   console.log("\nInstalling bot dependencies...");
-  spawnSync("bun", ["install"], { cwd: BOT_DIR, stdio: "inherit" });
+  const install = spawnSync("bun", ["install"], { cwd: BOT_DIR, stdio: "inherit" });
+  exitFromSpawn(install, "bun install");
 
   console.log("\nSetup complete! Run: superturtle start");
 }
@@ -177,7 +195,15 @@ function start() {
     if (!trimmed || trimmed.startsWith("#")) continue;
     const eqIdx = trimmed.indexOf("=");
     if (eqIdx > 0) {
-      env[trimmed.slice(0, eqIdx)] = trimmed.slice(eqIdx + 1);
+      const key = trimmed.slice(0, eqIdx);
+      let value = trimmed.slice(eqIdx + 1).trim().replace(/\r$/, "");
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
+      env[key] = value;
     }
   }
 
@@ -185,16 +211,24 @@ function start() {
   const tmuxCheck = spawnSync("tmux", ["has-session", "-t", TMUX_SESSION], { stdio: "pipe" });
   if (tmuxCheck.status === 0) {
     console.log(`Bot is already running. Attaching to tmux session '${TMUX_SESSION}'...`);
-    spawnSync("tmux", ["attach-session", "-t", TMUX_SESSION], { stdio: "inherit" });
+    const attach = spawnSync("tmux", ["attach-session", "-t", TMUX_SESSION], { stdio: "inherit" });
+    exitFromSpawn(attach, "tmux attach-session");
     return;
   }
 
   // Start bot in a new tmux session
-  const bunPath = execSync("which bun", { encoding: "utf-8" }).trim();
-  const cmd = `cd "${BOT_DIR}" && ${bunPath} run src/index.ts`;
+  let bunPath;
+  try {
+    bunPath = execSync("which bun", { encoding: "utf-8" }).trim();
+  } catch (err) {
+    console.error("Error: unable to locate Bun on PATH.");
+    if (err?.message) console.error(err.message);
+    process.exit(1);
+  }
+  const cmd = `cd "${BOT_DIR}" && "${bunPath}" run src/index.ts`;
 
   console.log("Starting Super Turtle bot...");
-  spawnSync("tmux", [
+  const startProc = spawnSync("tmux", [
     "new-session", "-d", "-s", TMUX_SESSION,
     "-e", `SUPER_TURTLE_DIR=${PACKAGE_ROOT}`,
     "-e", `CLAUDE_WORKING_DIR=${cwd}`,
@@ -204,6 +238,7 @@ function start() {
       .flat(),
     cmd,
   ], { stdio: "pipe" });
+  exitFromSpawn(startProc, "tmux new-session");
 
   console.log(`Bot started in tmux session '${TMUX_SESSION}'.`);
   console.log(`Attach: tmux attach -t ${TMUX_SESSION}`);
@@ -228,6 +263,7 @@ function stop() {
       env: { ...process.env, SUPER_TURTLE_PROJECT_DIR: process.cwd() },
       stdio: "pipe",
     });
+    exitFromSpawn(proc, "subturtle ctl stopall");
     if (proc.stdout?.toString().trim()) {
       console.log(proc.stdout.toString().trim());
     }
@@ -251,6 +287,7 @@ function status() {
       env: { ...process.env, SUPER_TURTLE_PROJECT_DIR: process.cwd() },
       stdio: "pipe",
     });
+    exitFromSpawn(proc, "subturtle ctl list");
     const output = proc.stdout?.toString().trim();
     if (output) {
       console.log("\nSubTurtles:");
