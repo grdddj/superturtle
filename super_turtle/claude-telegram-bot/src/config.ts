@@ -50,6 +50,7 @@ const IS_TEST_ENV =
 
 export const TELEGRAM_TOKEN =
   process.env.TELEGRAM_BOT_TOKEN || (IS_TEST_ENV ? "test-token" : "");
+export const TOKEN_PREFIX = TELEGRAM_TOKEN.split(":")[0] || "default";
 export const ALLOWED_USERS: number[] = (
   process.env.TELEGRAM_ALLOWED_USERS || (IS_TEST_ENV ? "123" : "")
 )
@@ -376,9 +377,9 @@ export const RATE_LIMIT_WINDOW = parseInt(
 
 // ============== File Paths ==============
 
-export const SESSION_FILE = "/tmp/claude-telegram-session.json";
-export const RESTART_FILE = "/tmp/claude-telegram-restart.json";
-export const TEMP_DIR = "/tmp/telegram-bot";
+export const SESSION_FILE = `/tmp/claude-telegram-${TOKEN_PREFIX}-session.json`;
+export const RESTART_FILE = `/tmp/claude-telegram-${TOKEN_PREFIX}-restart.json`;
+export const TEMP_DIR = `/tmp/telegram-bot-${TOKEN_PREFIX}`;
 
 // Temp paths that are always allowed for bot operations.
 // /private/tmp/ and /var/folders/ are macOS-specific symlink targets.

@@ -21,6 +21,7 @@ import {
   TEMP_PATHS,
   THINKING_DEEP_KEYWORDS,
   THINKING_KEYWORDS,
+  TOKEN_PREFIX,
   WORKING_DIR,
 } from "./config";
 import { formatToolStatus } from "./formatting";
@@ -58,7 +59,7 @@ interface StreamJsonEvent {
 }
 
 // Write MCP config to a temp JSON file for --mcp-config flag
-const MCP_CONFIG_FILE = "/tmp/superturtle-mcp-config.json";
+const MCP_CONFIG_FILE = `/tmp/superturtle-${TOKEN_PREFIX}-mcp-config.json`;
 if (Object.keys(MCP_SERVERS).length > 0) {
   try {
     mkdirSync("/tmp", { recursive: true });
@@ -130,7 +131,7 @@ export const EFFORT_DISPLAY: Record<EffortLevel, string> = {
   high: "High (default)",
 };
 
-const PREFS_FILE = "/tmp/claude-telegram-prefs.json";
+const PREFS_FILE = `/tmp/claude-telegram-${TOKEN_PREFIX}-prefs.json`;
 
 interface UserPrefs {
   model: string;

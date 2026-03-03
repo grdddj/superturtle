@@ -17,6 +17,7 @@ import {
   CODEX_CLI_AVAILABLE,
   CODEX_USER_ENABLED,
   TELEGRAM_TOKEN,
+  TOKEN_PREFIX,
 } from "./config";
 import { unlinkSync, readFileSync, existsSync, writeFileSync, openSync, closeSync } from "fs";
 import {
@@ -78,8 +79,7 @@ import { botLog, cronLog } from "./logger";
 export { bot };
 
 // Use bot token prefix in lock file so multiple bots can run on one machine
-const tokenPrefix = TELEGRAM_TOKEN.split(":")[0] || "default";
-const INSTANCE_LOCK_FILE = `/tmp/claude-telegram-bot.${tokenPrefix}.instance.lock`;
+const INSTANCE_LOCK_FILE = `/tmp/claude-telegram-bot.${TOKEN_PREFIX}.instance.lock`;
 const RUN_STATE_WRITER = `${SUPER_TURTLE_DIR}/state/run_state_writer.py`;
 const RUN_STATE_DIR = `${SUPERTURTLE_DATA_DIR}/state`;
 const RUN_STATE_LEDGER = `${RUN_STATE_DIR}/runs.jsonl`;

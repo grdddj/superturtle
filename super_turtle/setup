@@ -26,10 +26,12 @@ BOT_DIR="${ROOT_DIR}/super_turtle/claude-telegram-bot"
 DOCS_DIR="${ROOT_DIR}/docs"
 ENV_FILE="${BOT_DIR}/.env"
 ENV_EXAMPLE="${BOT_DIR}/.env.example"
-PREFS_FILE="/tmp/claude-telegram-prefs.json"
 
 DRIVER="claude"
 TELEGRAM_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
+TOKEN_PREFIX="${TELEGRAM_TOKEN%%:*}"
+TOKEN_PREFIX="${TOKEN_PREFIX:-default}"
+PREFS_FILE="/tmp/claude-telegram-${TOKEN_PREFIX}-prefs.json"
 TELEGRAM_USERS="${TELEGRAM_ALLOWED_USERS:-}"
 OPENAI_KEY="${OPENAI_API_KEY:-}"
 INSTALL_DEPS=1
@@ -208,6 +210,9 @@ if [[ "${INSTALL_DEPS}" -eq 1 ]]; then
 fi
 
 prompt_if_missing TELEGRAM_TOKEN "Telegram bot token"
+TOKEN_PREFIX="${TELEGRAM_TOKEN%%:*}"
+TOKEN_PREFIX="${TOKEN_PREFIX:-default}"
+PREFS_FILE="/tmp/claude-telegram-${TOKEN_PREFIX}-prefs.json"
 prompt_if_missing TELEGRAM_USERS "Telegram allowed user ID(s), comma-separated"
 
 if [[ ! "${TELEGRAM_USERS}" =~ ^[0-9]+(,[0-9]+)*$ ]]; then
