@@ -7,6 +7,7 @@ process.env.TELEGRAM_ALLOWED_USERS ||= "123";
 process.env.CLAUDE_WORKING_DIR ||= process.cwd();
 
 const {
+  checkPendingAskUserRequests,
   checkPendingBotControlRequests,
   checkPendingPinoLogsRequests,
   cleanupToolMessages,
@@ -90,6 +91,60 @@ describe("createAskUserKeyboard()", () => {
         { text: option, callback_data: `askuser:req-6:${idx}` },
       ]);
     });
+  });
+});
+
+describe("checkPendingAskUserRequests()", () => {
+  it("does not deliver pending ask-user request with missing chat_id", async () => {
+    const requestId = `ask-user-missing-chat-${Date.now()}`;
+    const requestFile = `${IPC_DIR}/ask-user-${requestId}.json`;
+    await Bun.write(
+      requestFile,
+      JSON.stringify({
+        request_id: requestId,
+        question: "Should not send",
+        options: ["Yes", "No"],
+        status: "pending",
+        chat_id: "",
+        created_at: new Date().toISOString(),
+      })
+    );
+
+    const replyMock = mock(async () => ({ message_id: 1 }));
+    const ctx = { reply: replyMock } as unknown as Context;
+    const handled = await checkPendingAskUserRequests(ctx, 123);
+
+    expect(handled).toBe(false);
+    expect(replyMock).not.toHaveBeenCalled();
+    const updated = JSON.parse(await Bun.file(requestFile).text());
+    expect(updated.status).toBe("error");
+    expect(String(updated.error)).toContain("Missing chat_id");
+  });
+
+  it("expires stale pending ask-user request instead of delivering it", async () => {
+    const requestId = `ask-user-stale-${Date.now()}`;
+    const requestFile = `${IPC_DIR}/ask-user-${requestId}.json`;
+    await Bun.write(
+      requestFile,
+      JSON.stringify({
+        request_id: requestId,
+        question: "Should be expired",
+        options: ["A", "B"],
+        status: "pending",
+        chat_id: "123",
+        created_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+      })
+    );
+
+    const replyMock = mock(async () => ({ message_id: 1 }));
+    const ctx = { reply: replyMock } as unknown as Context;
+    const handled = await checkPendingAskUserRequests(ctx, 123);
+
+    expect(handled).toBe(false);
+    expect(replyMock).not.toHaveBeenCalled();
+    const updated = JSON.parse(await Bun.file(requestFile).text());
+    expect(updated.status).toBe("expired");
+    expect(String(updated.error)).toContain("expired");
   });
 });
 

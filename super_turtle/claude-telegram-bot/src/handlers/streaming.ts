@@ -28,6 +28,26 @@ import { PINO_LOG_PATH, streamLog } from "../logger";
 
 // Union type for bot control to work with both Claude and Codex sessions
 type BotControlSession = ClaudeSession | CodexSession;
+const PENDING_REQUEST_MAX_AGE_MS = 5 * 60 * 1000;
+
+function getRequestChatId(data: Record<string, unknown>): string {
+  const raw = data.chat_id;
+  if (typeof raw === "number") return String(raw);
+  if (typeof raw === "string") return raw.trim();
+  return "";
+}
+
+function isPendingRequestStale(data: Record<string, unknown>): boolean {
+  const createdAtRaw = data.created_at;
+  if (typeof createdAtRaw !== "string" || createdAtRaw.trim().length === 0) {
+    return false;
+  }
+  const createdAtMs = Date.parse(createdAtRaw);
+  if (!Number.isFinite(createdAtMs)) {
+    return false;
+  }
+  return Date.now() - createdAtMs > PENDING_REQUEST_MAX_AGE_MS;
+}
 
 function codexUnavailableBotControlMessage(): string {
   if (!CODEX_USER_ENABLED) {
@@ -90,7 +110,20 @@ export async function checkPendingAskUserRequests(
 
       // Only process pending requests for this chat
       if (data.status !== "pending") continue;
-      if (data.chat_id && String(data.chat_id) !== String(chatId)) continue;
+      const targetChatId = getRequestChatId(data);
+      if (!targetChatId) {
+        data.status = "error";
+        data.error = "Missing chat_id on pending ask-user request";
+        await Bun.write(filepath, JSON.stringify(data, null, 2));
+        continue;
+      }
+      if (targetChatId !== String(chatId)) continue;
+      if (isPendingRequestStale(data)) {
+        data.status = "expired";
+        data.error = "Pending ask-user request expired before delivery";
+        await Bun.write(filepath, JSON.stringify(data, null, 2));
+        continue;
+      }
 
       const question = data.question || "Please choose:";
       const options = data.options || [];
@@ -134,7 +167,20 @@ export async function checkPendingSendTurtleRequests(
 
       // Only process pending requests for this chat
       if (data.status !== "pending") continue;
-      if (data.chat_id && String(data.chat_id) !== String(chatId)) continue;
+      const targetChatId = getRequestChatId(data);
+      if (!targetChatId) {
+        data.status = "error";
+        data.error = "Missing chat_id on pending send-turtle request";
+        await Bun.write(filepath, JSON.stringify(data, null, 2));
+        continue;
+      }
+      if (targetChatId !== String(chatId)) continue;
+      if (isPendingRequestStale(data)) {
+        data.status = "expired";
+        data.error = "Pending send-turtle request expired before delivery";
+        await Bun.write(filepath, JSON.stringify(data, null, 2));
+        continue;
+      }
 
       const url = data.url || "";
       const caption = data.caption || undefined;
@@ -192,7 +238,20 @@ export async function checkPendingBotControlRequests(
 
       // Only process pending requests for this chat
       if (data.status !== "pending") continue;
-      if (data.chat_id && String(data.chat_id) !== String(chatId)) continue;
+      const targetChatId = getRequestChatId(data);
+      if (!targetChatId) {
+        data.status = "error";
+        data.error = "Missing chat_id on pending bot-control request";
+        await Bun.write(filepath, JSON.stringify(data, null, 2));
+        continue;
+      }
+      if (targetChatId !== String(chatId)) continue;
+      if (isPendingRequestStale(data)) {
+        data.status = "expired";
+        data.error = "Pending bot-control request expired before delivery";
+        await Bun.write(filepath, JSON.stringify(data, null, 2));
+        continue;
+      }
 
       const action: string = data.action;
       const params: Record<string, string> = data.params || {};
@@ -318,7 +377,20 @@ export async function checkPendingPinoLogsRequests(
       const data = JSON.parse(text);
 
       if (data.status !== "pending") continue;
-      if (data.chat_id && String(data.chat_id) !== String(chatId)) continue;
+      const targetChatId = getRequestChatId(data);
+      if (!targetChatId) {
+        data.status = "error";
+        data.error = "Missing chat_id on pending pino-logs request";
+        await Bun.write(filepath, JSON.stringify(data, null, 2));
+        continue;
+      }
+      if (targetChatId !== String(chatId)) continue;
+      if (isPendingRequestStale(data)) {
+        data.status = "expired";
+        data.error = "Pending pino-logs request expired before delivery";
+        await Bun.write(filepath, JSON.stringify(data, null, 2));
+        continue;
+      }
 
       const level = typeof data.level === "string" ? data.level : "error";
       const levels = Array.isArray(data.levels)
