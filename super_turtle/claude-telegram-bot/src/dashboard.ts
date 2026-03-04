@@ -805,7 +805,7 @@ export const routes: Array<{ pattern: RegExp; handler: RouteHandler }> = [
   {
     pattern: /^\/api\/cron\/([^/]+)$/,
     handler: async (_req, _url, match) => {
-      const id = decodeURIComponent(match[1]);
+      const id = decodeURIComponent(match[1] ?? "");
       const job = getJobs().find((j) => j.id === id);
       if (!job) return notFoundResponse("Cron job not found");
       return jsonResponse(buildCronJobView(job));
