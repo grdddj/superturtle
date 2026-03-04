@@ -245,6 +245,7 @@ function buildCodexMcpConfig(): Record<string, unknown> {
   const mcpServers: Record<string, Record<string, unknown>> = {};
   const bunPath = Bun.which("bun") || "/opt/homebrew/bin/bun";
   const envPath = process.env.PATH || "";
+  const chatId = (process.env.TELEGRAM_CHAT_ID || "").trim();
 
   for (const [name, config] of Object.entries(MCP_SERVERS)) {
     if ("command" in config && "args" in config) {
@@ -252,6 +253,9 @@ function buildCodexMcpConfig(): Record<string, unknown> {
       const env = config.env ? { ...config.env } : {};
       if (envPath && !env.PATH) {
         env.PATH = envPath;
+      }
+      if (chatId) {
+        env.TELEGRAM_CHAT_ID = chatId;
       }
 
       mcpServers[name] = {
