@@ -21,7 +21,7 @@ Multiple SubTurtles can run concurrently on different tasks. Each gets its own w
 
 Before offering loop-type choices or spawning SubTurtles, determine whether Codex is actually usable:
 
-1. Read the bot config preference from `{{SUPER_TURTLE_DIR}}/claude-telegram-bot/.env`:
+1. Read the bot config preference from the workspace root `.env` (typically `${CLAUDE_WORKING_DIR}/.env`):
    - `CODEX_ENABLED=true|false`
 2. Verify Codex CLI availability on PATH:
    - `command -v codex`
