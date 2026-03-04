@@ -28,6 +28,22 @@
 
 10. **`stat` portability handled well** — Lines 1029-1033 try macOS `stat -f` then Linux `stat -c`. Good defensive coding.
 
-## __main__.py
+## __main__.py (~643 lines)
 
-(pending review)
+### Critical
+
+11. **Completion notification never finds backlog items (line 228)** — `_write_completion_notification` checks `stripped.lower() == "# backlog"` (h1), but all CLAUDE.md files use `## Backlog` (h2). The `in_backlog` flag is never set, so `completed_items` is always empty. Completion messages only say "Finished: {name}" with no task summary.
+
+12. **Infinite retry with no max iteration guard** — All loop types catch agent failures via `_log_retry` (10s sleep) and loop forever. If the agent consistently crashes (auth expired, CLI broken, disk full), the SubTurtle retries indefinitely with no escape. No max retry count or max iteration limit exists.
+
+### Medium
+
+13. **Cron-jobs.json TOCTOU race in `_write_completion_notification`** — Reads, modifies, and writes cron-jobs.json without file locking (lines 261-314). If the meta agent or another SubTurtle writes concurrently, their changes are silently lost.
+
+14. **Slow loop hard-requires codex CLI (line 415)** — `run_slow_loop` calls `_require_cli(name, "codex")` and exits if codex isn't installed. Users who only have Claude cannot use the slow loop at all, even though planner/groomer/reviewer all use Claude.
+
+### Low
+
+15. **`_archive_workspace` PID comparison is fragile (line 390)** — Reads PID file and compares to `os.getpid()`. If PID file contains non-integer content (e.g., trailing newline + extra data), `int(pid_text)` raises ValueError which is silently caught. Works in practice but relies on exact format.
+
+16. **Stats script failure aborts entire slow iteration (line 440)** — `subprocess.check_output` for stats.sh raises on failure, caught by the outer try/except which retries the entire iteration. Could degrade gracefully by using empty stats on failure.
