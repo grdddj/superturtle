@@ -1,5 +1,5 @@
 ## Current Task
-Create src/log-reader.ts extracting log reading from streaming.ts; update streaming.ts imports.
+Add shared helpers (jsonResponse, notFoundResponse, readFileOr, parseMetaFile, validateSubturtleName) to dashboard.ts.
 
 ## End Goal with Specs
 Phase 1 of the dashboard API-first expansion. Clean foundation for all subsequent endpoints.
@@ -27,8 +27,8 @@ Phase 1 of the dashboard API-first expansion. Clean foundation for all subsequen
 ## Backlog
 - [x] Read dashboard.ts, dashboard.test.ts, and streaming.ts to understand current state
 - [x] Create src/dashboard-types.ts with all response types
-- [ ] Create src/log-reader.ts extracting log reading from streaming.ts; update streaming.ts imports <- current
-- [ ] Add shared helpers (jsonResponse, notFoundResponse, readFileOr, parseMetaFile, validateSubturtleName)
+- [x] Create src/log-reader.ts extracting log reading from streaming.ts; update streaming.ts imports
+- [ ] Add shared helpers (jsonResponse, notFoundResponse, readFileOr, parseMetaFile, validateSubturtleName) <- current
 - [ ] Refactor dashboard.ts routing to regex route table
 - [ ] Change /api/subturtles response to SubturtleListResponse; update frontend to poll /api/dashboard
 - [ ] Run tests: cd super_turtle/claude-telegram-bot && bun test
