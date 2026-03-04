@@ -134,7 +134,7 @@ export async function handleVoice(ctx: Context): Promise<void> {
     }
 
     // Clear drain suppression so this message's finally block can drain normally.
-    unsuppressDrain();
+    unsuppressDrain(chatId);
 
     // 10. If agent is already answering, queue transcript to run after completion.
     if (isBackgroundRunActive()) {

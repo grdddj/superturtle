@@ -14,7 +14,7 @@ import {
   isStopIntent,
   startTypingIndicator,
 } from "../utils";
-import { drainDeferredQueue, unsuppressDrain } from "../deferred-queue";
+import { drainDeferredQueue, enqueueDeferredMessage, unsuppressDrain } from "../deferred-queue";
 import { handleStop } from "./stop";
 import {
   StreamingState,
@@ -23,6 +23,11 @@ import {
   isAskUserPromptMessage,
 } from "./streaming";
 import { eventLog, streamLog } from "../logger";
+import {
+  isAnyDriverRunning,
+  isBackgroundRunActive,
+  preemptBackgroundRunForUserPriority,
+} from "./driver-routing";
 
 export interface HandleTextOptions {
   silent?: boolean;
@@ -113,7 +118,7 @@ export async function handleText(
   }
 
   // Clear drain suppression so this message's finally block can drain normally.
-  unsuppressDrain();
+  unsuppressDrain(chatId);
 
   // 2. Check for interrupt prefix
   message = await checkInterrupt(message);
@@ -136,7 +141,31 @@ export async function handleText(
   // 4. Store message for retry
   session.lastMessage = message;
 
-  // 5. Set conversation title from first message (if new session)
+  // 5. If agent is already answering, queue this message to run after completion.
+  if (isBackgroundRunActive()) {
+    await preemptBackgroundRunForUserPriority();
+  }
+  if (isAnyDriverRunning()) {
+    const queueSize = enqueueDeferredMessage({
+      text: message,
+      userId,
+      username,
+      chatId,
+      source: "text",
+      enqueuedAt: Date.now(),
+    });
+    if (!silent) {
+      await ctx.reply(
+        `📝 Queued (#${queueSize}). I will run this once the current answer finishes.`
+      );
+    }
+    return;
+  }
+
+  // 6. Mark processing started
+  const stopProcessing = session.startProcessing();
+
+  // 7. Set conversation title from first message (if new session)
   if (!session.isActive) {
     // Truncate title to ~50 chars
     const title =
@@ -144,14 +173,10 @@ export async function handleText(
     session.conversationTitle = title;
   }
 
-  // 6. Mark processing started
-  const stopProcessing = session.startProcessing();
-
-  // 7. Start typing indicator
+  // 8. Start typing indicator
   const typing = startTypingIndicator(ctx);
   session.typingController = typing;
 
-  // 8. Create streaming state and callback
   try {
     let state = new StreamingState();
     let statusCallback = silent

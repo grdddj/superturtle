@@ -74,7 +74,9 @@ export function stopAllRunningSubturtles(): StopSubturtlesResult {
 export async function stopAllRunningWork(chatId?: number): Promise<StopAllRunningWorkResult> {
   // Suppress drain FIRST — wins the race against finally-block drains
   // that fire when we kill the driver process below.
-  suppressDrain();
+  if (chatId != null) {
+    suppressDrain(chatId);
+  }
 
   session.stopTyping();
   const driverStopResult = await stopActiveDriverQuery();
