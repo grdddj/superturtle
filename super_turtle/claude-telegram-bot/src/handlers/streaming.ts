@@ -387,7 +387,8 @@ async function executeBotControlAction(
   params: Record<string, string>,
   chatId?: number,
 ): Promise<string> {
-  switch (action) {
+  try {
+    switch (action) {
     case "usage": {
       const { formatUnifiedUsage, getCodexQuotaLines, getUsageLines } = await import("./commands");
       const [usageLines, codexLines] = await Promise.all([
@@ -616,6 +617,10 @@ async function executeBotControlAction(
 
     default:
       return `Unknown action: ${action}`;
+    }
+  } catch (error) {
+    streamLog.warn({ err: error, action, chatId }, "Bot-control action failed");
+    return `Bot-control error: ${String(error).slice(0, 200)}`;
   }
 }
 

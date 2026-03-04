@@ -869,6 +869,11 @@ export class CodexSession {
     mcpCompletionCallback?: McpCompletionCallback
   ): Promise<string> {
     try {
+      // Acquire processing lock immediately to prevent TOCTOU races.
+      if (this._isProcessing || this.isQueryRunning) {
+        throw new Error("Codex session is already processing a query");
+      }
+
       // Track pre-query lifecycle time so isRunning() remains true even before
       // isQueryRunning flips on. This prevents premature deferred-queue drains.
       this._isProcessing = true;
@@ -914,6 +919,7 @@ ${messageToSend}`;
       // Check if stop was requested during processing phase.
       if (this.stopRequested) {
         codexLog.info("Codex query cancelled before starting (stop was requested during processing)");
+        this.stopRequested = false;
         throw new Error("Query cancelled");
       }
 

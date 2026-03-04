@@ -323,15 +323,15 @@ describe("stop handlers", () => {
       reply: async () => ({}) as any,
     } as unknown as Context;
 
-	    try {
-	      await handleStop(ctx, chatId);
-	      expect(cleanupCalls).toBe(1);
-	      expect(clearedChatId as number | null).toBe(chatId);
-	    } finally {
-	      deferredQueue.clearDeferredQueue(chatId);
-	      deferredQueue.unsuppressDrain(chatId);
-	    }
-	  });
+    try {
+      await handleStop(ctx, chatId);
+      expect(cleanupCalls).toBe(1);
+      expect(clearedChatId as number | null).toBe(chatId);
+    } finally {
+      deferredQueue.clearDeferredQueue(chatId);
+      deferredQueue.unsuppressDrain(chatId);
+    }
+  });
 
   it("stopAllRunningWork suppresses drain, clears queue, then drains after unsuppress", async () => {
     const actualImportSuffix = `${Date.now()}-${Math.random()}`;
@@ -341,12 +341,12 @@ describe("stop handlers", () => {
     const actualStreaming = await import(`./streaming.ts?actual=${actualImportSuffix}`);
 
     const isAnyDriverRunningMock = mock(() => false);
-	    const runMessageWithActiveDriverMock = mock(async (_input: unknown) => "queued response");
-	    const auditLogMock = mock(async (..._args: unknown[]) => {});
-	    const typingStopMock = mock(() => {});
-	    const startTypingIndicatorMock = mock((_ctx: Context) => ({ stop: typingStopMock }));
-	    const createStatusCallbackMock = mock((_ctx: Context, _state: unknown) => async () => {});
-	    const startProcessingMock = mock(() => () => {});
+    const runMessageWithActiveDriverMock = mock(async (_input: unknown) => "queued response");
+    const auditLogMock = mock(async (..._args: unknown[]) => {});
+    const typingStopMock = mock(() => {});
+    const startTypingIndicatorMock = mock((_ctx: Context) => ({ stop: typingStopMock }));
+    const createStatusCallbackMock = mock((_ctx: Context, _state: unknown) => async () => {});
+    const startProcessingMock = mock(() => () => {});
 
     const originalStartProcessing = session.startProcessing;
     const originalTypingController = session.typingController;
