@@ -491,6 +491,12 @@ export class ClaudeSession {
     });
     this.activeProcess = proc;
 
+    // Emit thinking placeholder immediately so the user sees feedback
+    // before any CLI events arrive (thinking creates a silent gap).
+    if (thinkingTokens > 0) {
+      await statusCallback("thinking_start", "");
+    }
+
     // Response tracking
     const responseParts: string[] = [];
     let currentSegmentId = 0;

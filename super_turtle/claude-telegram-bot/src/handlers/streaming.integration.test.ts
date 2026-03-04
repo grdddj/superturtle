@@ -338,7 +338,7 @@ describe("createStatusCallback — tool/thinking isolation", () => {
     await cb("thinking", "Let me analyze this...", undefined);
 
     expect(replyCalls.length).toBe(1);
-    expect(replyCalls[0]!.text).toContain("🧠");
+    expect(replyCalls[0]!.text).not.toContain("🧠");
     expect(replyCalls[0]!.text).toContain("<i>");
     expect(state.toolMessages.length).toBe(1);
   });

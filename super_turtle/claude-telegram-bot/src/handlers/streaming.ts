@@ -717,6 +717,7 @@ export class StreamingState {
   sawSpawnOrchestration = false; // true when streamed tool activity indicates `ctl spawn` orchestration
   segmentStreams = new Map<number, TextSegmentStream>(); // segment_id -> active stream adapter
   streamPromises = new Map<number, Promise<Message[]>>(); // segment_id -> replyWithStream result
+  thinkingPlaceholder: Message | null = null; // ephemeral "Thinking..." indicator
 
   getSilentCapturedText(): string {
     return [...this.silentSegments.entries()]
@@ -734,6 +735,18 @@ export function getStreamingState(chatId: number): StreamingState | undefined {
 
 export function clearStreamingState(chatId: number): void {
   activeStreamingStates.delete(chatId);
+}
+
+/** Delete the thinking placeholder if it exists. */
+async function deleteThinkingPlaceholder(ctx: Context, state: StreamingState): Promise<void> {
+  if (!state.thinkingPlaceholder) return;
+  const msg = state.thinkingPlaceholder;
+  state.thinkingPlaceholder = null;
+  try {
+    await ctx.api.deleteMessage(msg.chat.id, msg.message_id);
+  } catch (error) {
+    console.debug("Failed to delete thinking placeholder:", error);
+  }
 }
 
 export async function cleanupToolMessages(ctx: Context, state: StreamingState): Promise<void> {
@@ -839,12 +852,20 @@ export function createStatusCallback(
   const streamCapable = "replyWithStream" in ctx && ctx.chat?.type === "private";
   return async (statusType: string, content: string, segmentId?: number) => {
     try {
-      if (statusType === "thinking") {
+      if (statusType === "thinking_start") {
+        // Immediate placeholder shown before any CLI events arrive
+        const msg = await ctx.reply("<i>Thinking\u2026</i>", {
+          parse_mode: "HTML",
+        });
+        state.thinkingPlaceholder = msg;
+      } else if (statusType === "thinking") {
+        // Thinking block arrived — remove the placeholder first
+        await deleteThinkingPlaceholder(ctx, state);
         // Show thinking inline, compact (first 500 chars)
         const preview =
           content.length > 500 ? content.slice(0, 500) + "..." : content;
         const escaped = escapeHtml(preview);
-        const thinkingMsg = await ctx.reply(`🧠 <i>${escaped}</i>`, {
+        const thinkingMsg = await ctx.reply(`<i>${escaped}</i>`, {
           parse_mode: "HTML",
         });
         state.toolMessages.push(thinkingMsg);
@@ -868,6 +889,8 @@ export function createStatusCallback(
           state.toolMessages.push(toolMsg);
         }
       } else if (statusType === "text" && segmentId !== undefined) {
+        // First real text content — remove the thinking placeholder if still showing
+        await deleteThinkingPlaceholder(ctx, state);
         if (streamCapable) {
           // Native draft streaming via @grammyjs/stream plugin.
           // Creates a TextSegmentStream on the first text event for each segment,
@@ -1057,6 +1080,8 @@ export function createStatusCallback(
         state.segmentStreams.clear();
         state.streamPromises.clear();
 
+        // Crash safety: always clean up thinking placeholder on done
+        await deleteThinkingPlaceholder(ctx, state);
         await cleanupToolMessages(ctx, state);
         if (typeof chatId === "number") {
           clearStreamingState(chatId);
