@@ -139,10 +139,12 @@ describe("createStatusCallback — native draft streaming", () => {
     const state = new StreamingState();
     const cb = createStatusCallback(ctx, state);
 
-    // Simulate progressive text accumulation
+    // Simulate progressive text accumulation — use markdown so the HTML
+    // formatting pass produces different content than the plain text,
+    // triggering the edit.
     await cb("text", "Hello", 0);
-    await cb("text", "Hello world", 0);
-    await cb("text", "Hello world!", 0);
+    await cb("text", "Hello **world**", 0);
+    await cb("text", "Hello **world**!", 0);
 
     // A TextSegmentStream should have been created and replyWithStream called
     expect(state.segmentStreams.size).toBe(1);
@@ -150,13 +152,13 @@ describe("createStatusCallback — native draft streaming", () => {
     expect(replyWithStreamCalls.length).toBe(1);
 
     // Finalize the segment — closes the stream, plugin completes
-    await cb("segment_end", "Hello world!", 0);
+    await cb("segment_end", "Hello **world**!", 0);
 
     // Stream state should be cleaned up
     expect(state.segmentStreams.size).toBe(0);
     expect(state.streamPromises.size).toBe(0);
 
-    // An edit should have been applied to format as HTML
+    // An edit should have been applied to format as HTML (bold markdown → <b>)
     expect(editCalls.length).toBe(1);
     expect(editCalls[0]!.opts?.parse_mode).toBe("HTML");
   });

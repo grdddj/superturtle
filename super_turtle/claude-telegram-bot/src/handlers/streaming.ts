@@ -1052,8 +1052,15 @@ export function createStatusCallback(
           if (content && messages.length === 1) {
             // Single message — edit to apply HTML formatting
             const formatted = convertMarkdownToHtml(content);
-            if (formatted.length <= TELEGRAM_MESSAGE_LIMIT) {
-              const msg = messages[0]!;
+            const msg = messages[0]!;
+            // Only edit if formatting actually changes the content and fits the limit.
+            // Telegram returns 400 "message is not modified" when the edit is a no-op.
+            const currentText = msg.text ?? "";
+            if (
+              formatted.length <= TELEGRAM_MESSAGE_LIMIT &&
+              formatted !== currentText &&
+              formatted !== escapeHtml(currentText)
+            ) {
               try {
                 await ctx.api.editMessageText(
                   msg.chat.id,
@@ -1062,8 +1069,11 @@ export function createStatusCallback(
                   { parse_mode: "HTML" }
                 );
               } catch (error) {
-                // Plain text message is already visible — acceptable fallback
-                console.debug("Failed to apply formatting to streamed message:", error);
+                const errStr = String(error);
+                // Suppress "not modified" — the message is already correct.
+                if (!errStr.includes("message is not modified")) {
+                  console.debug("Failed to apply formatting to streamed message:", error);
+                }
               }
             }
           } else if (content && messages.length === 0) {
@@ -1113,7 +1123,7 @@ export function createStatusCallback(
                     console.debug("Failed to delete for chunking:", delError);
                   }
                   await sendChunkedMessages(ctx, formatted);
-                } else {
+                } else if (!errorStr.includes("message is not modified")) {
                   console.debug("Failed to edit final message:", error);
                 }
               }
