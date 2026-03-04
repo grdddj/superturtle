@@ -7,7 +7,7 @@
 import type { Context } from "grammy";
 import type { Message } from "grammy/types";
 import { InlineKeyboard, InputFile } from "grammy";
-import type { StatusCallback, BotContext } from "../types";
+import type { StatusCallback } from "../types";
 import { convertMarkdownToHtml, escapeHtml } from "../formatting";
 import {
   TELEGRAM_MESSAGE_LIMIT,
@@ -715,8 +715,6 @@ export class StreamingState {
   silentSegments = new Map<number, string>(); // segment_id -> captured text for silent mode
   sawToolUse = false; // used to avoid replaying side-effectful tool runs on retries
   sawSpawnOrchestration = false; // true when streamed tool activity indicates `ctl spawn` orchestration
-  segmentStreams = new Map<number, TextSegmentStream>(); // segment_id -> active stream adapter
-  streamPromises = new Map<number, Promise<Message[]>>(); // segment_id -> replyWithStream result
   thinkingPlaceholder: Message | null = null; // ephemeral "Thinking..." indicator
 
   getSilentCapturedText(): string {
@@ -845,11 +843,6 @@ export function createStatusCallback(
   if (typeof chatId === "number") {
     activeStreamingStates.set(chatId, state);
   }
-  // Detect if context supports native Telegram draft streaming.
-  // The stream() middleware adds replyWithStream to real update contexts;
-  // synthetic contexts (cron jobs) fall back to edit-based streaming.
-  // sendMessageDraft is private-chat only, so restrict to private chats.
-  const streamCapable = "replyWithStream" in ctx && ctx.chat?.type === "private";
   return async (statusType: string, content: string, segmentId?: number) => {
     try {
       if (statusType === "thinking_start") {
@@ -891,135 +884,73 @@ export function createStatusCallback(
       } else if (statusType === "text" && segmentId !== undefined) {
         // First real text content — remove the thinking placeholder if still showing
         await deleteThinkingPlaceholder(ctx, state);
-        if (streamCapable) {
-          // Native draft streaming via @grammyjs/stream plugin.
-          // Creates a TextSegmentStream on the first text event for each segment,
-          // starts ctx.replyWithStream() in the background, and pushes subsequent
-          // accumulated text as incremental deltas.
-          if (!state.segmentStreams.has(segmentId)) {
-            const segStream = new TextSegmentStream();
-            state.segmentStreams.set(segmentId, segStream);
-            // Fire-and-forget — resolves when the stream closes and plugin
-            // sends the final sendMessage.
-            const promise: Promise<Message[]> = (ctx as BotContext)
-              .replyWithStream(segStream)
-              .catch((err: unknown) => {
-                streamLog.warn({ err, segmentId }, "replyWithStream failed");
-                return [] as Message[];
-              });
-            state.streamPromises.set(segmentId, promise);
-          }
-          state.segmentStreams.get(segmentId)!.pushAccumulated(content);
-        } else {
-          // Edit-based streaming fallback (cron contexts, group chats)
-          const now = Date.now();
-          const lastEdit = state.lastEditTimes.get(segmentId) || 0;
+        const now = Date.now();
+        const lastEdit = state.lastEditTimes.get(segmentId) || 0;
 
-          if (!state.textMessages.has(segmentId)) {
-            const formatted = formatWithinLimit(content);
-            try {
-              const msg = await ctx.reply(formatted, { parse_mode: "HTML" });
-              state.textMessages.set(segmentId, msg);
-              state.lastContent.set(segmentId, formatted);
-            } catch (htmlError) {
-              console.debug("HTML reply failed, using plain text:", htmlError);
-              const msg = await ctx.reply(formatted);
-              state.textMessages.set(segmentId, msg);
-              state.lastContent.set(segmentId, formatted);
-            }
-            state.lastEditTimes.set(segmentId, now);
-          } else if (now - lastEdit > STREAMING_THROTTLE_MS) {
-            const msg = state.textMessages.get(segmentId)!;
-            const formatted = formatWithinLimit(content);
-            if (formatted === state.lastContent.get(segmentId)) {
-              return;
-            }
-            try {
-              await ctx.api.editMessageText(
-                msg.chat.id,
-                msg.message_id,
-                formatted,
-                { parse_mode: "HTML" }
-              );
-              state.lastContent.set(segmentId, formatted);
-            } catch (error) {
-              const errorStr = String(error);
-              if (errorStr.includes("MESSAGE_TOO_LONG")) {
-                console.debug(
-                  "Streaming edit too long, deferring to segment_end"
-                );
-              } else {
-                console.debug("HTML edit failed, trying plain text:", error);
-                try {
-                  await ctx.api.editMessageText(
-                    msg.chat.id,
-                    msg.message_id,
-                    formatted
-                  );
-                  state.lastContent.set(segmentId, formatted);
-                } catch (editError) {
-                  console.debug("Edit message failed:", editError);
-                }
+        if (!state.textMessages.has(segmentId)) {
+          // New segment - create message
+          const formatted = formatWithinLimit(content);
+          try {
+            const msg = await ctx.reply(formatted, { parse_mode: "HTML" });
+            state.textMessages.set(segmentId, msg);
+            state.lastContent.set(segmentId, formatted);
+          } catch (htmlError) {
+            // HTML parse failed, fall back to plain text
+            console.debug("HTML reply failed, using plain text:", htmlError);
+            const msg = await ctx.reply(formatted);
+            state.textMessages.set(segmentId, msg);
+            state.lastContent.set(segmentId, formatted);
+          }
+          state.lastEditTimes.set(segmentId, now);
+        } else if (now - lastEdit > STREAMING_THROTTLE_MS) {
+          // Update existing segment message (throttled)
+          const msg = state.textMessages.get(segmentId)!;
+          const formatted = formatWithinLimit(content);
+          // Skip if content unchanged
+          if (formatted === state.lastContent.get(segmentId)) {
+            return;
+          }
+          try {
+            await ctx.api.editMessageText(
+              msg.chat.id,
+              msg.message_id,
+              formatted,
+              {
+                parse_mode: "HTML",
               }
-            }
-            state.lastEditTimes.set(segmentId, now);
-          }
-        }
-      } else if (statusType === "segment_end" && segmentId !== undefined) {
-        const segStream = state.segmentStreams.get(segmentId);
-
-        if (segStream) {
-          // Native streaming path — close stream so the plugin sends final sendMessage.
-          segStream.close();
-          const messages = await (state.streamPromises.get(segmentId) ?? Promise.resolve([] as Message[]));
-
-          // Clean up stream state
-          state.segmentStreams.delete(segmentId);
-          state.streamPromises.delete(segmentId);
-
-          if (content && messages.length === 1) {
-            // Single message — edit to apply HTML formatting
-            const formatted = convertMarkdownToHtml(content);
-            if (formatted.length <= TELEGRAM_MESSAGE_LIMIT) {
-              const msg = messages[0]!;
+            );
+            state.lastContent.set(segmentId, formatted);
+          } catch (error) {
+            const errorStr = String(error);
+            if (errorStr.includes("MESSAGE_TOO_LONG")) {
+              // Skip this intermediate update - segment_end will chunk properly
+              console.debug(
+                "Streaming edit too long, deferring to segment_end"
+              );
+            } else {
+              console.debug("HTML edit failed, trying plain text:", error);
               try {
                 await ctx.api.editMessageText(
                   msg.chat.id,
                   msg.message_id,
-                  formatted,
-                  { parse_mode: "HTML" }
+                  formatted
                 );
-              } catch (error) {
-                // Plain text message is already visible — acceptable fallback
-                console.debug("Failed to apply formatting to streamed message:", error);
+                state.lastContent.set(segmentId, formatted);
+              } catch (editError) {
+                console.debug("Edit message failed:", editError);
               }
-            }
-          } else if (content && messages.length === 0) {
-            // Stream failed — send formatted content as new message
-            const formatted = convertMarkdownToHtml(content);
-            if (formatted.length <= TELEGRAM_MESSAGE_LIMIT) {
-              try {
-                await ctx.reply(formatted, { parse_mode: "HTML" });
-              } catch {
-                try {
-                  await ctx.reply(formatted);
-                } catch (plainError) {
-                  console.debug("Failed to send segment after stream failure:", plainError);
-                }
-              }
-            } else {
-              await sendChunkedMessages(ctx, formatted);
             }
           }
-          // Multi-message case (messages.length > 1): plugin auto-split at 4096 chars,
-          // each chunk is already finalized — leave as plain text.
-        } else if (content) {
-          // Edit-based fallback path — original behavior
+          state.lastEditTimes.set(segmentId, now);
+        }
+      } else if (statusType === "segment_end" && segmentId !== undefined) {
+        if (content) {
           const formatted = convertMarkdownToHtml(content);
 
           if (state.textMessages.has(segmentId)) {
             const msg = state.textMessages.get(segmentId)!;
 
+            // Skip if content unchanged
             if (formatted === state.lastContent.get(segmentId)) {
               return;
             }
@@ -1030,11 +961,14 @@ export function createStatusCallback(
                   msg.chat.id,
                   msg.message_id,
                   formatted,
-                  { parse_mode: "HTML" }
+                  {
+                    parse_mode: "HTML",
+                  }
                 );
               } catch (error) {
                 const errorStr = String(error);
                 if (errorStr.includes("MESSAGE_TOO_LONG")) {
+                  // HTML overhead pushed it over - delete and chunk
                   try {
                     await ctx.api.deleteMessage(msg.chat.id, msg.message_id);
                   } catch (delError) {
@@ -1046,6 +980,7 @@ export function createStatusCallback(
                 }
               }
             } else {
+              // Too long - delete and split
               try {
                 await ctx.api.deleteMessage(msg.chat.id, msg.message_id);
               } catch (error) {
@@ -1054,6 +989,8 @@ export function createStatusCallback(
               await sendChunkedMessages(ctx, formatted);
             }
           } else {
+            // No streaming message was created (response was too short to trigger
+            // the throttled text callback). Send the final content as a new message.
             if (formatted.length <= TELEGRAM_MESSAGE_LIMIT) {
               try {
                 await ctx.reply(formatted, { parse_mode: "HTML" });
@@ -1068,18 +1005,7 @@ export function createStatusCallback(
               await sendChunkedMessages(ctx, formatted);
             }
           }
-        }
       } else if (statusType === "done") {
-        // Close any still-open segment streams (e.g. stop mid-stream)
-        for (const segStream of state.segmentStreams.values()) {
-          segStream.close();
-        }
-        if (state.streamPromises.size > 0) {
-          await Promise.allSettled([...state.streamPromises.values()]);
-        }
-        state.segmentStreams.clear();
-        state.streamPromises.clear();
-
         // Crash safety: always clean up thinking placeholder on done
         await deleteThinkingPlaceholder(ctx, state);
         await cleanupToolMessages(ctx, state);
