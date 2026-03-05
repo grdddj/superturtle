@@ -6,11 +6,20 @@ cd "$(dirname "$0")"
 # Default CLAUDE_WORKING_DIR to repo root (two levels up from claude-telegram-bot/)
 export CLAUDE_WORKING_DIR="${CLAUDE_WORKING_DIR:-$(cd ../.. && pwd)}"
 
-SESSION_NAME="${SUPERTURTLE_TMUX_SESSION:-superturtle-bot}"
 WINDOW_NAME="${SUPERTURTLE_TMUX_WINDOW:-bot}"
 TELEGRAM_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
 TOKEN_PREFIX="${TELEGRAM_TOKEN%%:*}"
 TOKEN_PREFIX="${TOKEN_PREFIX:-default}"
+TOKEN_PREFIX="$(echo "$TOKEN_PREFIX" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9_-' '-')"
+TOKEN_PREFIX="${TOKEN_PREFIX#-}"
+TOKEN_PREFIX="${TOKEN_PREFIX%-}"
+TOKEN_PREFIX="${TOKEN_PREFIX:-default}"
+PROJECT_SLUG="$(basename "$CLAUDE_WORKING_DIR" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9_-' '-')"
+PROJECT_SLUG="${PROJECT_SLUG#-}"
+PROJECT_SLUG="${PROJECT_SLUG%-}"
+PROJECT_SLUG="${PROJECT_SLUG:-project}"
+DEFAULT_SESSION_NAME="superturtle-${TOKEN_PREFIX}-${PROJECT_SLUG}"
+SESSION_NAME="${SUPERTURTLE_TMUX_SESSION:-$DEFAULT_SESSION_NAME}"
 LOOP_LOG_PATH="${SUPERTURTLE_LOOP_LOG_PATH:-/tmp/claude-telegram-${TOKEN_PREFIX}-bot-ts.log}"
 
 # Platform-aware sleep prevention wrapper.

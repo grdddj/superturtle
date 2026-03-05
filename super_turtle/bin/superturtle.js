@@ -11,14 +11,57 @@
  */
 
 const { execSync, spawnSync } = require("child_process");
-const { resolve, dirname } = require("path");
+const { resolve, dirname, basename } = require("path");
 const fs = require("fs");
 const readline = require("readline");
 
 const PACKAGE_ROOT = resolve(__dirname, "..");
 const BOT_DIR = resolve(PACKAGE_ROOT, "claude-telegram-bot");
 const TEMPLATES_DIR = resolve(PACKAGE_ROOT, "templates");
-const TMUX_SESSION = process.env.SUPERTURTLE_TMUX_SESSION || "superturtle";
+
+function loadProjectEnv(cwd) {
+  const envPath = resolve(cwd, ".superturtle", ".env");
+  if (!fs.existsSync(envPath)) return null;
+  const parsed = {};
+  const envContent = fs.readFileSync(envPath, "utf-8");
+  for (const line of envContent.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eqIdx = trimmed.indexOf("=");
+    if (eqIdx <= 0) continue;
+    const key = trimmed.slice(0, eqIdx);
+    let value = trimmed.slice(eqIdx + 1).trim().replace(/\r$/, "");
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    parsed[key] = value;
+  }
+  return parsed;
+}
+
+function sanitizeName(value, fallback) {
+  const cleaned = String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+/, "")
+    .replace(/-+$/, "");
+  return cleaned || fallback;
+}
+
+function deriveTmuxSessionName(cwd, env) {
+  const token = env.TELEGRAM_BOT_TOKEN || "";
+  const tokenPrefix = sanitizeName(token.split(":")[0], "default");
+  const projectSlug = sanitizeName(basename(cwd), "project");
+  const combined = `superturtle-${tokenPrefix}-${projectSlug}`;
+  return combined.length > 80 ? combined.slice(0, 80) : combined;
+}
+
+function resolveTmuxSession(cwd, env) {
+  return process.env.SUPERTURTLE_TMUX_SESSION || deriveTmuxSessionName(cwd, env);
+}
 
 function exitFromSpawn(result, context) {
   if (!result) {
@@ -300,9 +343,9 @@ function start() {
   checkTmux();
 
   const cwd = process.cwd();
-  const envPath = resolve(cwd, ".superturtle", ".env");
+  const projectEnv = loadProjectEnv(cwd);
 
-  if (!fs.existsSync(envPath)) {
+  if (!projectEnv) {
     console.error("No .superturtle/.env found. Run 'superturtle init' first.");
     process.exit(1);
   }
@@ -310,34 +353,17 @@ function start() {
   // Set environment
   const env = {
     ...process.env,
+    ...projectEnv,
     SUPER_TURTLE_DIR: PACKAGE_ROOT,
     CLAUDE_WORKING_DIR: cwd,
   };
-
-  // Source .env file
-  const envContent = fs.readFileSync(envPath, "utf-8");
-  for (const line of envContent.split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eqIdx = trimmed.indexOf("=");
-    if (eqIdx > 0) {
-      const key = trimmed.slice(0, eqIdx);
-      let value = trimmed.slice(eqIdx + 1).trim().replace(/\r$/, "");
-      if (
-        (value.startsWith('"') && value.endsWith('"')) ||
-        (value.startsWith("'") && value.endsWith("'"))
-      ) {
-        value = value.slice(1, -1);
-      }
-      env[key] = value;
-    }
-  }
+  const tmuxSession = resolveTmuxSession(cwd, env);
 
   // Check if tmux session already exists
-  const tmuxCheck = spawnSync("tmux", ["has-session", "-t", TMUX_SESSION], { stdio: "pipe" });
+  const tmuxCheck = spawnSync("tmux", ["has-session", "-t", tmuxSession], { stdio: "pipe" });
   if (tmuxCheck.status === 0) {
-    console.log(`Bot is already running. Attaching to tmux session '${TMUX_SESSION}'...`);
-    const attach = spawnSync("tmux", ["attach-session", "-t", TMUX_SESSION], { stdio: "inherit" });
+    console.log(`Bot is already running. Attaching to tmux session '${tmuxSession}'...`);
+    const attach = spawnSync("tmux", ["attach-session", "-t", tmuxSession], { stdio: "inherit" });
     exitFromSpawn(attach, "tmux attach-session");
     return;
   }
@@ -374,9 +400,10 @@ function start() {
   }
 
   const startProc = spawnSync("tmux", [
-    "new-session", "-d", "-s", TMUX_SESSION,
+    "new-session", "-d", "-s", tmuxSession,
     "-e", `SUPER_TURTLE_DIR=${PACKAGE_ROOT}`,
     "-e", `CLAUDE_WORKING_DIR=${cwd}`,
+    "-e", `SUPERTURTLE_TMUX_SESSION=${tmuxSession}`,
     ...Object.entries(env)
       .filter(([k]) => shouldPassEnvKey(k))
       .map(([k, v]) => ["-e", `${k}=${v}`])
@@ -385,16 +412,20 @@ function start() {
   ], { stdio: "pipe" });
   exitFromSpawn(startProc, "tmux new-session");
 
-  console.log(`Bot started in tmux session '${TMUX_SESSION}'.`);
-  console.log(`Attach: tmux attach -t ${TMUX_SESSION}`);
+  console.log(`Bot started in tmux session '${tmuxSession}'.`);
+  console.log(`Attach: tmux attach -t ${tmuxSession}`);
   console.log("Now message your bot in Telegram!");
 }
 
 function stop() {
+  const cwd = process.cwd();
+  const projectEnv = loadProjectEnv(cwd) || {};
+  const tmuxSession = resolveTmuxSession(cwd, { ...process.env, ...projectEnv });
+
   // Kill tmux session
-  const tmuxCheck = spawnSync("tmux", ["has-session", "-t", TMUX_SESSION], { stdio: "pipe" });
+  const tmuxCheck = spawnSync("tmux", ["has-session", "-t", tmuxSession], { stdio: "pipe" });
   if (tmuxCheck.status === 0) {
-    spawnSync("tmux", ["kill-session", "-t", TMUX_SESSION], { stdio: "pipe" });
+    spawnSync("tmux", ["kill-session", "-t", tmuxSession], { stdio: "pipe" });
     console.log("Bot stopped.");
   } else {
     console.log("Bot is not running.");
@@ -416,8 +447,12 @@ function stop() {
 }
 
 function status() {
+  const cwd = process.cwd();
+  const projectEnv = loadProjectEnv(cwd) || {};
+  const tmuxSession = resolveTmuxSession(cwd, { ...process.env, ...projectEnv });
+
   // Check tmux session
-  const tmuxCheck = spawnSync("tmux", ["has-session", "-t", TMUX_SESSION], { stdio: "pipe" });
+  const tmuxCheck = spawnSync("tmux", ["has-session", "-t", tmuxSession], { stdio: "pipe" });
   if (tmuxCheck.status === 0) {
     console.log("Bot: running");
   } else {

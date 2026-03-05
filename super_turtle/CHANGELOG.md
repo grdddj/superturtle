@@ -7,6 +7,12 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-03-04
+
+### Fixed
+- tmux session isolation: `superturtle start/stop/status` now default to `superturtle-<tokenPrefix>-<projectSlug>` instead of a shared static session name
+- `claude-telegram-bot/live.sh` now uses the same token/project namespaced tmux session default for manual `bun run start`
+
 ## [0.1.3] - 2026-03-04
 
 ### Fixed
