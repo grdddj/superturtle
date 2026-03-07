@@ -137,7 +137,14 @@ export function isAuthorized(request: Request): boolean {
 
 async function readSubturtles(): Promise<ListedSubTurtle[]> {
   try {
-    const proc = Bun.spawnSync([CTL_PATH, "list"], { cwd: WORKING_DIR });
+    const proc = Bun.spawnSync([CTL_PATH, "list"], {
+      cwd: WORKING_DIR,
+      env: {
+        ...process.env,
+        SUPER_TURTLE_PROJECT_DIR: WORKING_DIR,
+        CLAUDE_WORKING_DIR: WORKING_DIR,
+      },
+    });
     const output = proc.stdout.toString().trim();
     return parseCtlListOutput(output);
   } catch {

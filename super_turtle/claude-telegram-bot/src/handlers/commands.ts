@@ -1608,7 +1608,14 @@ export async function handleSubturtle(ctx: Context): Promise<void> {
 
   // Run ctl list command
   const ctlPath = CTL_PATH;
-  const proc = Bun.spawnSync([ctlPath, "list"], { cwd: WORKING_DIR });
+  const proc = Bun.spawnSync([ctlPath, "list"], {
+    cwd: WORKING_DIR,
+    env: {
+      ...process.env,
+      SUPER_TURTLE_PROJECT_DIR: WORKING_DIR,
+      CLAUDE_WORKING_DIR: WORKING_DIR,
+    },
+  });
   const output = proc.stdout.toString().trim();
 
   if (!output || output.includes("No SubTurtles")) {

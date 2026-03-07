@@ -5,11 +5,25 @@ import { DASHBOARD_AUTH_TOKEN, WORKING_DIR } from "./config";
 
 const { isAuthorized, safeSubstring, computeProgressPct, jsonResponse, notFoundResponse, readFileOr, parseMetaFile, validateSubturtleName } = await import("./dashboard");
 const { session } = await import("./session");
-const { enqueueDeferredMessage, clearDeferredQueue } = await import("./deferred-queue");
+const { enqueueDeferredMessage, clearDeferredQueue, getAllDeferredQueues } = await import("./deferred-queue");
 const { appendTurnLogEntry, clearTurnLogFile } = await import("./turn-log");
 
 const hasAuthToken = DASHBOARD_AUTH_TOKEN.length > 0;
 const validToken = hasAuthToken ? DASHBOARD_AUTH_TOKEN : "any-token";
+
+function clearAllDeferredQueuesForTest(): void {
+  for (const chatId of getAllDeferredQueues().keys()) {
+    clearDeferredQueue(chatId);
+  }
+}
+
+beforeEach(() => {
+  clearAllDeferredQueuesForTest();
+});
+
+afterEach(() => {
+  clearAllDeferredQueuesForTest();
+});
 
 describe("isAuthorized()", () => {
   it("accepts token in query string", () => {
