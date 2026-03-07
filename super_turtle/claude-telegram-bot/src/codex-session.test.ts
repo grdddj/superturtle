@@ -149,6 +149,69 @@ describe("CodexSession", () => {
     expect(prefs.threadId).toBe("thread-start-123");
     expect(prefs.model).toBe("gpt-5.2-codex");
     expect(prefs.reasoningEffort).toBe("high");
+
+    const savedSessions = JSON.parse(readFileSync(CODEX_SESSION_FILE, "utf-8")) as {
+      sessions: Array<Record<string, unknown>>;
+    };
+    expect(savedSessions.sessions[0]).toMatchObject({
+      session_id: "thread-start-123",
+      title: "Active Codex session",
+    });
+  });
+
+  it("captures the real thread ID from the streamed thread.started event", async () => {
+    mock.module("@openai/codex-sdk", () => ({
+      Codex: class {
+        startThread() {
+          return {
+            id: undefined,
+            run: async () => ({ finalResponse: "", usage: null }),
+            runStreamed: async () => ({
+              events: (async function* () {
+                yield { type: "thread.started", thread_id: "thread-stream-456" };
+                yield {
+                  type: "item.completed",
+                  item: {
+                    type: "agent_message",
+                    id: "msg-1",
+                    text: "streamed assistant reply",
+                  },
+                };
+                yield {
+                  type: "turn.completed",
+                  usage: {
+                    input_tokens: 10,
+                    output_tokens: 20,
+                  },
+                };
+              })(),
+            }),
+          };
+        }
+
+        resumeThread() {
+          throw new Error("not used");
+        }
+      },
+    }));
+
+    const { CodexSession } = await loadCodexSessionModule("stream-thread-id");
+    const codex = new CodexSession();
+    const response = await codex.sendMessage("Hello from streamed thread");
+
+    expect(response).toBe("streamed assistant reply");
+    expect(codex.getThreadId()).toBe("thread-stream-456");
+
+    const prefs = JSON.parse(readFileSync(CODEX_PREFS_FILE, "utf-8")) as Record<string, unknown>;
+    expect(prefs.threadId).toBe("thread-stream-456");
+
+    const savedSessions = JSON.parse(readFileSync(CODEX_SESSION_FILE, "utf-8")) as {
+      sessions: Array<Record<string, unknown>>;
+    };
+    expect(savedSessions.sessions[0]).toMatchObject({
+      session_id: "thread-stream-456",
+      title: "Hello from streamed thread",
+    });
   });
 
   it("loads saved preferences and uses them when resuming threads", async () => {
@@ -207,6 +270,13 @@ describe("CodexSession", () => {
     });
     expect(codex.getThreadId()).toBe("resume-thread-999");
     expect((codex as unknown as { systemPromptPrepended: boolean }).systemPromptPrepended).toBe(true);
+
+    const savedSessions = JSON.parse(readFileSync(CODEX_SESSION_FILE, "utf-8")) as {
+      sessions: Array<Record<string, unknown>>;
+    };
+    expect(savedSessions.sessions[0]).toMatchObject({
+      session_id: "resume-thread-999",
+    });
   });
 
   it("returns a formatted initialization error when SDK initialization fails", async () => {
@@ -266,6 +336,8 @@ describe("CodexSession", () => {
   });
 
   it("hydrates resumed sessions from transcript history before saving", async () => {
+    const { WORKING_DIR } = await import("./config");
+
     mock.module("@openai/codex-sdk", () => ({
       Codex: class {
         startThread() {
@@ -289,7 +361,7 @@ describe("CodexSession", () => {
           {
             session_id: "resume-history-session",
             saved_at: "2026-03-07T17:00:00.000Z",
-            working_dir: process.env.CLAUDE_WORKING_DIR,
+            working_dir: WORKING_DIR,
             title: "Resume history session",
           },
         ],

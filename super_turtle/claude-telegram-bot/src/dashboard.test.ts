@@ -720,6 +720,7 @@ describe("GET /dashboard/sessions/:driver/:sessionId", () => {
   const originalCodexState = {
     getSessionList: codexSession.getSessionList,
     getSessionTranscript: codexSession.getSessionTranscript,
+    getActiveSessionSnapshot: codexSession.getActiveSessionSnapshot,
   };
 
   afterEach(() => {
@@ -727,6 +728,7 @@ describe("GET /dashboard/sessions/:driver/:sessionId", () => {
     session.conversationTitle = originalState.conversationTitle;
     codexSession.getSessionList = originalCodexState.getSessionList;
     codexSession.getSessionTranscript = originalCodexState.getSessionTranscript;
+    codexSession.getActiveSessionSnapshot = originalCodexState.getActiveSessionSnapshot;
     clearTurnLogFile();
   });
 
@@ -939,6 +941,66 @@ describe("GET /dashboard/sessions/:driver/:sessionId", () => {
     expect(html).toContain("&lt;system-instructions&gt;");
     expect(html).not.toContain("No captured injections for this session.");
   });
+
+  it("prefers fresher active Codex messages over stale transcript history", async () => {
+    codexSession.getSessionList = () => [
+      {
+        session_id: "codex-live-detail-session",
+        saved_at: "2026-03-07T16:00:00.000Z",
+        working_dir: WORKING_DIR,
+        title: "Codex live detail session",
+      },
+    ];
+    codexSession.getActiveSessionSnapshot = () => ({
+      session_id: "codex-live-detail-session",
+      saved_at: "2026-03-07T16:05:00.000Z",
+      working_dir: WORKING_DIR,
+      title: "Codex live detail session",
+      recentMessages: [
+        {
+          role: "user",
+          text: "Newer live Codex user message",
+          timestamp: "2026-03-07T16:05:00.000Z",
+        },
+        {
+          role: "assistant",
+          text: "Newer live Codex assistant reply",
+          timestamp: "2026-03-07T16:05:01.000Z",
+        },
+      ],
+    });
+    codexSession.getSessionTranscript = async () => ({
+      sessionId: "codex-live-detail-session",
+      path: "/tmp/codex-live-detail-session.jsonl",
+      messages: [
+        {
+          role: "user",
+          text: "Older transcript Codex user message",
+          timestamp: "2026-03-07T16:00:00.000Z",
+        },
+        {
+          role: "assistant",
+          text: "Older transcript Codex assistant reply",
+          timestamp: "2026-03-07T16:00:01.000Z",
+        },
+      ],
+      injectedArtifacts: [],
+      metaSharedLoaded: true,
+      datePrefixApplied: true,
+    });
+
+    const result = findRoute("/dashboard/sessions/codex/codex-live-detail-session");
+    expect(result).not.toBeNull();
+    const { req, url } = makeReq("/dashboard/sessions/codex/codex-live-detail-session");
+    const res = await result!.handler(req, url, result!.match);
+    expect(res.status).toBe(200);
+
+    const html = await res.text();
+    expect(html).toContain("Newer live Codex user message");
+    expect(html).toContain("Newer live Codex assistant reply");
+    expect(html).not.toContain("Older transcript Codex user message");
+    expect(html).not.toContain("Older transcript Codex assistant reply");
+  });
 });
 
 /* ── Route table tests for /api/session ───────────────────────────── */
@@ -978,6 +1040,7 @@ describe("GET /api/sessions", () => {
     lastActivity: codexSession.lastActivity,
     getSessionList: codexSession.getSessionList,
     getSessionListLive: codexSession.getSessionListLive,
+    getActiveSessionSnapshot: codexSession.getActiveSessionSnapshot,
   };
 
   afterEach(() => {
@@ -989,6 +1052,7 @@ describe("GET /api/sessions", () => {
     codexSession.lastActivity = originalCodexState.lastActivity;
     codexSession.getSessionList = originalCodexState.getSessionList;
     codexSession.getSessionListLive = originalCodexState.getSessionListLive;
+    codexSession.getActiveSessionSnapshot = originalCodexState.getActiveSessionSnapshot;
     resetDashboardSessionCachesForTests();
   });
 
@@ -1114,6 +1178,39 @@ describe("GET /api/sessions", () => {
     const match = sessions.find((entry) => entry.sessionId === "codex-live-session");
     expect(match).toBeDefined();
     expect(match?.driver).toBe("codex");
+  });
+
+  it("includes an active codex session before it is saved or turn-logged", async () => {
+    codexSession.getSessionList = () => [];
+    codexSession.getSessionListLive = async () => [];
+    codexSession.getActiveSessionSnapshot = () => ({
+      session_id: "codex-active-session",
+      saved_at: "2026-03-07T16:40:00.000Z",
+      working_dir: WORKING_DIR,
+      title: "Active Codex session",
+      preview: "You: check live visibility",
+      recentMessages: [
+        {
+          role: "user",
+          text: "check live visibility",
+          timestamp: "2026-03-07T16:40:00.000Z",
+        },
+      ],
+    });
+
+    const listRoute = findRoute("/api/sessions");
+    expect(listRoute).not.toBeNull();
+    const { req, url } = makeReq("/api/sessions");
+    const listRes = await listRoute!.handler(req, url, listRoute!.match);
+    expect(listRes.status).toBe(200);
+
+    const listBody = await listRes.json() as Record<string, unknown>;
+    const sessions = listBody.sessions as Array<Record<string, unknown>>;
+    const match = sessions.find((entry) => entry.sessionId === "codex-active-session");
+
+    expect(match).toBeDefined();
+    expect(match?.driver).toBe("codex");
+    expect(match?.status).toBe("active-idle");
   });
 });
 

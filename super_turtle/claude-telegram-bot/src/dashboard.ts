@@ -9,8 +9,11 @@ import { codexSession } from "./codex-session";
 import { getPreparedSnapshotCount } from "./cron-supervision-queue";
 import { getExecutingDriverId, isBackgroundRunActive, wasBackgroundRunPreempted } from "./handlers/driver-routing";
 import { logger } from "./logger";
-import { readTurnLogEntries } from "./turn-log";
-import { buildExternalSessionHistory, buildSavedSessionHistory, buildTurnLogHistory } from "./session-history";
+import {
+  getDashboardDriverRunningState,
+  getSessionObservabilityProvider,
+  getSessionObservabilityProviders,
+} from "./session-observability";
 import type { RecentMessage, SavedSession } from "./types";
 import type { TurtleView, ProcessView, DeferredChatView, SubturtleLaneView, DashboardState, SubturtleListResponse, SubturtleDetailResponse, SubturtleLogsResponse, CronListResponse, CronJobView, SessionResponse, SessionDriver, SessionListItem, SessionListResponse, SessionMessageView, SessionMetaView, SessionDetailResponse, SessionTurnView, SessionTurnsResponse, ContextResponse, ProcessDetailView, ProcessDetailResponse, DriverExtra, SubturtleExtra, BackgroundExtra, CurrentJobView, CurrentJobsResponse, JobDetailResponse, QueueResponse } from "./dashboard-types";
 
@@ -335,30 +338,6 @@ function mapRecentMessages(recentMessages?: RecentMessage[], preview?: string): 
   return synthetic;
 }
 
-async function loadSessionHistory(driver: SessionDriver, saved: SavedSession | null, sessionId: string) {
-  if (driver === "claude") {
-    return buildTurnLogHistory("claude", sessionId) || buildSavedSessionHistory(saved);
-  }
-
-  const transcript = await codexSession.getSessionTranscript(sessionId);
-  const codexHistory = transcript
-    ? buildExternalSessionHistory({
-        source: "codex-jsonl",
-        path: transcript.path,
-        messages: transcript.messages,
-        injectedArtifacts: transcript.injectedArtifacts,
-        context: {
-          metaSharedLoaded: transcript.metaSharedLoaded,
-          datePrefixApplied: transcript.datePrefixApplied,
-        },
-      })
-    : null;
-
-  return codexHistory
-    || buildTurnLogHistory("codex", sessionId)
-    || buildSavedSessionHistory(saved);
-}
-
 function buildMessagePreview(messages: SessionMessageView[], fallback?: string | null): string | null {
   if (messages.length === 0) return fallback || null;
   const first = messages[0]!;
@@ -371,33 +350,6 @@ function buildMessagePreview(messages: SessionMessageView[], fallback?: string |
   return combined.length > 280 ? `${combined.slice(0, 277)}...` : combined;
 }
 
-function defaultSessionMeta(driver: SessionDriver): SessionMetaView {
-  if (driver === "claude") {
-    return {
-      model: session.model,
-      effort: session.effort,
-      isRunning: false,
-      queryStarted: null,
-      lastUsage: null,
-      lastError: null,
-      lastErrorTime: null,
-      currentTool: null,
-      lastTool: null,
-    };
-  }
-  return {
-    model: codexSession.model,
-    effort: codexSession.reasoningEffort,
-    isRunning: false,
-    queryStarted: null,
-    lastUsage: null,
-    lastError: null,
-    lastErrorTime: null,
-    currentTool: null,
-    lastTool: null,
-  };
-}
-
 function upsertSavedSession(
   snapshots: Map<string, SessionSnapshot>,
   driver: SessionDriver,
@@ -407,6 +359,7 @@ function upsertSavedSession(
 
   const messages = mapRecentMessages(saved.recentMessages, saved.preview);
   const key = buildSessionKey(driver, saved.session_id);
+  const provider = getSessionObservabilityProvider(driver);
   snapshots.set(key, {
     row: {
       id: key,
@@ -421,7 +374,7 @@ function upsertSavedSession(
       preview: buildMessagePreview(messages, saved.preview || null),
     },
     messages,
-    meta: defaultSessionMeta(driver),
+    meta: provider.getDefaultMeta(),
   });
 }
 
@@ -436,136 +389,61 @@ function sortSessionRows(rows: SessionListItem[]): SessionListItem[] {
   });
 }
 
-async function getDashboardCodexSessions(): Promise<SavedSession[]> {
-  const trackedSessionIds = new Set<string>();
-  for (const saved of codexSession.getSessionList()) {
-    if (validateSessionId(saved.session_id)) {
-      trackedSessionIds.add(saved.session_id);
-    }
-  }
-  const activeThreadId = codexSession.getThreadId();
-  if (activeThreadId && validateSessionId(activeThreadId)) {
-    trackedSessionIds.add(activeThreadId);
-  }
-  for (const entry of readTurnLogEntries({ driver: "codex", limit: 5000 })) {
-    if (entry.sessionId && validateSessionId(entry.sessionId)) {
-      trackedSessionIds.add(entry.sessionId);
-    }
-  }
-
-  if (trackedSessionIds.size === 0) {
-    return codexSession.getSessionList();
-  }
-
-  const liveSessions = await codexSession.getSessionListLive();
-  return liveSessions.filter((saved) => trackedSessionIds.has(saved.session_id));
-}
-
 function getDriverRunningState(): {
   activeDriverId: SessionDriver;
   executingDriverId: SessionDriver | null;
   claudeRunning: boolean;
   codexRunning: boolean;
 } {
+  const runningState = getDashboardDriverRunningState();
   const executingDriverId = getExecutingDriverId();
-  const activeDriverId = executingDriverId || session.activeDriver;
-  if (executingDriverId) {
-    return {
-      activeDriverId,
-      executingDriverId,
-      claudeRunning: executingDriverId === "claude",
-      codexRunning: executingDriverId === "codex",
-    };
-  }
-
   return {
-    activeDriverId,
+    activeDriverId: runningState.claude.activeDriverId,
     executingDriverId,
-    claudeRunning: session.isRunning,
-    codexRunning: codexSession.isRunning,
+    claudeRunning: runningState.claude.isRunning,
+    codexRunning: runningState.codex.isRunning,
   };
 }
 
 async function buildSessionSnapshots(): Promise<Map<string, SessionSnapshot>> {
   const snapshots = new Map<string, SessionSnapshot>();
-  const { claudeRunning, codexRunning } = getDriverRunningState();
+  const runningState = getDriverRunningState();
 
-  for (const saved of session.getSessionList()) {
-    upsertSavedSession(snapshots, "claude", saved);
-  }
-  for (const saved of await getDashboardCodexSessions()) {
-    upsertSavedSession(snapshots, "codex", saved);
-  }
+  for (const provider of getSessionObservabilityProviders()) {
+    for (const saved of await provider.listTrackedSessions()) {
+      upsertSavedSession(snapshots, provider.driver, saved);
+    }
 
-  const claudeSessionId = session.sessionId;
-  if (claudeSessionId && validateSessionId(claudeSessionId)) {
-    const key = buildSessionKey("claude", claudeSessionId);
+    const activeSession = provider.getActiveSessionSnapshot();
+    if (!activeSession || !validateSessionId(activeSession.session_id)) {
+      continue;
+    }
+
+    const key = buildSessionKey(provider.driver, activeSession.session_id);
     const existing = snapshots.get(key);
     const messages = mapRecentMessages(
-      session.recentMessages,
-      existing?.row.preview || undefined
+      activeSession.recentMessages,
+      activeSession.preview || existing?.row.preview || undefined
     );
+    const isRunning = provider.driver === "claude"
+      ? runningState.claudeRunning
+      : runningState.codexRunning;
+
     snapshots.set(key, {
       row: {
         id: key,
-        driver: "claude",
-        sessionId: claudeSessionId,
-        title: session.conversationTitle || existing?.row.title || "Active Claude session",
-        savedAt: existing?.row.savedAt || null,
-        lastActivity: session.lastActivity?.toISOString() || existing?.row.lastActivity || null,
-        status: claudeRunning ? "active-running" : "active-idle",
+        driver: provider.driver,
+        sessionId: activeSession.session_id,
+        title: activeSession.title || existing?.row.title || `Active ${provider.driver} session`,
+        savedAt: activeSession.saved_at || existing?.row.savedAt || null,
+        lastActivity: activeSession.saved_at || existing?.row.lastActivity || null,
+        status: isRunning ? "active-running" : "active-idle",
         messageCount: messages.length,
-        workingDir: WORKING_DIR,
-        preview: buildMessagePreview(messages, existing?.row.preview || null),
+        workingDir: activeSession.working_dir || WORKING_DIR,
+        preview: buildMessagePreview(messages, activeSession.preview || existing?.row.preview || null),
       },
       messages,
-      meta: {
-        model: session.model,
-        effort: session.effort,
-        isRunning: claudeRunning,
-        queryStarted: session.queryStarted?.toISOString() || null,
-        lastUsage: session.lastUsage as Record<string, unknown> | null,
-        lastError: session.lastError,
-        lastErrorTime: session.lastErrorTime?.toISOString() || null,
-        currentTool: session.currentTool,
-        lastTool: session.lastTool,
-      },
-    });
-  }
-
-  const codexSessionId = codexSession.getThreadId();
-  if (codexSessionId && validateSessionId(codexSessionId)) {
-    const key = buildSessionKey("codex", codexSessionId);
-    const existing = snapshots.get(key);
-    const messages = mapRecentMessages(
-      codexSession.recentMessages,
-      existing?.row.preview || undefined
-    );
-    snapshots.set(key, {
-      row: {
-        id: key,
-        driver: "codex",
-        sessionId: codexSessionId,
-        title: existing?.row.title || "Active Codex session",
-        savedAt: existing?.row.savedAt || null,
-        lastActivity: codexSession.lastActivity?.toISOString() || existing?.row.lastActivity || null,
-        status: codexRunning ? "active-running" : "active-idle",
-        messageCount: messages.length,
-        workingDir: WORKING_DIR,
-        preview: buildMessagePreview(messages, existing?.row.preview || null),
-      },
-      messages,
-      meta: {
-        model: codexSession.model,
-        effort: codexSession.reasoningEffort,
-        isRunning: codexRunning,
-        queryStarted: codexSession.runningSince?.toISOString() || null,
-        lastUsage: codexSession.lastUsage as Record<string, unknown> | null,
-        lastError: codexSession.lastError,
-        lastErrorTime: codexSession.lastErrorTime?.toISOString() || null,
-        currentTool: null,
-        lastTool: null,
-      },
+      meta: provider.getActiveMeta(isRunning),
     });
   }
 
@@ -586,10 +464,11 @@ async function buildSessionDetail(
   sessionId: string
 ): Promise<SessionDetailResponse | null> {
   if (!validateSessionId(sessionId)) return null;
+  const provider = getSessionObservabilityProvider(driver);
   const key = buildSessionKey(driver, sessionId);
   const snapshot = (await buildSessionSnapshots()).get(key);
   if (!snapshot) return null;
-  const history = await loadSessionHistory(driver, {
+  const savedSession: SavedSession = {
     session_id: snapshot.row.sessionId,
     saved_at: snapshot.row.savedAt || "",
     working_dir: snapshot.row.workingDir || WORKING_DIR,
@@ -604,7 +483,13 @@ async function buildSessionDetail(
           })),
         }
       : {}),
-  }, sessionId);
+  };
+  const activeSession = provider.getActiveSessionSnapshot();
+  const history = await provider.loadDisplayHistory(
+    sessionId,
+    savedSession,
+    activeSession && activeSession.session_id === sessionId ? activeSession : null
+  );
   const messages =
     history && history.messages.length > 0
       ? history.messages.map((message) => ({
@@ -631,12 +516,9 @@ async function buildSessionTurns(
 ): Promise<SessionTurnsResponse | null> {
   const detail = await buildSessionDetail(driver, sessionId);
   if (!detail) return null;
+  const provider = getSessionObservabilityProvider(driver);
 
-  const turns: SessionTurnView[] = readTurnLogEntries({
-    driver,
-    sessionId,
-    limit,
-  }).map((entry) => ({
+  const turns: SessionTurnView[] = provider.listTurns(sessionId, limit).map((entry) => ({
     id: entry.id,
     driver: entry.driver,
     source: entry.source,
@@ -1606,19 +1488,15 @@ function renderSessionDetailHtml(
     const matches = text.match(/[A-Za-z0-9]+(?:'[A-Za-z0-9]+)?/g);
     return matches?.length || 0;
   };
-  const instructionTooltipHtml = detail.session.driver === "claude"
-    ? "<div class=\"info-popover\"><p><strong>How instructions reach this CLI</strong></p>" +
-      "<ul class=\"info-list\">" +
-      "<li><strong>Project instructions</strong>: Claude Code runs from the repo root with --setting-sources user,project, so project instructions are loaded by the CLI.</li>" +
-      "<li><strong>META prompt</strong>: The wrapper passes META_SHARED.md via --system-prompt on each query.</li>" +
-      "<li><strong>Date/time prefix</strong>: The wrapper prepends the date/time prefix when starting a new session.</li>" +
-      "</ul></div>"
-    : "<div class=\"info-popover\"><p><strong>How instructions reach this CLI</strong></p>" +
-      "<ul class=\"info-list\">" +
-      "<li><strong>Project instructions</strong>: Codex runs with workingDirectory set to the repo root, so repo-root AGENTS.md / project instructions are loaded by the CLI.</li>" +
-      "<li><strong>META prompt</strong>: The wrapper wraps META_SHARED.md in &lt;system-instructions&gt; and prepends it to the first message of a thread only.</li>" +
-      "<li><strong>Date/time prefix</strong>: The wrapper prepends the date/time prefix on the first message of a thread.</li>" +
-      "</ul></div>";
+  const instructionDelivery = getSessionObservabilityProvider(detail.session.driver).getInstructionDelivery();
+  const instructionTooltipHtml =
+    "<div class=\"info-popover\"><p><strong>" +
+    escapeHtml(instructionDelivery.title) +
+    "</strong></p><ul class=\"info-list\">" +
+    instructionDelivery.items.map((item) =>
+      `<li><strong>${escapeHtml(item.label)}</strong>: ${escapeHtml(item.description)}</li>`
+    ).join("") +
+    "</ul></div>";
 
   const injectedHeadingHtml =
     "<div class=\"injected-heading\">" +

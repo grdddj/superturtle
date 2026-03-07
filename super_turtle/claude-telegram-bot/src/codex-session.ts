@@ -1048,10 +1048,15 @@ export class CodexSession {
         throw new Error("Failed to create Codex thread");
       }
 
-      this.threadId = this.thread.id;
+      this.threadId = this.thread.id || null;
       this.systemPromptPrepended = false; // Reset flag for new thread
 
-      codexLog.info({ sessionId: this.threadId }, `Started new Codex thread: ${this.threadId?.slice(0, 8)}...`);
+      codexLog.info(
+        { sessionId: this.threadId },
+        this.threadId
+          ? `Started new Codex thread: ${this.threadId.slice(0, 8)}...`
+          : "Started new Codex thread without immediate thread ID; awaiting stream event"
+      );
 
       // Save thread ID for persistence
       saveCodexPrefs({
@@ -1060,6 +1065,7 @@ export class CodexSession {
         model: threadModel,
         reasoningEffort: threadEffort,
       });
+      this.upsertTrackedSession("Active Codex session");
     } catch (error) {
       codexLog.error({ err: error }, "Error starting Codex thread");
       this.lastError = String(error).slice(0, 100);
@@ -1097,6 +1103,7 @@ export class CodexSession {
       this.systemPromptPrepended = true; // Already sent in original thread
 
       codexLog.info({ sessionId: threadId }, `Resumed Codex thread: ${threadId.slice(0, 8)}...`);
+      this.upsertTrackedSession();
     } catch (error) {
       codexLog.error({ err: error }, "Error resuming Codex thread");
       this.lastError = String(error).slice(0, 100);
@@ -1283,6 +1290,24 @@ ${messageToSend}`;
         if (this.stopRequested) {
           codexLog.info("Codex query aborted by user");
           break;
+        }
+
+        if ((event.type === "thread.started" || event.type === "thread_started") && event.thread_id) {
+          if (this.threadId !== event.thread_id) {
+            this.threadId = event.thread_id;
+            saveCodexPrefs({
+              threadId: this.threadId,
+              createdAt: new Date().toISOString(),
+              model: turnModel,
+              reasoningEffort: turnEffort,
+            });
+            this.upsertTrackedSession("Active Codex session");
+            codexLog.info(
+              { sessionId: this.threadId },
+              `Captured Codex thread ID from stream: ${this.threadId.slice(0, 8)}...`
+            );
+          }
+          continue;
         }
 
         if (isItemEvent(event.type) && "item" in event && event.item) {
@@ -1555,57 +1580,73 @@ ${messageToSend}`;
     }
   }
 
-  /**
-   * Save current thread to multi-session history.
-   */
-  saveSession(title?: string): void {
+  private buildSessionEntry(
+    existing: SavedSession | null,
+    titleOverride?: string,
+    savedAtOverride?: string
+  ): SavedSession | null {
+    if (!this.threadId) return null;
+
+    const previewParts: string[] = [];
+    if (this.lastMessage) {
+      previewParts.push(`You: ${this.lastMessage}`);
+    }
+    if (this.lastAssistantMessage) {
+      previewParts.push(`Assistant: ${this.lastAssistantMessage}`);
+    }
+    const previewRaw = previewParts.join("\n");
+    const preview =
+      previewRaw.length > 280 ? `${previewRaw.slice(0, 277)}...` : previewRaw;
+
+    return {
+      session_id: this.threadId,
+      saved_at: savedAtOverride || this.lastActivity?.toISOString() || new Date().toISOString(),
+      working_dir: WORKING_DIR,
+      title: titleOverride || existing?.title || this.lastMessage || "Codex session",
+      ...(preview
+        ? { preview }
+        : existing?.preview
+          ? { preview: existing.preview }
+          : {}),
+      ...(this.recentMessages.length > 0
+        ? { recentMessages: this.recentMessages }
+        : existing?.recentMessages && existing.recentMessages.length > 0
+          ? { recentMessages: existing.recentMessages }
+          : {}),
+    };
+  }
+
+  private upsertTrackedSession(titleOverride?: string): void {
     if (!this.threadId) return;
 
     try {
-      // Load existing session history
       const history = this.loadSessionHistory();
-
-      const previewParts: string[] = [];
-      if (this.lastMessage) {
-        previewParts.push(`You: ${this.lastMessage}`);
-      }
-      if (this.lastAssistantMessage) {
-        previewParts.push(`Assistant: ${this.lastAssistantMessage}`);
-      }
-      const previewRaw = previewParts.join("\n");
-      const preview =
-        previewRaw.length > 280 ? `${previewRaw.slice(0, 277)}...` : previewRaw;
-
-      // Create new session entry
-      const newSession: SavedSession = {
-        session_id: this.threadId,
-        saved_at: new Date().toISOString(),
-        working_dir: WORKING_DIR,
-        title: title || "Codex session",
-        ...(preview ? { preview } : {}),
-        ...(this.recentMessages.length > 0 ? { recentMessages: this.recentMessages } : {}),
-      };
-
-      // Remove any existing entry with same session_id (update in place)
       const existingIndex = history.sessions.findIndex(
         (s) => s.session_id === this.threadId
       );
+      const existing = existingIndex !== -1 ? history.sessions[existingIndex]! : null;
+      const newSession = this.buildSessionEntry(existing, titleOverride);
+      if (!newSession) return;
+
       if (existingIndex !== -1) {
         history.sessions[existingIndex] = newSession;
       } else {
-        // Add new session at the beginning
         history.sessions.unshift(newSession);
       }
 
-      // Keep only the last MAX_CODEX_SESSIONS
       history.sessions = history.sessions.slice(0, MAX_CODEX_SESSIONS);
-
-      // Save
       Bun.write(CODEX_SESSION_FILE, JSON.stringify(history, null, 2));
       codexLog.info({ sessionId: this.threadId }, `Codex session saved: ${this.threadId!.slice(0, 8)}...`);
     } catch (error) {
       codexLog.warn({ err: error }, "Failed to save Codex session");
     }
+  }
+
+  /**
+   * Save current thread to multi-session history.
+   */
+  saveSession(title?: string): void {
+    this.upsertTrackedSession(title);
   }
 
   /**
@@ -1761,6 +1802,22 @@ ${messageToSend}`;
    */
   getThreadId(): string | null {
     return this.threadId;
+  }
+
+  /**
+   * Get the current active Codex session as a normalized snapshot for observability.
+   */
+  getActiveSessionSnapshot(): SavedSession | null {
+    if (!this.threadId) return null;
+
+    const existing =
+      this.loadSessionHistory().sessions.find((session) => session.session_id === this.threadId)
+      || null;
+    return this.buildSessionEntry(
+      existing,
+      existing?.title || this.lastMessage || "Active Codex session",
+      this.lastActivity?.toISOString() || existing?.saved_at || new Date().toISOString()
+    );
   }
 
   /**
