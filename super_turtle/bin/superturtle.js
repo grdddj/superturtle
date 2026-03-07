@@ -8,6 +8,7 @@
  *   superturtle start   — interactive tmux launcher/attach
  *   superturtle service run — foreground service runner
  *   superturtle stop    — stop bot + all SubTurtles
+ *   superturtle restart — stop and restart (errors if not running)
  *   superturtle status  — show bot and SubTurtle status
  *   superturtle doctor  — full process + log observability snapshot
  *   superturtle logs    — tail loop/pino/audit logs
@@ -1394,6 +1395,32 @@ async function stop() {
   }
 }
 
+function isBotRunning() {
+  const cwd = process.cwd();
+  const projectEnv = loadProjectEnv(cwd) || {};
+  const env = { ...process.env, ...projectEnv };
+  const tmuxSession = resolveTmuxSession(cwd, env);
+  const check = spawnSync("tmux", ["has-session", "-t", tmuxSession], { stdio: "pipe" });
+  return check.status === 0;
+}
+
+function restart() {
+  if (!isBotRunning()) {
+    console.error("Error: bot is not running. Use 'superturtle start' first.");
+    process.exit(1);
+  }
+
+  const cwd = process.cwd();
+  const projectEnv = loadProjectEnv(cwd) || {};
+  const env = { ...process.env, ...projectEnv };
+  const tmuxSession = resolveTmuxSession(cwd, env);
+  spawnSync("tmux", ["kill-session", "-t", tmuxSession], { stdio: "pipe" });
+  console.log("Bot stopped.");
+
+  console.log("Starting bot...");
+  start();
+}
+
 function status() {
   const cwd = getBoundProjectRoot(process.cwd());
   migrateLegacyRuntimeLayout(cwd);
@@ -2066,6 +2093,9 @@ if (require.main === module) {
     case "stop":
       stop().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
       break;
+    case "restart":
+      restart();
+      break;
     case "status":
       status();
       break;
@@ -2141,6 +2171,7 @@ Commands:
   start     Launch the interactive tmux session and attach immediately
   service   Foreground service commands
   stop      Stop the bot and all SubTurtles
+  restart   Stop and restart the bot (errors if not running)
   status    Show bot and SubTurtle status
   doctor    Full process + log observability snapshot
   logs      Tail logs (loop|pino|audit)
