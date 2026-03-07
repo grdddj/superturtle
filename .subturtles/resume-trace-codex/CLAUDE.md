@@ -1,13 +1,13 @@
 ## Current task
-Trace driver-switch and new-session behavior in callback/commands/streaming handlers and session managers; the `/resume` ordering and persistence regressions now have focused fixes and regression coverage.
+Reproduce logic-level failure path: Claude session active -> switch to Codex -> /resume visibility.
 
 ## End goal with specs
 Produce a root-cause analysis with exact file/function references and a minimal, correct fix plan for both issues.
 
 ## Backlog
 - [x] Inspect /resume session list build path in super_turtle/claude-telegram-bot/src/handlers/commands.ts
-- [ ] Trace driver-switch and new-session behavior in callback/commands/streaming handlers and session managers <- current
-- [ ] Reproduce logic-level failure path: Claude session active -> switch to Codex -> /resume visibility
+- [x] Trace driver-switch and new-session behavior in callback/commands/streaming handlers and session managers
+- [ ] Reproduce logic-level failure path: Claude session active -> switch to Codex -> /resume visibility <- current
 - [ ] Identify exact sorting bug and exact persistence/save bug with code references
 - [ ] Propose smallest safe fix and tests to prevent regression
 
@@ -22,3 +22,6 @@ Focus on:
 2026-03-07:
 - `/resume` now keeps the 5-per-driver cap but globally sorts the merged Claude/Codex options by `saved_at`.
 - Regression coverage now exercises mixed-driver ordering, inactive-driver visibility, and session persistence across `kill()` for both Claude and Codex.
+- Trace coverage in `super_turtle/claude-telegram-bot/src/handlers/switch-new-session.trace.test.ts` now pins the control flow:
+  - `handleSwitch()` in `src/handlers/commands.ts`, callback `switch:*` in `src/handlers/callback.ts`, and bot-control `switch_driver` in `src/handlers/streaming.ts` all go through `resetAllDriverSessions({ stopRunning: true })`; Codex switch paths then call `codexSession.startNewThread()` before flipping `session.activeDriver`.
+  - `/new` in `src/handlers/commands.ts` resets both drivers, but bot-control `new_session` in `src/handlers/streaming.ts` only calls `sessionObj.stop()` and `sessionObj.kill()` for the invoking driver, leaving the other driver's linked session untouched.
