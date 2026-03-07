@@ -920,6 +920,7 @@ function getClaudeAccessToken(): string | null {
     const user = process.env.USER || "unknown";
     const home = process.env.HOME || "";
     const credPaths = [
+      `${home}/.claude/.credentials.json`,
       `${home}/.config/claude-code/credentials.json`,
       `${home}/.claude/credentials.json`,
     ];
