@@ -75,13 +75,8 @@ Primary focus: full observability of all running processes (bot runtime, SubTurt
 - tmux session names are token/project scoped (`superturtle-{tokenPrefix}-{projectSlug}`) to prevent cross-project interference
 - Process-level fatal handlers (`uncaughtException`, `unhandledRejection`) now emit pino/event logs and force supervised restart
 
-### In Progress (local only, not baseline yet)
-- Branch `wip/logging-split` commit `0a5d546` adds request/event correlation IDs and expanded event logging across handlers/streaming paths
-
 ### Known Gaps
-- No single documented, one-pass process inventory flow (bot + SubTurtles + cron + logs)
-- No explicit incident triage playbook in this root file
-- Robustness expectations are not yet captured as concrete acceptance checks
+- No critical gaps currently tracked in this file. Add only specific, actionable gaps as they appear.
 
 ## Process Observability Matrix
 - Super Turtle bot process
@@ -118,14 +113,7 @@ Multiple Super Turtle instances (dev + prod, different projects) run on the same
 - ✅ npm release safety gates: CI runs on PR + main push with Bun typecheck/tests, Python tests, npm tarball smoke check, and non-destructive `superturtle init` test (preserves existing `.claude`, `CLAUDE.md`, `AGENTS.md`)
 
 ## Backlog
-- [x] Build a single-command process inventory flow (bot + SubTurtles + cron + key logs)
-- [ ] Harden error-path observability: every crash/failure mode must have one durable, queryable log surface
-- [ ] Add clear triage workflow for stalled queue, dead bot session, and cron drift scenarios
-- [ ] Validate/merge local request-correlation work (`wip/logging-split` / `0a5d546`) or replace with equivalent
-- [ ] Reuse Telegram bot output streaming primitives in the runtime flow (with research notes)
-- [ ] Audit STOP behavior and polish queued-message visibility while a response is running
-- [ ] Redesign `/context` to report Super Turtle-level loaded prompts (CLAUDE.md + META prompt)
-- [ ] Review overnight commits and publish a concise dev-branch checkpoint (no push)
+- No active backlog items right now.
 
 ## Debug/Triage Playbook
 1. Confirm process liveness
@@ -159,7 +147,6 @@ Multiple Super Turtle instances (dev + prod, different projects) run on the same
 - TOKEN_PREFIX lives in `src/token-prefix.ts` (standalone leaf module, no circular deps)
 - MCP IPC files isolated in `/tmp/superturtle-{tokenPrefix}/`, passed to MCP servers via `SUPERTURTLE_IPC_DIR` env var
 - The bot is the meta agent — system prompt is `super_turtle/meta/META_SHARED.md`, injected via `config.ts`
-- Observability instrumentation branch pending review: `wip/logging-split` (commit `0a5d546`)
 - LinkedIn demo (Turtle In) lives in separate repo: `https://github.com/turtleagent/TurtleIn`
 - npm/CI hardening shipped in commit `8f6b29e`:
   - `.github/workflows/ci.yml` (PR + push + workflow_dispatch; Python + package smoke + init safety jobs)
