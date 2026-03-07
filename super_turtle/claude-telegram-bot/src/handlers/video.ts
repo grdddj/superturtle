@@ -160,6 +160,7 @@ export async function handleVideo(ctx: Context): Promise<void> {
 
     const response = await runMessageWithActiveDriver({
       message: prompt,
+      source: "video",
       username,
       userId,
       chatId,

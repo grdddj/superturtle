@@ -445,6 +445,7 @@ export async function handleCallback(ctx: Context): Promise<void> {
   try {
     const response = await runMessageWithActiveDriver({
       message,
+      source: "callback",
       username,
       userId,
       chatId,

@@ -210,6 +210,7 @@ export async function handleText(
       try {
         const response = await driver.runMessage({
           message,
+          source: "text",
           username,
           userId,
           chatId,

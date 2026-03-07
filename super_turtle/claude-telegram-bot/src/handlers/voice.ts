@@ -192,6 +192,7 @@ export async function handleVoice(ctx: Context): Promise<void> {
     // 13. Send to active driver
     const response = await runMessageWithActiveDriver({
       message: transcript,
+      source: "voice",
       username,
       userId,
       chatId,

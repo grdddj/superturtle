@@ -120,6 +120,7 @@ export async function processAudioFile(
     // Send to active driver
     const response = await runMessageWithActiveDriver({
       message: prompt,
+      source: "audio",
       username,
       userId,
       chatId,

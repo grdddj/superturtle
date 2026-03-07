@@ -102,6 +102,7 @@ async function processPhotos(
   try {
     const response = await runMessageWithActiveDriver({
       message: prompt,
+      source: "photo",
       username,
       userId,
       chatId,

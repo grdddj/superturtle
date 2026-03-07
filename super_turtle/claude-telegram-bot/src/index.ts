@@ -478,6 +478,7 @@ async function drainPreparedSnapshotsWhenIdle(): Promise<void> {
       try {
         response = await runMessageWithDriver(primaryDriver, {
           message: buildPreparedSnapshotPrompt(snapshot),
+          source: "background_snapshot",
           username: "cron",
           userId: ALLOWED_USERS[0]!,
           chatId: snapshot.chatId,
@@ -490,6 +491,7 @@ async function drainPreparedSnapshotsWhenIdle(): Promise<void> {
         }
         response = await runMessageWithDriver(fallbackDriver, {
           message: buildPreparedSnapshotPrompt(snapshot),
+          source: "background_snapshot",
           username: "cron",
           userId: ALLOWED_USERS[0]!,
           chatId: snapshot.chatId,
@@ -769,6 +771,7 @@ const startCronTimer = () => {
               try {
                 response = await runMessageWithDriver(primaryDriver, {
                   message: job.prompt,
+                  source: "cron_silent",
                   username: "cron",
                   userId: resolvedUserId,
                   chatId: resolvedChatId,
@@ -782,6 +785,7 @@ const startCronTimer = () => {
                 fallbackAttempted = true;
                 response = await runMessageWithDriver(fallbackDriver, {
                   message: job.prompt,
+                  source: "cron_silent",
                   username: "cron",
                   userId: resolvedUserId,
                   chatId: resolvedChatId,
@@ -855,6 +859,7 @@ const startCronTimer = () => {
               try {
                 await runMessageWithDriver(primaryDriver, {
                   message: injectedPrompt,
+                  source: "cron_scheduled",
                   username: "cron",
                   userId: resolvedUserId,
                   chatId: resolvedChatId,
@@ -867,6 +872,7 @@ const startCronTimer = () => {
                 }
                 await runMessageWithDriver(fallbackDriver, {
                   message: injectedPrompt,
+                  source: "cron_scheduled",
                   username: "cron",
                   userId: resolvedUserId,
                   chatId: resolvedChatId,

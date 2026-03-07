@@ -4,6 +4,7 @@
 
 import type { ListedSubTurtle, ClaudeBacklogItem } from "./handlers/commands";
 import type { MetaFileData } from "./dashboard";
+import type { InjectedArtifact } from "./injected-artifacts";
 
 // ── Existing dashboard views ─────────────────────────────────────────
 
@@ -178,6 +179,44 @@ export type SessionDetailResponse = {
   session: SessionListItem;
   messages: SessionMessageView[];
   meta: SessionMetaView;
+};
+
+export type SessionTurnView = {
+  id: string;
+  driver: SessionDriver;
+  source: string;
+  sessionId: string | null;
+  userId: number;
+  username: string;
+  chatId: number;
+  model: string;
+  effort: string;
+  originalMessage: string;
+  effectivePrompt: string;
+  injectedArtifacts: InjectedArtifact[];
+  response: string | null;
+  error: string | null;
+  status: string;
+  startedAt: string;
+  completedAt: string;
+  elapsedMs: number;
+  usage: Record<string, unknown> | null;
+  injections: {
+    datePrefixApplied: boolean;
+    metaPromptApplied: boolean;
+    cronScheduledPromptApplied: boolean;
+    backgroundSnapshotPromptApplied: boolean;
+  };
+  context: {
+    claudeMdLoaded: boolean;
+    metaSharedLoaded: boolean;
+  };
+};
+
+export type SessionTurnsResponse = {
+  generatedAt: string;
+  session: SessionListItem;
+  turns: SessionTurnView[];
 };
 
 export type ContextResponse = {

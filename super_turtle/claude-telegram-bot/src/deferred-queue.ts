@@ -174,6 +174,7 @@ export async function drainDeferredQueue(
         }
         const response = await runMessageWithActiveDriver({
           message: next.text,
+          source: next.source === "voice" ? "queue_voice" : "queue_text",
           username: next.username,
           userId: next.userId,
           chatId: next.chatId,

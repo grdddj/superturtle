@@ -1,6 +1,6 @@
 import type { Context } from "grammy";
 import { getCurrentDriver, getDriver } from "../drivers/registry";
-import type { DriverId } from "../drivers/types";
+import type { DriverId, DriverRunSource } from "../drivers/types";
 import { CTL_PATH } from "../config";
 import { session } from "../session";
 import { codexSession } from "../codex-session";
@@ -10,6 +10,7 @@ import { streamLog } from "../logger";
 
 export interface DriverMessageInput {
   message: string;
+  source: DriverRunSource;
   username: string;
   userId: number;
   chatId: number;

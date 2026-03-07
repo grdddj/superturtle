@@ -280,6 +280,7 @@ async function processArchive(
 
     const response = await runMessageWithActiveDriver({
       message: prompt,
+      source: "archive",
       username,
       userId,
       chatId,
@@ -379,6 +380,7 @@ async function processDocuments(
   try {
     const response = await runMessageWithActiveDriver({
       message: prompt,
+      source: "document",
       username,
       userId,
       chatId,
