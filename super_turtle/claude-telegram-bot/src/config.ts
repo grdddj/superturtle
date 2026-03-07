@@ -73,6 +73,20 @@ export const SUPER_TURTLE_DIR = process.env.SUPER_TURTLE_DIR
 
 export const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 
+// ============== Env Defaults (single source of truth) ==============
+
+export const ENV_DEFAULTS = {
+  LOG_LEVEL: "info",
+  SHOW_TOOL_STATUS: "false",
+  RATE_LIMIT_ENABLED: "true",
+  RATE_LIMIT_REQUESTS: "20",
+  RATE_LIMIT_WINDOW: "60",
+  DASHBOARD_ENABLED: "true",
+  CODEX_ENABLED: "false",
+  AUDIT_LOG_JSON: "false",
+  TURTLE_GREETINGS: "true",
+} as const;
+
 export type ClaudeEffortLevel = "low" | "medium" | "high";
 export type CodexEffortLevel = "minimal" | "low" | "medium" | "high" | "xhigh";
 export type MainProvider = "claude" | "codex";
@@ -157,7 +171,7 @@ export const CTL_PATH = `${SUPER_TURTLE_DIR}/subturtle/ctl`;
 export const BOT_DIR = `${SUPER_TURTLE_DIR}/claude-telegram-bot`;
 export const SUPERTURTLE_DATA_DIR = `${WORKING_DIR}/.superturtle`;
 export const CODEX_USER_ENABLED =
-  (process.env.CODEX_ENABLED || "false").toLowerCase() === "true";
+  (process.env.CODEX_ENABLED || ENV_DEFAULTS.CODEX_ENABLED).toLowerCase() === "true";
 export const CODEX_ENABLED = CODEX_USER_ENABLED;
 
 export type CodexSandboxMode = "read-only" | "workspace-write" | "danger-full-access";
@@ -442,7 +456,7 @@ function computeDefaultDashboardPort(seed: string): number {
 
 const defaultDashboardPort = computeDefaultDashboardPort(TOKEN_PREFIX);
 export const DASHBOARD_ENABLED = (
-  process.env.DASHBOARD_ENABLED || "true"
+  process.env.DASHBOARD_ENABLED || ENV_DEFAULTS.DASHBOARD_ENABLED
 ).toLowerCase() === "true";
 export const DASHBOARD_PORT = defaultDashboardPort;
 export const DASHBOARD_BIND_ADDR = "127.0.0.1";
@@ -455,25 +469,9 @@ export const SHOW_TOOL_STATUS = parseBooleanEnv("SHOW_TOOL_STATUS", false);
 export const AUDIT_LOG_PATH =
   process.env.AUDIT_LOG_PATH || `/tmp/claude-telegram-${TOKEN_PREFIX}-audit.log`;
 export const AUDIT_LOG_JSON =
-  (process.env.AUDIT_LOG_JSON || "false").toLowerCase() === "true";
+  (process.env.AUDIT_LOG_JSON || ENV_DEFAULTS.AUDIT_LOG_JSON).toLowerCase() === "true";
 
 // ============== Env Overrides Log ==============
-
-// Log all non-default env var overrides at startup for quick debugging
-const ENV_DEFAULTS: Record<string, string> = {
-  DEFAULT_MODEL: "claude-opus-4-6",
-  DEFAULT_EFFORT: "high",
-  HIDE_TOOL_STATUS: "false",
-  LOG_LEVEL: "info",
-  RATE_LIMIT_ENABLED: "true",
-  RATE_LIMIT_REQUESTS: "20",
-  RATE_LIMIT_WINDOW: "60",
-  DASHBOARD_ENABLED: "false",
-  DASHBOARD_PORT: "4173",
-  CODEX_ENABLED: "false",
-  AUDIT_LOG_JSON: "false",
-  TURTLE_GREETINGS: "true",
-};
 
 const overrides: Record<string, string> = {};
 for (const [key, defaultVal] of Object.entries(ENV_DEFAULTS)) {
@@ -489,13 +487,13 @@ if (Object.keys(overrides).length > 0) {
 // ============== Rate Limiting ==============
 
 export const RATE_LIMIT_ENABLED =
-  (process.env.RATE_LIMIT_ENABLED || "true").toLowerCase() === "true";
+  (process.env.RATE_LIMIT_ENABLED || ENV_DEFAULTS.RATE_LIMIT_ENABLED).toLowerCase() === "true";
 export const RATE_LIMIT_REQUESTS = parseInt(
-  process.env.RATE_LIMIT_REQUESTS || "20",
+  process.env.RATE_LIMIT_REQUESTS || ENV_DEFAULTS.RATE_LIMIT_REQUESTS,
   10
 );
 export const RATE_LIMIT_WINDOW = parseInt(
-  process.env.RATE_LIMIT_WINDOW || "60",
+  process.env.RATE_LIMIT_WINDOW || ENV_DEFAULTS.RATE_LIMIT_WINDOW,
   10
 );
 
