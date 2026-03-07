@@ -1,9 +1,25 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
+  clearDeferredQueue,
   dequeueDeferredMessage,
   enqueueDeferredMessage,
+  getAllDeferredQueues,
   getDeferredQueueSize,
 } from "./deferred-queue";
+
+function clearAllDeferredQueuesForTest(): void {
+  for (const chatId of getAllDeferredQueues().keys()) {
+    clearDeferredQueue(chatId);
+  }
+}
+
+beforeEach(() => {
+  clearAllDeferredQueuesForTest();
+});
+
+afterEach(() => {
+  clearAllDeferredQueuesForTest();
+});
 
 describe("deferred queue", () => {
   it("enqueues and dequeues FIFO", () => {

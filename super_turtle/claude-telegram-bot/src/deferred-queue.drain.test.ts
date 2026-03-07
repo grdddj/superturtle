@@ -141,7 +141,12 @@ describe("drainDeferredQueue", () => {
       "queue-user",
       "VOICE_QUEUED",
       "voice one",
-      "queued response"
+      "queued response",
+      expect.objectContaining({
+        request_id: expect.any(String),
+        chat_id: chatId,
+        source: "voice",
+      })
     );
     expect(deferredQueue.getDeferredQueueSize(chatId)).toBe(1);
     expect(typingStopMock).toHaveBeenCalledTimes(1);
@@ -237,14 +242,24 @@ describe("drainDeferredQueue", () => {
       "text-user",
       "TEXT_QUEUED",
       "text one",
-      "queued response"
+      "queued response",
+      expect.objectContaining({
+        request_id: expect.any(String),
+        chat_id: chatId,
+        source: "text",
+      })
     );
     expect(auditLogMock).toHaveBeenCalledWith(
       7,
       "text-user",
       "TEXT_QUEUED",
       "text two",
-      "queued response"
+      "queued response",
+      expect.objectContaining({
+        request_id: expect.any(String),
+        chat_id: chatId,
+        source: "text",
+      })
     );
     expect(deferredQueue.getDeferredQueueSize(chatId)).toBe(0);
     expect(typingStopMock).toHaveBeenCalledTimes(2);
@@ -315,7 +330,12 @@ describe("drainDeferredQueue", () => {
       "suppressed-user",
       "TEXT_QUEUED",
       "post-stop",
-      "queued response"
+      "queued response",
+      expect.objectContaining({
+        request_id: expect.any(String),
+        chat_id: chatId,
+        source: "text",
+      })
     );
     expect(deferredQueue.getDeferredQueueSize(chatId)).toBe(0);
   });

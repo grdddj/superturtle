@@ -40,7 +40,14 @@ export function stopAllRunningSubturtles(): StopSubturtlesResult {
   let runningNames: string[] = [];
 
   try {
-    const listProc = Bun.spawnSync([CTL_PATH, "list"], { cwd: WORKING_DIR });
+    const listProc = Bun.spawnSync([CTL_PATH, "list"], {
+      cwd: WORKING_DIR,
+      env: {
+        ...process.env,
+        SUPER_TURTLE_PROJECT_DIR: WORKING_DIR,
+        CLAUDE_WORKING_DIR: WORKING_DIR,
+      },
+    });
     const listOutput = `${listProc.stdout.toString()}\n${listProc.stderr.toString()}`;
     runningNames = parseRunningSubturtleNames(listOutput);
   } catch (error) {
