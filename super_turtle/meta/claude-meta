@@ -31,5 +31,5 @@ echo "[claude-meta] meta prompt: $prompt_file (${meta_len} chars)" >&2
 exec claude \
   --dangerously-skip-permissions \
   --allowedTools "$allowed_tools" \
-  --append-system-prompt "$meta_text" \
+  --system-prompt "$meta_text" \
   "$@"
