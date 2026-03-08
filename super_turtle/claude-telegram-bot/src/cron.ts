@@ -15,7 +15,7 @@ import { cronLog } from "./logger";
 
 // Job type definition
 export type CronJobKind = "generic" | "subturtle_supervision";
-export type CronSupervisionMode = "silent" | "orchestrator";
+export type CronSupervisionMode = "silent";
 
 export interface CronJob {
   id: string;
@@ -44,7 +44,7 @@ function normalizeCronJobKind(value: unknown): CronJobKind | undefined {
 }
 
 function normalizeCronSupervisionMode(value: unknown): CronSupervisionMode | undefined {
-  if (value === "silent" || value === "orchestrator") {
+  if (value === "silent") {
     return value;
   }
   return undefined;

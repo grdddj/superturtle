@@ -114,6 +114,43 @@ describe("loadJobs()", () => {
     ]);
   });
 
+  it("drops legacy orchestrator supervision metadata during normalization", () => {
+    writeFileSync(
+      fixtureJobsFile,
+      JSON.stringify([
+        {
+          id: "job-legacy-orchestrator",
+          prompt: "check worker-a",
+          type: "recurring",
+          interval_ms: 600000,
+          silent: true,
+          job_kind: "subturtle_supervision",
+          worker_name: "worker-a",
+          supervision_mode: "orchestrator",
+          fire_at: 1000,
+          created_at: "2026-02-01T00:00:00.000Z",
+        },
+      ])
+    );
+
+    const jobs = loadJobs();
+    expect(jobs).toEqual([
+      {
+        id: "job-legacy-orchestrator",
+        prompt: "check worker-a",
+        chat_id: undefined,
+        type: "recurring",
+        interval_ms: 600000,
+        silent: true,
+        job_kind: "subturtle_supervision",
+        worker_name: "worker-a",
+        supervision_mode: undefined,
+        fire_at: 1000,
+        created_at: "2026-02-01T00:00:00.000Z",
+      },
+    ]);
+  });
+
   it("rejects jobs missing required fields by skipping them", () => {
     writeFileSync(
       fixtureJobsFile,
