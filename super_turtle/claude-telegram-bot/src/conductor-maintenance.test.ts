@@ -1,0 +1,148 @@
+import { afterEach, describe, expect, it } from "bun:test";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { dirname, join } from "path";
+import { runConductorMaintenance } from "./conductor-maintenance";
+
+const tempDirs: string[] = [];
+
+function writeJson(path: string, payload: unknown): void {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, `${JSON.stringify(payload, null, 2)}\n`, "utf-8");
+}
+
+function makeStateDir(): string {
+  const dir = mkdtempSync(join(tmpdir(), "conductor-maintenance-"));
+  tempDirs.push(dir);
+  return dir;
+}
+
+afterEach(() => {
+  while (tempDirs.length > 0) {
+    const dir = tempDirs.pop();
+    if (dir) rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+describe("runConductorMaintenance", () => {
+  it("recovers pending terminal work, cleans stale cron once, and stays idempotent on repeat runs", async () => {
+    const baseDir = makeStateDir();
+    const stateDir = join(baseDir, ".superturtle", "state");
+    const archivedWorkspace = join(baseDir, ".subturtles", ".archive", "worker-recover");
+    mkdirSync(join(stateDir, "workers"), { recursive: true });
+    mkdirSync(join(stateDir, "wakeups"), { recursive: true });
+    mkdirSync(archivedWorkspace, { recursive: true });
+
+    writeFileSync(
+      join(archivedWorkspace, "CLAUDE.md"),
+      `# Current task
+
+Recover completed worker
+
+# Backlog
+- [x] Ship recovered path
+`,
+      "utf-8"
+    );
+
+    writeJson(join(stateDir, "workers", "worker-recover.json"), {
+      kind: "worker_state",
+      schema_version: 1,
+      worker_name: "worker-recover",
+      run_id: "run-recover",
+      lifecycle_state: "completion_pending",
+      workspace: archivedWorkspace,
+      cron_job_id: "cron-recover",
+      current_task: "Recover completed worker",
+      completion_requested_at: "2026-03-08T00:00:00Z",
+      metadata: {},
+    });
+    writeJson(join(stateDir, "workers", "worker-orphan.json"), {
+      kind: "worker_state",
+      schema_version: 1,
+      worker_name: "worker-orphan",
+      run_id: "run-orphan",
+      lifecycle_state: "running",
+      workspace: join(baseDir, ".subturtles", "worker-orphan"),
+      cron_job_id: "cron-orphan",
+      current_task: "Clean stale cron",
+      metadata: {},
+    });
+
+    const jobs = [
+      {
+        id: "cron-recover",
+        type: "recurring" as const,
+        job_kind: "subturtle_supervision" as const,
+        worker_name: "worker-recover",
+        chat_id: 123,
+      },
+      {
+        id: "cron-orphan",
+        type: "recurring" as const,
+        job_kind: "subturtle_supervision" as const,
+        worker_name: "worker-orphan",
+        chat_id: 123,
+      },
+    ];
+    const sentMessages: string[] = [];
+
+    const first = await runConductorMaintenance({
+      stateDir,
+      defaultChatId: 123,
+      listJobs: () => [...jobs],
+      removeJob: (id) => {
+        const index = jobs.findIndex((job) => job.id === id);
+        if (index === -1) return false;
+        jobs.splice(index, 1);
+        return true;
+      },
+      sendMessage: async (_chatId, text) => {
+        sentMessages.push(text);
+      },
+      isWorkerRunning: () => false,
+      nowIso: (() => {
+        const timestamps = [
+          "2026-03-08T01:00:00Z",
+          "2026-03-08T01:00:01Z",
+          "2026-03-08T01:00:02Z",
+        ];
+        let index = 0;
+        return () => timestamps[Math.min(index++, timestamps.length - 1)]!;
+      })(),
+    });
+
+    expect(first.recoveredWakeups).toBe(1);
+    expect(first.staleCronRemoved).toBe(1);
+    expect(first.staleCronNotified).toBe(1);
+    expect(first.sent).toBe(1);
+    expect(jobs).toHaveLength(0);
+    expect(sentMessages).toHaveLength(2);
+    expect(sentMessages.some((text) => text.includes("🎉 Finished: worker-recover"))).toBe(true);
+    expect(sentMessages.some((text) => text.includes("⚠️ SubTurtle worker-orphan is not running"))).toBe(true);
+
+    const second = await runConductorMaintenance({
+      stateDir,
+      defaultChatId: 123,
+      listJobs: () => [...jobs],
+      removeJob: () => false,
+      sendMessage: async (_chatId, text) => {
+        sentMessages.push(text);
+      },
+      isWorkerRunning: () => false,
+      nowIso: () => "2026-03-08T01:10:00Z",
+    });
+
+    expect(second.recoveredWakeups).toBe(0);
+    expect(second.staleCronRemoved).toBe(0);
+    expect(second.staleCronNotified).toBe(0);
+    expect(second.sent).toBe(0);
+    expect(second.reconciled).toBe(0);
+    expect(sentMessages).toHaveLength(2);
+
+    const events = readFileSync(join(stateDir, "events.jsonl"), "utf-8");
+    expect(events).toContain('"event_type":"worker.recovered"');
+    expect(events).toContain('"event_type":"worker.completed"');
+    expect(events).toContain('"event_type":"worker.cron_removed"');
+  });
+});

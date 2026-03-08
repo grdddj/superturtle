@@ -74,10 +74,9 @@ import { UpdateDedupeCache } from "./update-dedupe";
 import { startTurtleGreetings } from "./turtle-greetings";
 import {
   cleanupStaleRecurringSubturtleCron,
-  processPendingConductorWakeups,
   processSilentSubturtleSupervision,
-  recoverPendingWorkerWakeups,
 } from "./conductor-supervisor";
+import { runConductorMaintenance } from "./conductor-maintenance";
 import {
   buildPreparedSnapshotPrompt,
 } from "./conductor-snapshot";
@@ -238,6 +237,31 @@ function refreshConductorHandoff(): void {
         stderr: stderr || undefined,
       },
       "Failed to refresh conductor handoff"
+    );
+  }
+}
+
+async function runConductorMaintenancePass(): Promise<void> {
+  const maintenanceResult = await runConductorMaintenance({
+    listJobs: getJobs,
+    removeJob,
+    sendMessage: async (chatId, text) => {
+      await bot.api.sendMessage(chatId, text);
+    },
+    isWorkerRunning: (workerName: string) => isSubturtleRunning(workerName),
+  });
+
+  if (
+    maintenanceResult.recoveredWakeups > 0 ||
+    maintenanceResult.staleCronRemoved > 0 ||
+    maintenanceResult.sent > 0 ||
+    maintenanceResult.reconciled > 0 ||
+    maintenanceResult.errors > 0
+  ) {
+    refreshConductorHandoff();
+    cronLog.info(
+      { maintenanceResult },
+      `[conductor] recovered_wakeups=${maintenanceResult.recoveredWakeups} stale_cron_removed=${maintenanceResult.staleCronRemoved} sent=${maintenanceResult.sent} reconciled=${maintenanceResult.reconciled} errors=${maintenanceResult.errors} skipped=${maintenanceResult.skipped}`
     );
   }
 }
@@ -476,33 +500,7 @@ const startCronTimer = () => {
 
   setInterval(async () => {
     try {
-      const recoveredState = recoverPendingWorkerWakeups();
-      if (recoveredState.recoveredWakeups > 0 || recoveredState.reconciled > 0) {
-        refreshConductorHandoff();
-        cronLog.info(
-          { recoveredState },
-          `[conductor] recovered_wakeups=${recoveredState.recoveredWakeups} reconciled=${recoveredState.reconciled}`
-        );
-      }
-
-      const supervisorTick = await processPendingConductorWakeups({
-        listJobs: getJobs,
-        removeJob,
-        sendMessage: async (chatId, text) => {
-          await bot.api.sendMessage(chatId, text);
-        },
-      });
-      if (
-        supervisorTick.sent > 0 ||
-        supervisorTick.reconciled > 0 ||
-        supervisorTick.errors > 0
-      ) {
-        refreshConductorHandoff();
-        cronLog.info(
-          { supervisorTick },
-          `[conductor] sent=${supervisorTick.sent} reconciled=${supervisorTick.reconciled} errors=${supervisorTick.errors} skipped=${supervisorTick.skipped}`
-        );
-      }
+      await runConductorMaintenancePass();
 
       const dueJobs = getDueJobs();
       if (dueJobs.length === 0) {
@@ -913,6 +911,8 @@ if (existsSync(RESTART_FILE)) {
     try { unlinkSync(RESTART_FILE); } catch {}
   }
 }
+
+await runConductorMaintenancePass();
 
 // Start with concurrent runner (commands work immediately)
 // Retry forever on getUpdates failures (e.g. network drop during sleep)

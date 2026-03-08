@@ -442,6 +442,7 @@ Current producer coverage:
 - the bot timer also writes `.superturtle/state/inbox/<id>.json` for notable/critical lifecycle wake-ups so the next successful interactive Claude/Codex turn sees those background events as injected context and then acknowledges them durably
 - the bot timer now runs deterministic silent supervision for structured SubTurtle cron jobs, comparing canonical checkpoint/backlog signatures across checks and emitting `worker.milestone_reached` / `worker.stuck_detected` plus notable wake-ups when policy thresholds are met
 - the bot timer now repairs missing `completion_requested`, `fatal_error`, and `timeout` wake-ups from canonical worker state before delivery, so pending terminal transitions can still complete after a bot restart or partial state loss
+- the bot now runs the same conductor maintenance pass once at startup and then on every timer tick, so wake-up recovery and stale recurring-cron cleanup happen immediately after a reboot instead of waiting for the first cron interval
 - stale recurring SubTurtle cron cleanup is now persisted back into conductor state via `worker.cron_removed`, rather than existing only as an operator warning path
 
 The migration is still in a mixed mode:
@@ -454,7 +455,7 @@ The migration is still in a mixed mode:
 - `handoff.md` now renders from canonical worker state plus pending wakeups, and dashboard lanes prefer conductor worker fields for currently listed SubTurtles
 - preview/tunnel URLs are attached to milestone wake-ups when present, but they are not yet a standalone milestone trigger
 
-The next step is to prove the conductor path under restart, stale-cleanup, and multi-worker recovery scenarios.
+The next step is to keep expanding restart and multi-worker coverage around the shared maintenance path, not to add another orchestration layer.
 
 ## Verification
 
