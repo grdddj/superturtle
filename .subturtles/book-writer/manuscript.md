@@ -782,3 +782,298 @@ Under it she added one hand-drawn arrow:
 Then she opened an old folder and typed a single line in hard copy before she slept:
 
 `Silas was not missing from the city on day one. He was moved.`
+
+---
+
+## Chapter 8 — State of Grace
+
+The next morning started with light too thin to trust and a message that came from two different channels at once.
+
+`12:17 message from Sera: they have opened the hospital archive door. Come before patrol sweep.`
+
+`03:00 message from Nina Veller: do not move on evidence without witness signature.`
+
+Mara looked at both screens until the letters blurred.
+
+The hospital archive sat at the edge of Dock Nine, where floodwater had once climbed as high as the third story and left a line of salt on every wall. Even in daylight, the block looked as if it had decided to stop caring decades ago.
+
+Rian met her at the loading bay, hair still damp, carrying two hard drives and a rolled map in waxed paper.
+
+“You’re late,” he said.
+
+She glanced at her watch. “Only because I wanted to make sure I was awake before this.”
+
+“No one wants to die awake here,” he replied, not unkindly.
+
+At the front desk, a woman in a navy uniform asked for her name and asked it again.
+
+“Mara Vellum.”
+
+“No one named Vellum is assigned for this terminal,” the woman said, checking a scanner.
+
+Rara, from Sera’s watch list, stepped from the side room and gave Mara the smallest nod.
+
+“Her name changed in 2031,” she said. “No problem. You are here under witness protocol, but you are still an active civic editor. I have to ask what you’re taking in.”
+
+Mara handed over the blank carbon card.
+
+“Nothing and everything,” she said. “If we find a record, we need it in public before it gets rerouted again.”
+
+Rara let out a breath. “Then you signed up for a bad outcome.”
+
+She pressed the card. The terminal in the corner printed:
+
+**ACCESS LEVEL: CIVIC REVIEW / GRACE SUBTYPE 3**
+
+**NO RECORDS MAY LEAVE THE ROOM WITHOUT WITNESS COUNTERSIGN.**
+
+Mara read the line aloud before she could stop herself: “Grace subtype three.”
+
+Rara slid open a steel cart and revealed six shelves of binders marked in white labels:
+
+*Emergency Casualty Register*  
+*Temporary Residency Transfers*  
+*Family Notification Exceptions*  
+*Dock Nine Mortality Correspondence*  
+*Public Narrative Guidance*  
+*Residual Cases Ledger.*
+
+Rian whispered, “That last shelf is the one.”
+
+Mara sat at the station and opened the residual ledger first, hoping for a miracle in the oldest paper. It was all neat type and stamps and dates, except for one recurring block in bold red:
+
+`CASE CLOSURE — STATE OF GRACE`
+
+`RISK OF CIVIC PANIC: HIGH`
+
+`DISPOSITION: ADMINISTRATIVE ERROR`
+
+Under each of those lines were names and dates from the first forty-eight hours after Dock Nine.
+
+The first name was **LENA HARROW**.
+
+The second was **SILAS VENN**.
+
+The third was **NORA HOLT**, and then dozens more she recognized from old school rosters and old funeral lists.
+
+“I thought those were verified casualties,” Mara said.
+
+“Everything in this section has that phrase,” said Rian, leaning over her shoulder. “Administrative error. Never reopened.”
+
+Rara came behind them with two mugs of coffee so thick it could stand. “You wanted grief,” she said. “You should know this part first.”
+
+On page after page, the same pattern repeated:
+
+`Family support initiated.`  
+`Remembrance grant approved.`  
+`Memory redaction requested.`  
+`State of grace applied.`  
+`Case closed.`
+
+In the margin, someone had added pencil notes that did not match the official tone:
+
+`No body sighted in transfer block.`  
+`No burial record.`  
+`No legal witness.`  
+`Reroute at 03:14 / 03:16.`  
+
+Mara felt the old fear she had spent months trying to turn into method come back as heat in her chest.
+
+“This looks like a second classification,” she said. “Not errors. concealment.”
+
+Rara set down one of the mugs. “We used another word,” she said. “Mercy.”
+
+“Mercy means someone approved it. Someone decided the city could not carry all these deaths as truth.”
+
+Rara did not answer directly. She reached across and held up another binder: *Public Narrative Guidance*.
+
+The first page was not records. It was policy language drafted in that same patient bureaucratic tone of someone who had practiced being calm under pressure.
+
+`DO NOT RELEASE UNCONFIRMED DEATH COUNT.`  
+`UNCONFIRMED DEATHS SHOULD BE COMMUNICATED AS ADMINISTRATIVE DISPLACEMENTS.`  
+`IF FAMILY DEMANDS TESTIMONY, OFFER RECORDING FRAME WITH LIMITS.`  
+`GRACE SUBTYPE 3: protect fragile districts from repetitive recall trauma.`
+
+Underlined:
+
+`“Noisy grief destabilizes rebuilding markets and increases retaliatory claims.”`
+
+Mara read it once and then again and found her hands shaking so much the mug rattled.
+
+Sera arrived with the same silent step she used in the witness house.
+
+“You found it,” Sera said.
+
+“I found enough to be scared,” Mara said.
+
+“Good. Fear without direction still does nothing. We need one thing. One sentence we can prove right now and take to all channels.”
+
+“I don’t know if one sentence can carry this.”
+
+“Then don’t carry it all. Carry the bridge.”
+
+Mara looked back at page where Lena and Silas sat in the same “state of grace” category and felt the old habit of control break.
+
+“We need proof that this was a city decision, not just clerical drift. There has to be a signature chain. I need a name.”
+
+Rara’s shoulders stayed still. “I can give you one thing before patrol returns.”
+
+She reached beneath the counter and brought out a folder with a green card.
+
+`INTERNAL COMMUNICATIONS: POST-FLOOD DIVERSION AUTHORIZATION`
+
+`Prepared by: SILAS VENN`  
+`Review committee: closed`
+
+Mara skimmed it and saw the red-ink initial in the lower-right corner. Not Silas’s signature. An approval chain collapsed into one word:
+
+`APPROVED FOR QUIET IMPLEMENTATION`  
+`By: BOARD OF RESONANCE`  
+`No witness signature required.`
+
+Underneath, the same phrase from Silas’s recorded message appeared in block:
+
+`Temporary filter. Temporary only.` 
+
+“Board of Resonance?” Rian repeated.
+
+“That wasn’t a person?” she asked Rara.
+
+“Not in the way you’d record.”
+
+Sera sat down at the same table and pulled out a small battery-powered scanner. “We’re not building the final argument yet. But there is one ethical question we can’t avoid: do we publish this with the names and force people to relive Dock Nine, or do we wait and verify every detail and risk the board closing the file?”
+
+Mara stared at the list of names. Most belonged to families she had met in hallways but never in person. She thought of Anja Pell from the outline of old witness lists and wondered if those children still lived with half a sentence as inheritance.
+
+She lifted the carbon card and wrote the first sentence she had no permission to write.
+
+`State of grace is being used as a legal category to replace grief with procedure.`
+
+She felt her own pulse in the paper.
+
+“If you submit that,” Rara said, “it becomes a threat under their own language.”
+
+“So be it.”
+
+Nina’s face came up on the internal terminal as if summoned. Not in person, only a message line and the sound of a dry, careful voice.
+
+`You are at Dock Nine archive. Why is the city in your room?`  
+`Mara, pull your team out.`  
+`This is not a room for heroics. Come back to active layer.`
+
+Mara did not answer immediately.
+
+Outside, the first siren of patrol passed and turned away. The system had not yet flagged them but was watching anyway.
+
+She looked at Rian. “You can mirror everything on your drive and leave if I get stopped?”
+
+Rian held up a USB stick. “One copy to you, one copy to witness cache, one copy to the municipal mirror if I need to disappear.”
+
+Mara nodded.
+
+She opened a fresh page in her notebook and wrote the sequence as plain text:
+
+`Dock Nine deaths = State of Grace classifications.`
+
+`Dock Nine deaths reclassified as administrative errors.`  
+
+`Approver field: Board of Resonance (no person).`
+
+`Primary filter rationale: mercy / public stability.`  
+
+`Time windows align with 03:14 and 03:16 reroutes.`
+
+She stopped and crossed out nothing.
+
+“No,” she said. “No cleanup this time. I’m sending this to the quiet witness only for now.”
+
+At the doorway Rara hesitated, then held out an envelope.
+
+“You brought me your card. I kept this for you.”
+
+Inside was a single sheet with a single stamped line:
+
+**RETURN TOKEN: 11-B/quiet**
+
+Mara turned it over and found a second line written in pencil:
+
+**DO NOT FILE THIS. PRESERVE.**
+
+She folded it once, then again, and put it in the notebook pocket.
+
+On the ride back toward Sera’s house, the city had started a long, low announcement about floodgate inspections. The voice was smooth, neutral, impossible to identify.
+
+“Residents are advised to keep moving records in mind for three days and keep household ledgers updated.”
+
+Rian laughed once, a dry sound. “Household ledgers are where panic begins.”
+
+“Maybe,” Mara said, “or where truth returns.”
+
+At the warehouse, Mara found Silas waiting at the far table, hands on his knees, face as if he had not slept for months.
+
+He did not ask permission to be there. He simply nodded to the drive she carried.
+
+“You found it,” he said.
+
+His tone made her turn before she spoke. “You are listed in it, too.”
+
+He sat down and pressed both palms on the table. “I thought I was gone when I stepped off that floor. They said temporary. Then I stayed inside it so the next emergency could be called temporary.”
+
+His sentence was quiet and not an explanation.
+
+“Your initials appear on the board memo,” she said.
+
+“It was one of many forms we signed,” he said. “You know what came after Dock Nine. We couldn’t tell families they’d all survive and still count everyone exactly. So we wrote for stability first. The city was a machine bleeding, and panic did the other work.”
+
+“Did you know it was people, not systems?”
+
+He swallowed. “At the start, I thought a clean narrative was mercy. I was wrong. But we were not thinking in absolutes. We were thinking in minutes.”
+
+“Minutes,” she repeated. “That was the whole mercy model.”
+
+Silas nodded once. “I did not leave a full record because everyone did. We believed if enough people looked away, the record could still be intact where it hurt least.”
+
+“So you left the city’s conscience to someone else.”
+
+“No,” he said, and this was the first time his voice cracked. “I left it to be finished. I should have stayed in the room long enough to finish it differently.”
+
+Mara looked at him for a long moment and set the drive down between them.
+
+“What do you want now?” she asked.
+
+“If you can make noise that does not become vengeance,” he said, “make one small doorway first. Not a riot. Not a revelation. One public witness protocol that cannot be shut by a typo.”
+
+She said nothing for some time.
+
+At the edge of the room, Rian had resumed scanning metadata from the hard drive. Sera watched the door. Rara stood with one hand on her bag.
+
+Mara lifted the notebook and wrote in hard lines:
+
+`We cannot keep mercy as governance and call it healing.`  
+`We cannot erase what happened at Dock Nine and then ask families to trust the archive.`  
+`The witness office receives records only if they can be publicly traced.`  
+
+Then she added one last line at the bottom:
+
+`I will not file this as error anymore.`  
+
+The room felt very still.
+
+Outside, a second announcement crackled through the street speakers:
+
+`Dock Nine status update: all pending recollection proceedings remain unresolved.`  
+`Residents are advised to consult approved remembrance channels.`
+
+Mara turned the page in the notebook and wrote one word at the top in thick block:
+
+**STATE OF GRACE**
+
+Under it:
+
+`If governance uses it to hide, it is not grace.`
+
+She packed the drive, closed the folder, and set the recorder on its old hook.
+
+When she wrote the next sentence, the fan in her wall clicked once, then twice, and then ran.
+
+`A year to build noise. We start public now.`

@@ -1,5 +1,5 @@
 # Current task
-Continue drafting the remaining chapters of "The Quiet Index", with Chapters 4–7 drafted in `manuscript.md` and progressing toward completion.
+Draft Chapter 8 ("State of Grace") in `.subturtles/book-writer/manuscript.md` and continue sequencing chapters 8 onward toward completion.
 
 # End goal with specs
 Produce a full original book manuscript with coherent structure, consistent voice, and clean chapter-level progression. Deliverables include: a complete outline, chapter drafts, revision passes for clarity and pacing, and a final manuscript-ready document in Markdown inside the worker workspace.
@@ -19,6 +19,6 @@ Produce a full original book manuscript with coherent structure, consistent voic
 - [x] Decide the book concept, genre, and one-paragraph premise
 - [x] Create a complete chapter outline with key beats and arcs
 - [x] Write the first three chapters and refine voice consistency
-- [ ] Continue drafting remaining chapters to complete the manuscript (progressed: drafted Chapters 4–7 in `manuscript.md`) <- current
+- [ ] Continue drafting remaining chapters to complete the manuscript (progressed: Chapters 4–8 drafted in `manuscript.md`) <- current
 - [ ] Perform a structural edit pass for pacing and continuity
 - [ ] Perform a final prose edit pass and publish manuscript files in workspace
