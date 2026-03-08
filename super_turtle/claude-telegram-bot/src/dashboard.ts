@@ -2,7 +2,13 @@ import { existsSync, readFileSync } from "fs";
 import { join, resolve } from "path";
 import { WORKING_DIR, CTL_PATH, DASHBOARD_ENABLED, DASHBOARD_AUTH_TOKEN, DASHBOARD_BIND_ADDR, DASHBOARD_PORT, META_PROMPT, SUPER_TURTLE_DIR, SUPERTURTLE_DATA_DIR } from "./config";
 import { getJobs } from "./cron";
-import { parseCtlListOutput, getSubTurtleElapsed, readClaudeBacklogItems, type ListedSubTurtle } from "./handlers/commands";
+import {
+  parseCtlListOutput,
+  getSubTurtleElapsed,
+  readClaudeBacklogItems,
+  type ClaudeBacklogItem,
+  type ListedSubTurtle,
+} from "./handlers/commands";
 import { getAllDeferredQueues } from "./deferred-queue";
 import { session, getAvailableModels } from "./session";
 import { codexSession } from "./codex-session";
@@ -205,6 +211,26 @@ function escapeHtml(value: unknown): string {
 
 function renderJsonPre(value: unknown): string {
   return `<pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre>`;
+}
+
+function renderBacklogChecklist(backlog: ClaudeBacklogItem[]): string {
+  if (backlog.length === 0) {
+    return '<p class="empty-state">No backlog items.</p>';
+  }
+
+  return `<ul class="backlog-checklist">${backlog
+    .map((item) => {
+      const classes = ["backlog-item"];
+      if (item.done) classes.push("done");
+      if (item.current) classes.push("current");
+
+      return `<li class="${classes.join(" ")}">
+        <span class="backlog-checkbox" aria-hidden="true">${item.done ? "&#x2611;" : "&#x2610;"}</span>
+        <span class="backlog-text">${escapeHtml(item.text)}</span>
+        ${item.current ? '<span class="backlog-tag">Current</span>' : ""}
+      </li>`;
+    })
+    .join("")}</ul>`;
 }
 
 function formatTimestamp(value?: string | null): string {
@@ -1654,6 +1680,60 @@ const DETAIL_THEME_CSS = `
         padding-left: 20px;
       }
       li + li { margin-top: 4px; }
+      .empty-state {
+        color: var(--muted);
+      }
+      .backlog-checklist {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .backlog-checklist li + li {
+        margin-top: 0;
+      }
+      .backlog-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: rgba(255, 250, 242, 0.9);
+      }
+      .backlog-item.current {
+        border-color: rgba(85, 108, 75, 0.45);
+        background: linear-gradient(135deg, rgba(245, 237, 220, 0.96), rgba(255, 252, 245, 0.96));
+        box-shadow: 0 10px 24px -22px rgba(85, 108, 75, 0.85);
+      }
+      .backlog-item.done {
+        color: var(--muted);
+      }
+      .backlog-item.done .backlog-text {
+        text-decoration: line-through;
+      }
+      .backlog-checkbox {
+        color: var(--accent-olive);
+        font-size: 15px;
+        line-height: 1.35;
+      }
+      .backlog-text {
+        flex: 1;
+        min-width: 0;
+      }
+      .backlog-tag {
+        align-self: center;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: rgba(85, 108, 75, 0.12);
+        color: var(--accent-olive);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+      }
       pre {
         margin: 0;
         padding: 12px;
@@ -1696,8 +1776,8 @@ ${DETAIL_THEME_CSS}
         </ul>
       </section>
       <section class="card">
-        <h2>Backlog (JSON)</h2>
-        ${renderJsonPre(detail.backlog)}
+        <h2>Backlog</h2>
+        ${renderBacklogChecklist(detail.backlog)}
       </section>
       <section class="card">
         <h2>subturtle.meta (JSON)</h2>

@@ -1,5 +1,5 @@
 # Current task
-Fetch `/api/conductor` in the dashboard `loadData()` flow so the UI can consume worker, wakeup, and inbox state.
+Enhance race lane cards: add a lifecycle state badge span next to the existing status text in `.lane-meta`, sourced from conductor worker data matched by name.
 
 # End goal with specs
 1. Race lane cards show a lifecycle state badge (running/completed/failed/archived/timed_out) sourced from conductor worker state, not just ctl status. Badge colors: running=green (#eaf4e4), completed=sage (#8aa67c), failed=red (#fdecec), archived=muted (#f5f1eb), timed_out=terracotta (#faebdf).
@@ -17,8 +17,8 @@ Fetch `/api/conductor` in the dashboard `loadData()` flow so the UI can consume 
 
 # Backlog
 - [x] Add conductor types to `dashboard-types.ts`: `ConductorWorkerView`, `ConductorWakeupView`, `ConductorInboxView`, `ConductorResponse`
-- [ ] Fetch `/api/conductor` in the dashboard JS `loadData()` alongside the other 3 fetches <- current
-- [ ] Enhance race lane cards: add a lifecycle state badge span next to the existing status text in `.lane-meta`, sourced from conductor worker data matched by name
+- [x] Fetch `/api/conductor` in the dashboard JS `loadData()` alongside the other 3 fetches
+- [ ] Enhance race lane cards: add a lifecycle state badge span next to the existing status text in `.lane-meta`, sourced from conductor worker data matched by name <- current
 - [ ] Add Conductor panel to the dashboard grid: show wakeups table (summary, category, state) + inbox table (title, priority, category). Place it in a new row or merge into an existing row that makes visual sense
 - [ ] Add `conductorBadge` to the header badge row showing pending count
 - [ ] Auto-hide Queue panel when empty: if `data.deferredQueue.totalMessages === 0`, render a collapsed single-line muted message instead of the full table
