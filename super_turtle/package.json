@@ -24,6 +24,7 @@
     "superturtle": "./bin/superturtle.js"
   },
   "files": [
+    "__init__.py",
     "bin/",
     "claude-telegram-bot/src/**/*.ts",
     "!claude-telegram-bot/src/**/*.test.ts",
@@ -41,7 +42,9 @@
     "claude-telegram-bot/.env.example",
     "meta/*.md",
     "meta/claude-meta",
+    "state/__init__.py",
     "subturtle/__main__.py",
+    "subturtle/__init__.py",
     "subturtle/pyproject.toml",
     "subturtle/ctl",
     "subturtle/browser-screenshot.sh",
@@ -50,6 +53,7 @@
     "subturtle/claude-md-guard/*.sh",
     "subturtle/claude-md-guard/config.sh",
     "subturtle/claude-md-guard/README.md",
+    "subturtle/subturtle_loop/__init__.py",
     "subturtle/subturtle_loop/agents.py",
     "state/*.py",
     "templates/",

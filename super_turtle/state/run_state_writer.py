@@ -2,12 +2,19 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from super_turtle.state.conductor_state import ConductorStateStore
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+try:
+    from super_turtle.state.conductor_state import ConductorStateStore
+except ModuleNotFoundError:
+    from state.conductor_state import ConductorStateStore
 
 DEFAULT_HANDOFF_NOTE = "Rendered from canonical conductor state."
 WORKSPACE_FILTER_HANDOFF_NOTE = "Workers without live workspaces are omitted from active sections."

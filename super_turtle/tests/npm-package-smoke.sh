@@ -28,8 +28,12 @@ require_file() {
 }
 
 require_file "bin/superturtle.js"
+require_file "__init__.py"
 require_file "subturtle/ctl"
+require_file "subturtle/__init__.py"
+require_file "subturtle/subturtle_loop/__init__.py"
 require_file "state/run_state_writer.py"
+require_file "state/__init__.py"
 require_file "meta/META_SHARED.md"
 require_file "claude-telegram-bot/src/index.ts"
 require_file "README.md"
@@ -41,6 +45,12 @@ if find "${PACKAGE_DIR}/claude-telegram-bot/src" -name "*.test.ts" -print -quit 
 fi
 
 node "${PACKAGE_DIR}/bin/superturtle.js" --help >/dev/null
+
+(
+  cd "${PACKAGE_DIR}"
+  python3 -m subturtle --help >/dev/null
+  python3 state/run_state_writer.py --help >/dev/null
+)
 
 node -e '
 const fs = require("fs");

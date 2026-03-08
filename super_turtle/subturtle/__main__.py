@@ -13,6 +13,7 @@ Loop types:
 Usage:
   python -m super_turtle.subturtle --state-dir .subturtles/default --name default
   python -m super_turtle.subturtle --state-dir .subturtles/fast --name fast --type yolo
+  python -m subturtle --state-dir .subturtles/default --name default
 """
 
 import argparse
@@ -26,9 +27,14 @@ import sys
 import time
 from pathlib import Path
 
-from .subturtle_loop import Claude, Codex
-from super_turtle.state.conductor_state import ConductorStateStore
-from super_turtle.state.run_state_writer import refresh_handoff_from_conductor
+from .subturtle_loop.agents import Claude, Codex
+
+try:
+    from super_turtle.state.conductor_state import ConductorStateStore
+    from super_turtle.state.run_state_writer import refresh_handoff_from_conductor
+except ModuleNotFoundError:
+    from state.conductor_state import ConductorStateStore
+    from state.run_state_writer import refresh_handoff_from_conductor
 
 # Package root (super_turtle/), used for resolving skills directory
 _SUPER_TURTLE_DIR = os.environ.get(
