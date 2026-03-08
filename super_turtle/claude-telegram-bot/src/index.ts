@@ -67,16 +67,14 @@ import type { CronJob } from "./cron";
 import { isStopIntent } from "./utils";
 import {
   dequeuePreparedSnapshot,
-  enqueuePreparedSnapshot,
   getPreparedSnapshotCount,
 } from "./cron-supervision-queue";
 import { buildCronScheduledPrompt } from "./cron-scheduled-prompt";
 import { UpdateDedupeCache } from "./update-dedupe";
 import { startTurtleGreetings } from "./turtle-greetings";
-import { processPendingConductorWakeups } from "./conductor-supervisor";
+import { processPendingConductorWakeups, processSilentSubturtleSupervision } from "./conductor-supervisor";
 import {
   buildPreparedSnapshotPrompt,
-  loadConductorSnapshotContext,
 } from "./conductor-snapshot";
 import { botLog, cronLog, eventLog } from "./logger";
 
@@ -197,7 +195,7 @@ function isSubturtleRunning(name: string): boolean {
   return output.includes("running as");
 }
 
-function shouldPrepareSilentSubturtleSnapshot(
+function resolveSilentSubturtleSupervisorWorker(
   job: Pick<CronJob, "prompt" | "silent" | "job_kind" | "worker_name" | "supervision_mode">
 ): string | null {
   if (!job.silent) return null;
@@ -237,73 +235,6 @@ function refreshConductorHandoff(): void {
       "Failed to refresh conductor handoff"
     );
   }
-}
-
-async function prepareSubturtleSnapshot(
-  jobId: string,
-  prompt: string,
-  chatId: number,
-  subturtleName: string
-) {
-  const conductorContext = loadConductorSnapshotContext({ workerName: subturtleName });
-  const prepErrors = [...conductorContext.prepErrors];
-  const workspaceDir = conductorContext.workspacePath || `${WORKING_DIR}/.subturtles/${subturtleName}`;
-  const gitCwd = existsSync(workspaceDir) ? workspaceDir : WORKING_DIR;
-  if (!existsSync(workspaceDir)) {
-    prepErrors.push(`workspace missing: ${workspaceDir}`);
-  }
-
-  const statusProc = Bun.spawnSync([CTL_PATH, "status", subturtleName], {
-    cwd: WORKING_DIR,
-  });
-  const statusOutput = statusProc.stdout.toString().trim() || statusProc.stderr.toString().trim();
-  if (statusProc.exitCode !== 0) {
-    prepErrors.push(`ctl status exit=${statusProc.exitCode}`);
-  }
-
-  const statePath = `${workspaceDir}/CLAUDE.md`;
-  let stateExcerpt = "";
-  try {
-    const stateText = await Bun.file(statePath).text();
-    stateExcerpt = stateText.slice(0, 12_000);
-  } catch (error) {
-    prepErrors.push(`state read failed: ${String(error).slice(0, 160)}`);
-    stateExcerpt = "(failed to read state file)";
-  }
-
-  const gitProc = Bun.spawnSync(["git", "log", "--oneline", "-10"], {
-    cwd: gitCwd,
-  });
-  const gitLog = gitProc.stdout.toString().trim() || gitProc.stderr.toString().trim();
-  if (gitProc.exitCode !== 0) {
-    prepErrors.push(`git log exit=${gitProc.exitCode}`);
-  }
-
-  const tunnelPath = `${workspaceDir}/.tunnel-url`;
-  let tunnelUrl: string | null = null;
-  try {
-    const txt = (await Bun.file(tunnelPath).text()).trim();
-    tunnelUrl = txt || null;
-  } catch {
-    tunnelUrl = null;
-  }
-
-  return enqueuePreparedSnapshot({
-    jobId,
-    subturtleName,
-    chatId,
-    sourcePrompt: prompt,
-    preparedAtMs: Date.now(),
-    conductorSummary: conductorContext.conductorSummary,
-    workerStateJson: conductorContext.workerStateJson,
-    recentEventsJson: conductorContext.recentEventsJson,
-    wakeupsJson: conductorContext.wakeupsJson,
-    statusOutput,
-    stateExcerpt,
-    gitLog,
-    tunnelUrl,
-    prepErrors,
-  });
 }
 
 async function drainPreparedSnapshotsWhenIdle(): Promise<void> {
@@ -566,10 +497,10 @@ const startCronTimer = () => {
       }
 
       for (const job of dueJobs) {
-        const subturtleNameForPrep = shouldPrepareSilentSubturtleSnapshot(job);
+        const supervisedWorkerName = resolveSilentSubturtleSupervisorWorker(job);
 
         // Re-check session before each job — the previous job may have started it
-        if (isAnyDriverRunning() && !subturtleNameForPrep) {
+        if (isAnyDriverRunning() && !supervisedWorkerName) {
           continue;
         }
 
@@ -593,17 +524,40 @@ const startCronTimer = () => {
           // Default chat_id to the first allowed user — single-chat bots never need to specify it
           const resolvedChatId: number = chatId!;
 
-          if (subturtleNameForPrep) {
-            const snapshot = await prepareSubturtleSnapshot(
-              job.id,
-              job.prompt,
-              resolvedChatId,
-              subturtleNameForPrep
-            );
-            if (!job.silent) {
+          if (supervisedWorkerName) {
+            const supervisionResult = await processSilentSubturtleSupervision({
+              workerName: supervisedWorkerName,
+              chatId: resolvedChatId,
+              defaultChatId: resolvedChatId,
+              listJobs: getJobs,
+              removeJob,
+              sendMessage: async (chatId, text) => {
+                await bot.api.sendMessage(chatId, text);
+              },
+              isWorkerRunning: (workerName: string) => isSubturtleRunning(workerName),
+            });
+            if (
+              supervisionResult.sent > 0 ||
+              supervisionResult.reconciled > 0 ||
+              supervisionResult.createdWakeups > 0
+            ) {
+              refreshConductorHandoff();
+              cronLog.info(
+                {
+                  cronJobId: job.id,
+                  workerName: supervisedWorkerName,
+                  supervisionResult,
+                },
+                `[cron:${job.id}] deterministic_subturtle_supervision worker=${supervisedWorkerName} sent=${supervisionResult.sent} created_wakeups=${supervisionResult.createdWakeups}`
+              );
+            }
+            const running = isSubturtleRunning(supervisedWorkerName);
+            const recurringStillExists = getJobs().some((j) => j.id === job.id);
+            if (!running && recurringStillExists && job.type === "recurring") {
+              removeJob(job.id);
               await bot.api.sendMessage(
                 resolvedChatId,
-                `🔄 Background check prepared for ${subturtleNameForPrep} (snapshot #${snapshot.snapshotSeq}, queue=${getPreparedSnapshotCount()}). I will process it when the current reply is idle.`
+                `⚠️ SubTurtle ${supervisedWorkerName} is not running but cron ${job.id} was still active. I removed that recurring cron to prevent repeat loops.`
               );
             }
             continue;

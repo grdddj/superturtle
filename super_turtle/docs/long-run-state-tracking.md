@@ -440,17 +440,19 @@ Current producer coverage:
 - the Python worker loop writes `worker.fatal_error`, transitions the worker to `failure_pending`, and enqueues a critical wake-up when an unhandled loop error escapes
 - the bot timer consumes pending wake-ups directly from `.superturtle/state/wakeups/`, appends reconciliation events (`worker.completed`, `worker.failed`, `worker.cleanup_verified`, `worker.cron_removed`, `worker.inbox_enqueued`, `worker.notification_sent`), and sends Telegram notifications without injecting those lifecycle facts into the meta-agent session
 - the bot timer also writes `.superturtle/state/inbox/<id>.json` for notable/critical lifecycle wake-ups so the next successful interactive Claude/Codex turn sees those background events as injected context and then acknowledges them durably
+- the bot timer now runs deterministic silent supervision for structured SubTurtle cron jobs, comparing canonical checkpoint/backlog signatures across checks and emitting `worker.milestone_reached` / `worker.stuck_detected` plus notable wake-ups when policy thresholds are met
 
 The migration is still in a mixed mode:
 
 - legacy `.subturtles/<name>/subturtle.meta` remains the runtime metadata source for PID/timeout/cron details
 - legacy `.superturtle/state/runs.jsonl` and `handoff.md` still exist for compatibility and current operator surfaces
 - `ctl spawn` now writes structured supervision cron metadata (`job_kind`, `worker_name`, `supervision_mode`) so recurring checks resolve workers from disk state first instead of depending on prompt regexes
-- silent cron now prepares snapshots from canonical worker state, filtered worker events, and worker wakeups before falling back to `ctl status`, `CLAUDE.md`, git history, and tunnel metadata
+- silent SubTurtle cron is now a deterministic reconciliation trigger, not a prompt-driven inference path
+- milestone and stuck wake-ups now go through the same inbox + Telegram delivery flow as completion/failure wake-ups, while cron removal and cleanup verification remain terminal-only side effects
 - `handoff.md` now renders from canonical worker state plus pending wakeups, and dashboard lanes prefer conductor worker fields for currently listed SubTurtles
-- milestone/stuck judgment is still model-mediated, and silent milestone/stuck updates do not yet share the same inbox/reconciliation path as deterministic lifecycle events
+- preview/tunnel URLs are attached to milestone wake-ups when present, but they are not yet a standalone milestone trigger
 
-The next step is to replace prompt-mediated milestone/stuck judgment with deterministic supervisor policy on top of the conductor store.
+The next step is to prove the conductor path under restart, stale-cleanup, and multi-worker recovery scenarios.
 
 ## Verification
 
@@ -461,11 +463,15 @@ python3 -m unittest super_turtle.state.test_run_state_writer super_turtle.state.
 python3 -m py_compile super_turtle/state/run_state_writer.py super_turtle/state/conductor_state.py super_turtle/state/test_conductor_state.py
 python3 -m pytest super_turtle/subturtle/tests/test_subturtle_main.py
 bash super_turtle/subturtle/tests/test_ctl_integration.sh
+bun run --bun tsc --noEmit
+bun test src/conductor-supervisor.test.ts
 ```
 
 ## Next implementation slice
 
-Expand structured-state supervision beyond deterministic lifecycle wake-ups:
+Prove the conductor behavior end to end:
 
-- move milestone/stuck detection and operator summaries onto canonical state instead of `runs.jsonl` / `handoff.md` heuristics
-- extend the inbox/reconciliation model beyond deterministic lifecycle events so silent milestone/stuck updates follow the same durable path
+- restart recovery with pending wake-ups and pending inbox items
+- stale recurring-cron cleanup after worker death
+- mid-chat delivery of background worker completion/failure/milestone updates
+- multi-worker orchestration and reconciliation ordering

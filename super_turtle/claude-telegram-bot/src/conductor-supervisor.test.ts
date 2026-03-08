@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { dirname, join } from "path";
 import {
   parseCompletedBacklogItems,
+  processSilentSubturtleSupervision,
   processPendingConductorWakeups,
 } from "./conductor-supervisor";
 
@@ -240,5 +241,238 @@ Recover from a bad crash <- current
     expect(events).toContain('"event_type":"worker.failed"');
     expect(events).toContain('"event_type":"worker.inbox_enqueued"');
     expect(events).toContain('"event_type":"worker.notification_sent"');
+  });
+});
+
+describe("processSilentSubturtleSupervision", () => {
+  it("emits deterministic milestone wakeups without removing recurring cron", async () => {
+    const baseDir = makeStateDir();
+    const stateDir = join(baseDir, ".superturtle", "state");
+    const workspace = join(baseDir, ".subturtles", "worker-milestone");
+    mkdirSync(join(stateDir, "workers"), { recursive: true });
+    mkdirSync(join(stateDir, "wakeups"), { recursive: true });
+    mkdirSync(workspace, { recursive: true });
+
+    writeFileSync(
+      join(workspace, "CLAUDE.md"),
+      `# Current task
+
+Ship milestone worker
+
+# Backlog
+- [x] Seed workspace
+- [ ] Ship milestone
+`,
+      "utf-8"
+    );
+
+    writeJson(join(stateDir, "workers", "worker-milestone.json"), {
+      kind: "worker_state",
+      schema_version: 1,
+      worker_name: "worker-milestone",
+      run_id: "run-milestone",
+      lifecycle_state: "running",
+      workspace,
+      cron_job_id: "cron-milestone",
+      current_task: "Ship milestone worker",
+      checkpoint: {
+        iteration: 1,
+        head_sha: "abc123",
+        recorded_at: "2026-03-08T00:00:00Z",
+      },
+      metadata: {},
+    });
+
+    const jobs = [{ id: "cron-milestone" }];
+    const sentMessages: string[] = [];
+
+    const baseline = await processSilentSubturtleSupervision({
+      stateDir,
+      workerName: "worker-milestone",
+      chatId: 123,
+      defaultChatId: 123,
+      listJobs: () => [...jobs],
+      removeJob: (id) => {
+        const index = jobs.findIndex((job) => job.id === id);
+        if (index === -1) return false;
+        jobs.splice(index, 1);
+        return true;
+      },
+      sendMessage: async (_chatId, text) => {
+        sentMessages.push(text);
+      },
+      isWorkerRunning: () => true,
+      nowIso: () => "2026-03-08T01:00:00Z",
+    });
+
+    expect(baseline.createdWakeups).toBe(0);
+    expect(sentMessages).toHaveLength(0);
+    expect(jobs).toHaveLength(1);
+
+    writeFileSync(
+      join(workspace, "CLAUDE.md"),
+      `# Current task
+
+Ship milestone worker
+
+# Backlog
+- [x] Seed workspace
+- [x] Ship milestone
+`,
+      "utf-8"
+    );
+    writeJson(join(stateDir, "workers", "worker-milestone.json"), {
+      ...JSON.parse(readFileSync(join(stateDir, "workers", "worker-milestone.json"), "utf-8")),
+      checkpoint: {
+        iteration: 2,
+        head_sha: "def456",
+        recorded_at: "2026-03-08T02:00:00Z",
+      },
+    });
+
+    const result = await processSilentSubturtleSupervision({
+      stateDir,
+      workerName: "worker-milestone",
+      chatId: 123,
+      defaultChatId: 123,
+      listJobs: () => [...jobs],
+      removeJob: (id) => {
+        const index = jobs.findIndex((job) => job.id === id);
+        if (index === -1) return false;
+        jobs.splice(index, 1);
+        return true;
+      },
+      sendMessage: async (_chatId, text) => {
+        sentMessages.push(text);
+      },
+      isWorkerRunning: () => true,
+      nowIso: () => "2026-03-08T02:05:00Z",
+    });
+
+    expect(result.createdWakeups).toBe(1);
+    expect(result.sent).toBe(1);
+    expect(sentMessages.at(-1)).toContain("🚀 SubTurtle worker-milestone reached a milestone.");
+    expect(sentMessages.at(-1)).toContain("✓ Ship milestone");
+    expect(jobs).toHaveLength(1);
+
+    const updatedWorker = JSON.parse(
+      readFileSync(join(stateDir, "workers", "worker-milestone.json"), "utf-8")
+    );
+    expect(updatedWorker.metadata.supervisor.last_notified_backlog_done).toBe(2);
+
+    const inboxFiles = readdirSync(join(stateDir, "inbox"));
+    expect(inboxFiles).toHaveLength(1);
+    const inboxItem = JSON.parse(
+      readFileSync(join(stateDir, "inbox", inboxFiles[0]!), "utf-8")
+    );
+    expect(inboxItem.category).toBe("milestone_reached");
+    expect(inboxItem.title).toContain("worker-milestone milestone");
+    expect(inboxItem.text).toContain("Milestone items: Ship milestone");
+
+    const events = readFileSync(join(stateDir, "events.jsonl"), "utf-8");
+    expect(events).toContain('"event_type":"worker.milestone_reached"');
+    expect(events).toContain('"event_type":"worker.inbox_enqueued"');
+    expect(events).toContain('"event_type":"worker.notification_sent"');
+    expect(events).not.toContain('"event_type":"worker.cron_removed"');
+    expect(events).not.toContain('"event_type":"worker.cleanup_verified"');
+  });
+
+  it("emits deterministic stuck wakeups after repeated no-progress checks", async () => {
+    const baseDir = makeStateDir();
+    const stateDir = join(baseDir, ".superturtle", "state");
+    const workspace = join(baseDir, ".subturtles", "worker-stuck");
+    mkdirSync(join(stateDir, "workers"), { recursive: true });
+    mkdirSync(join(stateDir, "wakeups"), { recursive: true });
+    mkdirSync(workspace, { recursive: true });
+
+    writeFileSync(
+      join(workspace, "CLAUDE.md"),
+      `# Current task
+
+Diagnose no-progress worker
+
+# Backlog
+- [ ] Figure out why nothing changes
+`,
+      "utf-8"
+    );
+
+    writeJson(join(stateDir, "workers", "worker-stuck.json"), {
+      kind: "worker_state",
+      schema_version: 1,
+      worker_name: "worker-stuck",
+      run_id: "run-stuck",
+      lifecycle_state: "running",
+      workspace,
+      cron_job_id: "cron-stuck",
+      current_task: "Diagnose no-progress worker",
+      checkpoint: {
+        iteration: 4,
+        head_sha: "abc123",
+        recorded_at: "2026-03-08T00:00:00Z",
+      },
+      metadata: {},
+    });
+
+    const jobs = [{ id: "cron-stuck" }];
+    const sentMessages: string[] = [];
+    const commonOptions = {
+      stateDir,
+      workerName: "worker-stuck",
+      chatId: 123,
+      defaultChatId: 123,
+      listJobs: () => [...jobs],
+      removeJob: (id: string) => {
+        const index = jobs.findIndex((job) => job.id === id);
+        if (index === -1) return false;
+        jobs.splice(index, 1);
+        return true;
+      },
+      sendMessage: async (_chatId: number, text: string) => {
+        sentMessages.push(text);
+      },
+      isWorkerRunning: () => true,
+    };
+
+    const first = await processSilentSubturtleSupervision({
+      ...commonOptions,
+      nowIso: () => "2026-03-08T01:00:00Z",
+    });
+    const second = await processSilentSubturtleSupervision({
+      ...commonOptions,
+      nowIso: () => "2026-03-08T02:00:00Z",
+    });
+    const third = await processSilentSubturtleSupervision({
+      ...commonOptions,
+      nowIso: () => "2026-03-08T03:00:00Z",
+    });
+
+    expect(first.createdWakeups).toBe(0);
+    expect(second.createdWakeups).toBe(0);
+    expect(third.createdWakeups).toBe(1);
+    expect(third.sent).toBe(1);
+    expect(sentMessages.at(-1)).toContain("⚠️ SubTurtle worker-stuck looks stuck.");
+    expect(jobs).toHaveLength(1);
+
+    const updatedWorker = JSON.parse(
+      readFileSync(join(stateDir, "workers", "worker-stuck.json"), "utf-8")
+    );
+    expect(updatedWorker.metadata.supervisor.last_stuck_signature).toBeDefined();
+
+    const inboxFiles = readdirSync(join(stateDir, "inbox"));
+    expect(inboxFiles).toHaveLength(1);
+    const inboxItem = JSON.parse(
+      readFileSync(join(stateDir, "inbox", inboxFiles[0]!), "utf-8")
+    );
+    expect(inboxItem.category).toBe("worker_stuck");
+    expect(inboxItem.title).toContain("worker-stuck stuck");
+    expect(inboxItem.text).toContain("No meaningful progress across 2 silent checks.");
+
+    const events = readFileSync(join(stateDir, "events.jsonl"), "utf-8");
+    expect(events).toContain('"event_type":"worker.stuck_detected"');
+    expect(events).toContain('"event_type":"worker.inbox_enqueued"');
+    expect(events).toContain('"event_type":"worker.notification_sent"');
+    expect(events).not.toContain('"event_type":"worker.cron_removed"');
+    expect(events).not.toContain('"event_type":"worker.cleanup_verified"');
   });
 });

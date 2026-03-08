@@ -94,8 +94,16 @@ export interface ProcessConductorWakeupsOptions {
   nowIso?: () => string;
 }
 
+export interface ProcessSilentSubturtleSupervisionOptions
+  extends ProcessConductorWakeupsOptions {
+  workerName: string;
+  chatId: number;
+}
+
 const CONDUCTOR_SCHEMA_VERSION = 1;
 const EVENT_EMITTED_BY = "supervisor";
+const TERMINAL_WAKEUP_KINDS = new Set(["completion_requested", "fatal_error", "timeout"]);
+const TERMINAL_LIFECYCLE_STATES = new Set(["completed", "failed", "timed_out", "stopped", "archived"]);
 
 function utcNowIso(): string {
   return new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -204,6 +212,42 @@ function appendWorkerEvent(
   return event;
 }
 
+function makeWakeup(
+  workerName: string,
+  category: string,
+  summary: string,
+  options: {
+    runId?: string | null;
+    reasonEventId?: string | null;
+    payload?: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+    createdAt: string;
+  }
+): WakeupRecord {
+  return {
+    kind: "wakeup",
+    schema_version: CONDUCTOR_SCHEMA_VERSION,
+    id: newRecordId("wake"),
+    worker_name: workerName,
+    run_id: options.runId ?? null,
+    reason_event_id: options.reasonEventId ?? null,
+    category,
+    delivery_state: "pending",
+    summary,
+    created_at: options.createdAt,
+    updated_at: options.createdAt,
+    delivery: {
+      attempts: 0,
+      last_attempt_at: null,
+      sent_at: null,
+      failed_at: null,
+      suppressed_at: null,
+    },
+    payload: options.payload || {},
+    metadata: options.metadata || {},
+  };
+}
+
 function parseCompletedBacklogItems(stateText: string): string[] {
   const lines = stateText.split(/\r?\n/);
   const items: string[] = [];
@@ -240,6 +284,39 @@ function readWorkspaceStateText(workerState: WorkerStateRecord | null): string |
   } catch {
     return null;
   }
+}
+
+function readWorkspaceTunnelUrl(workerState: WorkerStateRecord | null): string | null {
+  const workspace = workerState?.workspace;
+  if (!workspace) return null;
+  const tunnelPath = join(workspace, ".tunnel-url");
+  if (!existsSync(tunnelPath)) return null;
+  try {
+    const value = readFileSync(tunnelPath, "utf-8").trim();
+    return value || null;
+  } catch {
+    return null;
+  }
+}
+
+function checkpointSignature(workerState: WorkerStateRecord | null): string {
+  const checkpoint = isObjectRecord(workerState?.checkpoint) ? workerState!.checkpoint! : {};
+  const parts = [
+    typeof checkpoint.iteration === "number" ? String(checkpoint.iteration) : "",
+    typeof checkpoint.head_sha === "string" ? checkpoint.head_sha : "",
+    typeof checkpoint.recorded_at === "string" ? checkpoint.recorded_at : "",
+    workerState?.current_task?.trim() || "",
+  ];
+  const normalized = parts.filter((part) => part.length > 0).join("|");
+  return normalized || "no-checkpoint";
+}
+
+function wakeupKind(wakeup: WakeupRecord): string {
+  return typeof wakeup.payload?.kind === "string" ? wakeup.payload.kind : "";
+}
+
+function isTerminalWakeup(wakeup: WakeupRecord): boolean {
+  return TERMINAL_WAKEUP_KINDS.has(wakeupKind(wakeup));
 }
 
 function buildNotificationText(
@@ -279,6 +356,35 @@ function buildNotificationText(
     return lines.join("\n");
   }
 
+  if (payloadKind === "milestone_reached") {
+    const completedItems = Array.isArray(wakeup.payload?.newly_completed_items)
+      ? wakeup.payload!.newly_completed_items.filter((item): item is string => typeof item === "string")
+      : [];
+    const tunnelUrl =
+      typeof wakeup.payload?.tunnel_url === "string" ? wakeup.payload.tunnel_url.trim() : "";
+    const lines = [`🚀 SubTurtle ${workerName} reached a milestone.`];
+    if (currentTask) lines.push(`Task: ${currentTask}`);
+    if (completedItems.length > 0) {
+      lines.push(...completedItems.slice(0, 4).map((item) => `✓ ${item}`));
+    }
+    if (tunnelUrl) lines.push(`🔗 Preview: ${tunnelUrl}`);
+    return lines.join("\n");
+  }
+
+  if (payloadKind === "worker_stuck") {
+    const stalledChecks =
+      typeof wakeup.payload?.stalled_checks === "number" ? wakeup.payload.stalled_checks : null;
+    const lastProgressAt =
+      typeof wakeup.payload?.last_progress_at === "string" ? wakeup.payload.last_progress_at.trim() : "";
+    const lines = [`⚠️ SubTurtle ${workerName} looks stuck.`];
+    if (currentTask) lines.push(`Task: ${currentTask}`);
+    if (stalledChecks !== null) {
+      lines.push(`No meaningful progress across ${stalledChecks} supervision checks.`);
+    }
+    if (lastProgressAt) lines.push(`Last progress: ${lastProgressAt}`);
+    return lines.join("\n");
+  }
+
   const marker =
     wakeup.category === "critical"
       ? "❌"
@@ -302,6 +408,12 @@ function buildMetaAgentInboxTitle(
   }
   if (payloadKind === "timeout") {
     return `SubTurtle ${workerName} timed out`;
+  }
+  if (payloadKind === "milestone_reached") {
+    return `SubTurtle ${workerName} milestone`;
+  }
+  if (payloadKind === "worker_stuck") {
+    return `SubTurtle ${workerName} stuck`;
   }
   return workerState?.lifecycle_state
     ? `SubTurtle ${workerName} update (${workerState.lifecycle_state})`
@@ -338,6 +450,26 @@ function buildMetaAgentInboxText(
     }
   } else if (payloadKind === "timeout") {
     lines.push("Worker exceeded its timeout and was reconciled as timed out.");
+  } else if (payloadKind === "milestone_reached") {
+    const completedItems = Array.isArray(wakeup.payload?.newly_completed_items)
+      ? wakeup.payload!.newly_completed_items.filter((item): item is string => typeof item === "string")
+      : [];
+    if (completedItems.length > 0) {
+      lines.push(`Milestone items: ${completedItems.join(" | ")}`);
+    } else {
+      lines.push("Worker reached a new deterministic milestone.");
+    }
+    const tunnelUrl =
+      typeof wakeup.payload?.tunnel_url === "string" ? wakeup.payload.tunnel_url.trim() : "";
+    if (tunnelUrl) lines.push(`Preview: ${tunnelUrl}`);
+  } else if (payloadKind === "worker_stuck") {
+    const stalledChecks =
+      typeof wakeup.payload?.stalled_checks === "number" ? wakeup.payload.stalled_checks : null;
+    if (stalledChecks !== null) {
+      lines.push(`No meaningful progress across ${stalledChecks} silent checks.`);
+    } else {
+      lines.push("Worker appears stuck.");
+    }
   } else {
     lines.push(wakeup.summary);
   }
@@ -392,12 +524,21 @@ function mergeMetadata(
   return metadata;
 }
 
+function numericMetadataValue(metadata: Record<string, unknown>, key: string): number {
+  const value = metadata[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function stringMetadataValue(metadata: Record<string, unknown>, key: string): string | null {
+  const value = metadata[key];
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
 function isWakeupReady(
   wakeup: WakeupRecord,
   running: boolean
 ): boolean {
-  const payloadKind = typeof wakeup.payload?.kind === "string" ? wakeup.payload.kind : "";
-  if (payloadKind === "completion_requested" || payloadKind === "fatal_error" || payloadKind === "timeout") {
+  if (isTerminalWakeup(wakeup)) {
     return !running;
   }
   return true;
@@ -429,6 +570,190 @@ function updateWakeupDelivery(
   };
 }
 
+export async function processSilentSubturtleSupervision(
+  options: ProcessSilentSubturtleSupervisionOptions
+): Promise<SupervisorTickResult & { createdWakeups: number }> {
+  const stateDir = options.stateDir || join(SUPERTURTLE_DATA_DIR, "state");
+  const workingDir = options.workingDir || WORKING_DIR;
+  const ctlPath = options.ctlPath || CTL_PATH;
+  const nowIso = options.nowIso || utcNowIso;
+  const isWorkerRunning =
+    options.isWorkerRunning || ((workerName: string) => defaultIsWorkerRunning(ctlPath, workingDir, workerName));
+  const now = nowIso();
+  const workerState = loadWorkerState(stateDir, options.workerName);
+
+  if (!workerState) {
+    return { sent: 0, skipped: 1, errors: 0, reconciled: 0, createdWakeups: 0 };
+  }
+
+  const running = isWorkerRunning(options.workerName);
+  if (!running || TERMINAL_LIFECYCLE_STATES.has(workerState.lifecycle_state)) {
+    return { sent: 0, skipped: 1, errors: 0, reconciled: 0, createdWakeups: 0 };
+  }
+
+  const supervisor = supervisorMetadata(workerState);
+  const stateText = readWorkspaceStateText(workerState);
+  const completedItems = stateText ? parseCompletedBacklogItems(stateText) : [];
+  const backlogDone = completedItems.length;
+  const tunnelUrl = readWorkspaceTunnelUrl(workerState);
+  const progressSignature = `${checkpointSignature(workerState)}|done:${backlogDone}|task:${workerState.current_task?.trim() || ""}`;
+  const hasBaseline = Boolean(stringMetadataValue(supervisor, "last_progress_signature"));
+  const previousProgressSignature = stringMetadataValue(supervisor, "last_progress_signature");
+  const previousNotifiedBacklogDone = numericMetadataValue(supervisor, "last_notified_backlog_done");
+  const lastProgressAt = stringMetadataValue(supervisor, "last_progress_at");
+  const progressObserved = !hasBaseline || previousProgressSignature !== progressSignature;
+  const stalledChecks = progressObserved ? 0 : numericMetadataValue(supervisor, "stalled_check_count") + 1;
+
+  let workingState: WorkerStateRecord = {
+    ...workerState,
+    updated_at: now,
+    updated_by: EVENT_EMITTED_BY,
+  };
+
+  const supervisionEvent = appendWorkerEvent(
+    stateDir,
+    workingState,
+    options.workerName,
+    "worker.supervision_checked",
+    workingState.lifecycle_state,
+    {
+      chat_id: options.chatId,
+      progress_observed: progressObserved,
+      backlog_done: backlogDone,
+      stalled_checks: stalledChecks,
+      progress_signature: progressSignature,
+    },
+    now
+  );
+  workingState = {
+    ...workingState,
+    last_event_id: supervisionEvent.id,
+    last_event_at: supervisionEvent.timestamp,
+    metadata: mergeMetadata(workingState, {
+      silent_checks: numericMetadataValue(supervisor, "silent_checks") + 1,
+      last_supervision_at: now,
+      last_progress_signature: progressSignature,
+      last_progress_at: progressObserved ? now : lastProgressAt,
+      stalled_check_count: stalledChecks,
+      last_observed_backlog_done: backlogDone,
+      last_observed_tunnel_url: tunnelUrl,
+      last_supervision_chat_id: options.chatId,
+      last_notified_backlog_done: hasBaseline ? previousNotifiedBacklogDone : backlogDone,
+    }),
+  };
+
+  let createdWakeups = 0;
+
+  if (hasBaseline && backlogDone > previousNotifiedBacklogDone) {
+    const newlyCompletedItems = completedItems.slice(previousNotifiedBacklogDone, backlogDone);
+    const milestoneEvent = appendWorkerEvent(
+      stateDir,
+      workingState,
+      options.workerName,
+      "worker.milestone_reached",
+      workingState.lifecycle_state,
+      {
+        backlog_done: backlogDone,
+        newly_completed_items: newlyCompletedItems,
+        tunnel_url: tunnelUrl,
+      },
+      now
+    );
+    writeWakeup(
+      stateDir,
+      makeWakeup(
+        options.workerName,
+        "notable",
+        `SubTurtle ${options.workerName} reached a new milestone.`,
+        {
+          runId: workingState.run_id,
+          reasonEventId: milestoneEvent.id,
+          createdAt: now,
+          metadata: { chat_id: options.chatId },
+          payload: {
+            kind: "milestone_reached",
+            backlog_done: backlogDone,
+            newly_completed_items: newlyCompletedItems,
+            tunnel_url: tunnelUrl,
+          },
+        }
+      )
+    );
+    workingState = {
+      ...workingState,
+      last_event_id: milestoneEvent.id,
+      last_event_at: milestoneEvent.timestamp,
+      metadata: mergeMetadata(workingState, {
+        last_milestone_at: now,
+        last_notified_backlog_done: backlogDone,
+      }),
+    };
+    createdWakeups += 1;
+  }
+
+  if (
+    stalledChecks >= 2 &&
+    stringMetadataValue(supervisorMetadata(workingState), "last_stuck_signature") !== progressSignature
+  ) {
+    const stuckEvent = appendWorkerEvent(
+      stateDir,
+      workingState,
+      options.workerName,
+      "worker.stuck_detected",
+      workingState.lifecycle_state,
+      {
+        stalled_checks: stalledChecks,
+        last_progress_at: lastProgressAt,
+        progress_signature: progressSignature,
+      },
+      now
+    );
+    writeWakeup(
+      stateDir,
+      makeWakeup(
+        options.workerName,
+        "notable",
+        `SubTurtle ${options.workerName} appears stuck.`,
+        {
+          runId: workingState.run_id,
+          reasonEventId: stuckEvent.id,
+          createdAt: now,
+          metadata: { chat_id: options.chatId },
+          payload: {
+            kind: "worker_stuck",
+            stalled_checks: stalledChecks,
+            last_progress_at: lastProgressAt,
+            progress_signature: progressSignature,
+          },
+        }
+      )
+    );
+    workingState = {
+      ...workingState,
+      last_event_id: stuckEvent.id,
+      last_event_at: stuckEvent.timestamp,
+      metadata: mergeMetadata(workingState, {
+        last_stuck_at: now,
+        last_stuck_signature: progressSignature,
+      }),
+    };
+    createdWakeups += 1;
+  }
+
+  writeWorkerState(stateDir, workingState);
+
+  if (createdWakeups === 0) {
+    return { sent: 0, skipped: 0, errors: 0, reconciled: 1, createdWakeups: 0 };
+  }
+
+  const deliveryResult = await processPendingConductorWakeups(options);
+  return {
+    ...deliveryResult,
+    reconciled: deliveryResult.reconciled + 1,
+    createdWakeups,
+  };
+}
+
 export async function processPendingConductorWakeups(
   options: ProcessConductorWakeupsOptions
 ): Promise<SupervisorTickResult> {
@@ -454,9 +779,10 @@ export async function processPendingConductorWakeups(
     const supervisor = supervisorMetadata(workingState);
     const cronJobId = workingState?.cron_job_id?.trim();
     const hadCron = Boolean(cronJobId && cronJobIds.has(cronJobId));
+    const terminalWakeup = isTerminalWakeup(wakeup);
 
     try {
-      if (hadCron && !supervisor.cron_removed_at && cronJobId) {
+      if (terminalWakeup && hadCron && !supervisor.cron_removed_at && cronJobId) {
         const removed = options.removeJob(cronJobId);
         if (removed) {
           cronJobIds.delete(cronJobId);
@@ -487,7 +813,7 @@ export async function processPendingConductorWakeups(
       }
 
       const payloadKind = typeof wakeup.payload?.kind === "string" ? wakeup.payload.kind : "";
-      if (workingState && !supervisor.cleanup_verified_at) {
+      if (terminalWakeup && workingState && !supervisor.cleanup_verified_at) {
         const cleanupVerifiedEvent = appendWorkerEvent(
           stateDir,
           workingState,

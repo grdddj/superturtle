@@ -49,7 +49,7 @@ git checkout dev && git merge main
 ---
 
 ## Current task
-Redesign SubTurtle orchestration so durable state, not chat/session memory, is the control plane. Current focus: replace the remaining prompt-mediated silent milestone/stuck judgment with deterministic supervisor policy on top of conductor state.
+Redesign SubTurtle orchestration so durable state, not chat/session memory, is the control plane. Current focus: add end-to-end restart/recovery and stale-cleanup coverage on top of the deterministic conductor supervision path.
 
 ## SubTurtle orchestration redesign scope
 
@@ -75,11 +75,10 @@ We are redesigning the weak parts:
 - `/status`, `/debug`, `/looplogs`, `/pinologs`, `superturtle doctor`, and `superturtle logs`
 
 ### Known gaps
-- `handoff.md` and `runs.jsonl` can drift from actual worker state and are not authoritative enough for orchestration
-- `subturtle.meta` only records spawn-time metadata; it does not encode worker lifecycle state, stop reason, last checkpoint, or notification status
-- Silent check-ins now read canonical worker state first, but milestone/stuck judgment is still model-mediated instead of a deterministic supervisor policy
-- The meta-agent inbox now exists for deterministic lifecycle events, but silent milestone/stuck updates still bypass it and remain prompt-shaped
-- Cron cleanup and handoff refresh can leave stale summaries or recurring jobs behind after workers stop
+- `handoff.md` and `runs.jsonl` still exist for compatibility, so they must stay strictly derived from canonical conductor state
+- `subturtle.meta` still carries some spawn/runtime metadata; worker lifecycle truth now lives in the conductor store and those paths need continued convergence
+- End-to-end restart/recovery coverage is still thin around stale cron cleanup, mid-chat delivery, and multi-worker orchestration
+- Silent milestone/stuck policy is now deterministic, but the remaining confidence gap is proving the full conductor flow under restart and recovery conditions
 
 ## End goal with specs
 - Every SubTurtle has explicit durable lifecycle state that can be reconstructed after any bot restart
@@ -106,8 +105,7 @@ We are redesigning the weak parts:
 - ✅ Current worker execution model: isolated workspaces, `CLAUDE.md` state files, commit-per-iteration yolo/slow loops, and self-stop directives
 
 ## Roadmap (Upcoming)
-- Convert the remaining silent milestone/stuck/error handling from prompt-driven inference to supervisor reconciliation
-- Add restart, recovery, and stale-cleanup tests for conductor behavior
+- Add restart, recovery, stale-cleanup, and multi-worker tests for conductor behavior
 
 ## Backlog
 - [x] Define orchestration v2 ownership boundaries, lifecycle states, event types, and invariants
@@ -119,8 +117,8 @@ We are redesigning the weak parts:
 - [x] Design and implement meta-agent wake-up/inbox semantics for background worker events during active user conversations
 - [x] Rework silent cron jobs to become reconciliation/notification triggers instead of the primary source of orchestration truth
 - [x] Re-render `handoff.md`, dashboard state, and operator summaries from structured state
-- [ ] Replace prompt-mediated silent milestone/stuck judgment with deterministic supervisor policy <- current
-- [ ] Add end-to-end tests for restart recovery, stale cron cleanup, mid-chat completion delivery, and multi-worker orchestration
+- [x] Replace prompt-mediated silent milestone/stuck judgment with deterministic supervisor policy
+- [ ] Add end-to-end tests for restart recovery, stale cron cleanup, mid-chat completion delivery, and multi-worker orchestration <- current
 
 ## Notes
 - Multi-instance audit: `docs/audits/multi-instance-isolation.md`
@@ -129,7 +127,7 @@ We are redesigning the weak parts:
 - Current runtime producers: `subturtle/ctl` emits start/stop/archive/timeout lifecycle facts, and the Python loop emits checkpoint facts plus `completion_pending` / `failure_pending` handoff facts
 - Current runtime consumer: the bot timer now drains pending conductor wakeups directly, emits reconciliation events, removes stale cron jobs, and sends Telegram notifications without routing those lifecycle updates through the meta-agent conversation thread
 - Legacy completion cron handoff has been removed from the SubTurtle self-stop path; completion delivery now rides the canonical wakeup queue
-- Silent supervision snapshots now load `workers/<name>.json`, filtered `events.jsonl`, and worker wakeups before falling back to `ctl status`, `CLAUDE.md`, git log, and tunnel metadata
+- Silent SubTurtle supervision now runs deterministic supervisor policy over canonical worker state, backlog completion, and checkpoint signatures; milestone/stuck wakeups flow through the same inbox and Telegram delivery path as lifecycle wakeups without terminal cleanup side effects
 - `ctl spawn` now registers structured supervision cron jobs with `job_kind=subturtle_supervision`, `worker_name`, and `supervision_mode`, and the bot prefers those fields over prompt regex parsing
 - `handoff.md` is now refreshed from canonical worker state plus pending wakeups, and dashboard lanes prefer conductor worker fields for live SubTurtles
 - Reconciled lifecycle wakeups now also create durable meta-agent inbox items; the next successful interactive Claude/Codex turn injects them as non-chat background context and acknowledges them after the turn completes

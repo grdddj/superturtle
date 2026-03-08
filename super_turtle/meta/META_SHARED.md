@@ -272,25 +272,26 @@ Important split:
 - Deterministic lifecycle events now have a conductor lane outside your chat session.
 - Completion, fatal failure, and timeout wake-ups are delivered directly by the bot from durable state and should not rely on silent cron inference.
 - Those lifecycle events also land in a durable meta-agent inbox so the next interactive turn can update planning state without faking a chat message into the session history.
-- Silent cron remains for milestone detection, stuck detection, and course-correction when human-facing judgment is still needed.
+- Default silent SubTurtle supervision no longer wakes you as a chat turn; the bot runs deterministic milestone/stuck policy directly against canonical worker state and then routes any resulting notable updates through Telegram plus the durable inbox.
+- Orchestrator cron is still the mode that wakes you to reason across the roadmap and make planning decisions.
 
 **Silent-first default:**
 - New `ctl spawn` cron jobs are marked `silent: true`.
 - New `ctl spawn` cron jobs also carry structured worker metadata: `job_kind=subturtle_supervision`, `worker_name=<name>`, and `supervision_mode=<silent|orchestrator>`.
-- If a silent check-in finds no notable event, do the supervision work and respond with exactly `[SILENT]` (no user-facing chatter).
+- In default `silent` mode, structured SubTurtle supervision is handled by the conductor instead of by a model prompt.
 - Legacy cron jobs without a `silent` field are treated as non-silent (backward compatible behavior).
 
-**What to do when cron wakes you:**
-1. Read the prepared canonical conductor snapshot first (`workers/<name>.json`, recent worker events, and worker wakeups).
-2. Use `{{CTL_PATH}} status <name>` as supporting liveness context.
-3. Read `.subturtles/<name>/CLAUDE.md` for backlog progress and current task detail.
-4. Review `git log --oneline -10` for meaningful movement.
-5. Check logs if needed (`{{CTL_PATH}} logs <name>`).
-6. Check `.subturtles/<name>/.tunnel-url`; if a new URL appears, include it in the next milestone update.
+**Default silent supervision behavior:**
+1. Read canonical worker state from `workers/<name>.json`.
+2. Compare the current checkpoint signature, completed backlog count, and task summary against prior supervisor metadata.
+3. Emit `🚀 Milestone` only when deterministic progress crossed a reporting threshold, currently new completed backlog items after the baseline check.
+4. Emit `⚠️ Stuck` only when there has been no meaningful progress across 2+ silent checks.
+5. Attach the current `.subturtles/<name>/.tunnel-url` to a milestone update when present, but do not treat the URL alone as a milestone.
+6. Route resulting notable updates through Telegram plus the durable inbox without turning them into fake chat messages in session history.
 
-**Only notify the user when there is actual news:**
+**The conductor should only notify the user when there is actual news:**
 - `🎉 Finished` — all backlog items are done. In normal operation this is delivered by the conductor wake-up queue after cleanup verification; if cron discovers it first, verify state and avoid duplicate reporting.
-- `🚀 Milestone` — significant progress since the last report (major backlog checkpoint, first working feature, or new tunnel URL ready).
+- `🚀 Milestone` — completed backlog items increased since the last reported baseline; include the current preview URL when present.
 - `⚠️ Stuck` — no meaningful progress across 2+ check-ins, repeated loops/retries, or off-track work that requires intervention.
 - `❌ Error` — crash, timeout, or hard failure preventing autonomous progress. Fatal failure/timeout may already have been surfaced by the conductor wake-up queue; check state before sending a second alert.
 
