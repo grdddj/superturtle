@@ -21,3 +21,25 @@
    - File: `super_turtle/claude-telegram-bot/src/handlers/document.ts:69-89`, `super_turtle/claude-telegram-bot/src/handlers/document.ts:417-447`, `super_turtle/claude-telegram-bot/src/handlers/document.ts:558-659`, `super_turtle/claude-telegram-bot/src/handlers/photo.ts:42-56`, `super_turtle/claude-telegram-bot/src/handlers/photo.ts:102-129`, `super_turtle/claude-telegram-bot/src/handlers/video.ts:32-52`, `super_turtle/claude-telegram-bot/src/handlers/video.ts:132-214`
    - Issue: photo, document, and video handlers keep the downloaded temp artifacts forever; archive cleanup only happens on the success path. A long-running bot can steadily fill `/tmp` and eventually break future uploads or unrelated local processes.
    - Fix: add `finally` cleanup for each downloaded path and always remove extracted archive directories/files on both success and failure.
+
+## SubTurtle sweep: `super_turtle/subturtle/`
+
+1. High: `ctl status` deletes worker metadata on a read-only code path
+   - File: `super_turtle/subturtle/ctl:1257-1300`
+   - Issue: when a worker is stopped, `do_status()` unconditionally removes both `subturtle.pid` and `subturtle.meta`. A harmless status check can erase `RUN_ID`, `CRON_JOB_ID`, timeout, and watchdog metadata before `ctl stop`, reconciliation, or postmortem tooling runs, which makes later cleanup and diagnosis incomplete.
+   - Fix: keep `status` read-only; at most remove a stale PID file, and only delete the meta file from explicit stop/archive/gc flows after cleanup is finished.
+
+2. High: PID reuse can make `ctl` target the wrong process
+   - File: `super_turtle/subturtle/ctl:539-549`, `super_turtle/subturtle/ctl:1223-1248`
+   - Issue: liveness and stop decisions trust any PID found in `subturtle.pid` and only verify it with `kill -0`. If a worker crashes and the OS later reuses that PID, `status` reports the worker as running and `stop` sends `SIGTERM`/`SIGKILL` to an unrelated local process.
+   - Fix: persist a stronger process identity alongside the PID (for example start time, session id, or command line) and verify it before treating the worker as alive or killable.
+
+3. Medium: archiving a reused worker name destroys the previous archive
+   - File: `super_turtle/subturtle/ctl:1316-1345`
+   - Issue: `do_archive()` always `rm -rf`s `.subturtles/.archive/<name>` before moving the current workspace into place. Reusing a worker name therefore silently deletes the prior archived workspace, including logs and state that operators expect to keep for debugging/history.
+   - Fix: archive into a run- or timestamp-specific directory, or refuse to overwrite an existing archive unless the operator explicitly asks for it.
+
+4. Medium: cron mutations are unsynchronized read-modify-write updates on a shared file
+   - File: `super_turtle/subturtle/ctl:879-952`, `super_turtle/subturtle/ctl:961-991`, `super_turtle/subturtle/ctl:1030-1063`
+   - Issue: spawn, stop, and reschedule each load `.superturtle/cron-jobs.json`, mutate it in memory, and write the whole file back without locking. The same store is also updated by the bot runtime, so concurrent operations can lose jobs, resurrect deleted entries, or clobber interval changes.
+   - Fix: funnel cron writes through one helper that takes an exclusive lock and commits updates atomically.
