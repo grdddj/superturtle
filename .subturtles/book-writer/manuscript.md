@@ -147,7 +147,7 @@ In a near-future capital where every citizen's final memories are notarized into
 - Arc movement: Mara emerges changed but not healed, committed to a more honest practice of remembrance that makes room for fracture, doubt, and the living.
 
 
-## Draft Chapters 4–6
+## Draft Chapters 4–9
 
 ## Chapter 4 — The Quiet Room
 
@@ -1077,3 +1077,172 @@ She packed the drive, closed the folder, and set the recorder on its old hook.
 When she wrote the next sentence, the fan in her wall clicked once, then twice, and then ran.
 
 `A year to build noise. We start public now.`
+
+## Chapter 9 — Mother Archive
+
+She drove home from Dock Nine with the hard drives in her lap like contraband and a promise she did not know how to keep. The city had gone from a low, instructional voice to silence the moment the witness house gate shut behind them, leaving only the rain and the thin hiss of rail cars.
+
+“I can prove this much to the city and everyone who pays attention,” Rian said as he scanned one of the mirrored drives in the passenger seat.
+
+“I know what you can prove.”
+
+“You mean what you can survive.”
+
+She nodded once.
+
+The house had not changed since her mother died. It had always been a place where sound seemed to stay at the edge of the walls, listening. She unlocked the door with three slow turns she had practiced to avoid memory, then sat in her old room and laid out the prints she needed.
+
+The notebook from the copy she had made in a kitchen with a broken sink sat on her desk. She flipped to the first page she had opened in Chapter 7 and wrote a date with a line beneath it:
+
+`CHAPTER 9 START`
+
+Outside, someone hammered a loose piece of metal in the alley three buildings down. The noise came through the floor and sat under the desk with the tone of a warning everyone could ignore.
+
+Then her mother’s final memory file arrived in the city app, already notarized, with a polite header and a gentle reminder:
+
+`Reminder: this memory is protected. Keep private where possible.`
+
+Mara clicked play.
+
+Her mother’s voice sounded as it always did when the old recordings were from before the floods: patient, unembellished, exact.
+
+“Do you remember the smell of oranges from the ferry quarter?”
+
+“Yes,” the voice said.
+
+“No,” Mara whispered, even though there was no one else in the room.
+
+The playback paused.
+
+`...the smell of oranges from the ferry quarter was sharp, then sweet. It was like standing too close to a machine room at dawn.`
+
+Mara scrubbed at her eyes. The line that used to come after that had vanished.
+
+She pulled the raw layer tool, opened the memory graph, and requested the earliest retention state.
+
+`Request: PRE-PUBLIC LAYER — Memory ID: mother-final`
+`Auth level: restricted`
+`Result: unavailable`
+
+Under restricted, there was a small icon shaped like an eye and a line of policy text.
+
+`Redaction in effect: public stability protocol.`  
+`Reason: sensory descriptors linked to civic trauma index.`
+
+She had seen policy lines before. She had copied them for strangers in the Registry. She had even defended them sometimes. Never on her mother.
+
+Rara appeared at her kitchen counter as if she had been there before the kettle clicked on.
+
+“You asked for help at 18:11,” she said. “That means your patience clock is already open.”
+
+“There are missing lines,” Mara said. “Not missing as in erased. Removed. Rewritten from the inside.”
+
+Rara pulled a stack of old forms from her satchel. “You can show me exactly where it changed. You can’t make them deny it if you have timestamp parity.”
+
+Mara opened two tabs. One was the finalized version, one was an internal copy from the municipal mirror with a broken checksum and half a minute of extra audio.
+
+On the final line, the raw clip held the missing sentence:
+
+`...keep those of you awake because if you smell the copper tang and the cooling line, you do not have to trust who says it was rain.`  
+
+The edited layer replaced it with:
+
+`...keep those of you awake because sometimes the body needs gentle air.`  
+
+Rian’s voice on speaker was soft from the next room. “There it is.”
+
+Mara pressed her palms on the table and watched the two versions sit beside each other until the room stopped feeling small enough for all the grief in it.
+
+This was no longer just Dock Nine.
+
+This was curation of her own origin.
+
+She called Silas from the witness line.
+
+“I found edits in Mother’s final record.”
+
+“What kind of edits?”
+
+“Sensory truth. Timing truth. Not just words. A memory of what should have been kept.”
+
+He did not answer right away.
+
+“Whoever edited that knew enough to sound kind,” he said at last.
+
+“Yes,” Mara said. “That is the part that hurts most.”
+
+She wrote down the line he could not answer and the one she had not wanted to ask:
+
+`If mercy can be edited, who chooses mercy when the truth is too expensive?`
+
+By 22:11, she had compared six layers of family memory records—her own mother, her aunt, and two files from the Quiet Street ledger that had no names. The pattern was now less like a corruption and more like a policy.
+
+“Every line removed was a line that linked private harm to public responsibility,” she told Rian as he reviewed the parity map.
+
+Rian nodded. “That means the Quiet Index is no longer just rewriting accidents. It is rewriting inheritance.”
+
+She leaned back. “Then this chapter isn’t about my mother anymore. It’s about proving we all carry the same edit.”
+
+He clicked open the municipal queue and pulled the anomaly list for the week around her mother’s death.
+
+`State of grief descriptors: sanitized`
+`Witness language: moderated`
+`Legacy narratives: softened`
+
+Under that:
+
+`Potential cross-template with Dock Nine entries: high likelihood`
+
+Mara copied this into a new file labeled:
+
+`mother_archive_evidence.md`
+
+and drew one sentence beneath it:
+
+`If they rewrite grief in families, families become the archive’s second witness.`  
+
+She did not call the city that night.
+
+She called Anja instead.
+
+“I found your husband’s note in the same redaction pattern as my mother,” Mara said quietly.
+
+There was a long pause.
+
+“Then we are done pretending this is singular,” Anja replied. Her voice was tired, but not surprised. “I have three notes. I kept them because I could not bear to think they were a one-off.”
+
+“Send them,” Mara said.
+
+“If I send them, does that make them public?”
+
+“Not immediately. It makes this visible enough to be real.”
+
+When Anja put the envelope on the line, Mara saw her own breathing in the silence between messages.
+
+The city might not be the first to deny truth; it would almost always be the first to reframe it as risk management.
+
+In the quiet after the call, Mara opened a fresh page and wrote, as cleanly as she could:
+
+`My mother’s memory had been curated for my mercy.`
+`Mercy now is no longer enough.`  
+`Public witness is the only correction that cannot be privately negotiated.`
+
+She placed the page inside the folder marked **NOISE RETURNS**, then added one last line at the bottom:
+
+`I will not let my family be used as a test for civic stability.`
+
+At dawn, with the city still pretending not to notice the rain, she sent one packet to the opposition councilor: payroll rows, ledger notes, and the unedited maternal lines with timestamp hashes.
+
+She did not send it with an accusation.
+
+She sent it as a question:
+
+**Can a city remain just if its mercy has no witnesses?**
+
+Then she deleted the draft from the chat interface and moved it to the witness archive queue.
+
+In the notebook margin beneath the chapter title, she wrote the next chapter’s working line:
+
+`Chapter 10: The Living Ghost`
+
+The fan in her wall clicked once, then stopped, then started again.
