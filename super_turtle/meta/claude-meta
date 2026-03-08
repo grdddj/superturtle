@@ -20,7 +20,7 @@ fi
 
 meta_text="$(cat "$prompt_file")"
 meta_len="${#meta_text}"
-allowed_tools="Task,TaskOutput,TaskStop,Bash,Glob,Grep,Read,Edit,Write,NotebookEdit,WebFetch,TodoWrite,WebSearch,ToolSearch,AskUserQuestion,Skill,EnterPlanMode,ExitPlanMode,EnterWorktree,CronCreate,CronDelete,CronList"
+allowed_tools="Agent,TaskOutput,TaskStop,Bash,Glob,Grep,Read,Edit,Write,NotebookEdit,WebFetch,TodoWrite,WebSearch,ToolSearch,AskUserQuestion,Skill,EnterPlanMode,ExitPlanMode,EnterWorktree,CronCreate,CronDelete,CronList"
 if [[ -n "${CLAUDE_ALLOWED_TOOLS_EXTRA:-}" ]]; then
   allowed_tools="${allowed_tools},${CLAUDE_ALLOWED_TOOLS_EXTRA}"
 fi
