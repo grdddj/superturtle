@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { WORKING_DIR } from "./config";
+import { resolve } from "path";
+
+process.env.CLAUDE_WORKING_DIR ||= resolve(import.meta.dir, "../../..");
+
+const { WORKING_DIR } = await import("./config");
 
 const { session } = await import("./session");
 const { codexSession } = await import("./codex-session");

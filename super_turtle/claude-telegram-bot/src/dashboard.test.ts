@@ -1,7 +1,10 @@
 import { describe, expect, it, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
-import { join } from "path";
+import { join, resolve } from "path";
 import { mkdirSync, writeFileSync, rmSync } from "fs";
-import { DASHBOARD_AUTH_TOKEN, WORKING_DIR } from "./config";
+
+process.env.CLAUDE_WORKING_DIR ||= resolve(import.meta.dir, "../../..");
+
+const { DASHBOARD_AUTH_TOKEN, WORKING_DIR } = await import("./config");
 
 const {
   isAuthorized,
