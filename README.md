@@ -68,6 +68,18 @@ Loop types:
   <img src="assets/readme-stickers/architecture-gear-turtle.png" width="108" alt="Architecture" />
 </p>
 
+## Dashboard
+
+SuperTurtle includes a local dashboard for operational visibility. It is enabled by default when you run `superturtle start`. On startup, the bot prints a local URL like `http://localhost:46xxx/dashboard`, with the exact port derived per bot instance so multiple bots on the same machine do not collide.
+
+If you set `DASHBOARD_AUTH_TOKEN`, open the same URL with `?token=...` appended. If you want to disable the dashboard entirely, set `DASHBOARD_ENABLED=false`.
+
+The dashboard shows active sessions, SubTurtle lanes, queued work, current jobs, and the latest conductor-driven worker state in one place.
+
+<p align="center">
+  <img src="assets/readme-screenshots/dashboard-overview.png" width="1200" alt="SuperTurtle dashboard showing sessions, SubTurtle lanes, queue, and current jobs" />
+</p>
+
 ## Platform support
 
 | Platform | Status |

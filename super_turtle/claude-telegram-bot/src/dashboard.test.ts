@@ -727,7 +727,7 @@ describe("GET /dashboard", () => {
     expect(html).not.toContain("Sessions: 0");
     expect(html).not.toContain("SubTurtles: 0");
     expect(html).not.toContain("Status: loading dashboard...");
-    expect(html).toContain("height: clamp(180px, 26vh, 300px);");
+    expect(html).toContain("height: clamp(260px, 34vh, 420px);");
   });
 
   it("renders JavaScript that parses successfully", async () => {

@@ -380,7 +380,7 @@ function buildDashboardPublicBaseUrl(host: string, port: number): string {
 const defaultDashboardPort = computeDefaultDashboardPort(TOKEN_PREFIX);
 const rawDashboardPort = Number(process.env.DASHBOARD_PORT || String(defaultDashboardPort));
 export const DASHBOARD_ENABLED = (
-  process.env.DASHBOARD_ENABLED || "false"
+  process.env.DASHBOARD_ENABLED || "true"
 ).toLowerCase() === "true";
 export const DASHBOARD_PORT = Number.isFinite(rawDashboardPort) && rawDashboardPort > 0
   ? rawDashboardPort

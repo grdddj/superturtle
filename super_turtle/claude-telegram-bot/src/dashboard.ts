@@ -1077,7 +1077,7 @@ function renderDashboardHtml(): string {
         grid-column: span 12;
         grid-row: 1;
         min-height: 0;
-        height: clamp(180px, 26vh, 300px);
+        height: clamp(260px, 34vh, 420px);
       }
       .panel-sessions {
         grid-column: 1 / span 7;
