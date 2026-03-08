@@ -2,7 +2,7 @@
 
 Reviewer: Claude (automated)
 Date: 2026-03-08
-Scope: `super_turtle/claude-telegram-bot/src/`, `super_turtle/subturtle/`, `super_turtle/meta/`
+Scope: `super_turtle/claude-telegram-bot/src/`, `super_turtle/subturtle/`, `super_turtle/meta/`, root config files
 
 ---
 
@@ -471,3 +471,120 @@ allowed_tools="Task,TaskOutput,TaskStop,Bash,Glob,Grep,Read,Edit,Write,..."
 | 25 | Medium | Stale pattern | ORCHESTRATOR_PROMPT.md | 20 min |
 | 26 | Medium | Possibly stale | claude-meta | 2 min |
 | 27 | Low | Dead code | ORCHESTRATOR_PROMPT.md (config.ts) | 5 min |
+
+---
+
+## Findings — Root config files (package.json, setup scripts, shell wrappers, pyproject.toml, .gitignore)
+
+Scope: `super_turtle/package.json` (npm package manifest), `super_turtle/claude-telegram-bot/package.json` (bot runtime), `super_turtle/setup` (onboarding script), `super_turtle/bin/superturtle.js` (CLI entrypoint), `super_turtle/claude-telegram-bot/live.sh` (tmux launcher), `super_turtle/claude-telegram-bot/run-loop.sh` (restart loop), `super_turtle/subturtle/pyproject.toml`, `super_turtle/claude-telegram-bot/mcp-config.ts`, `.gitignore`, `super_turtle/templates/`.
+
+### 28. Bug: `setup` script writes `.env` to legacy bot directory — triggers immediate warnings
+
+**File:** `super_turtle/setup`, line 39
+**Impact:** The setup script creates `.env` at `claude-telegram-bot/.env` (line 39: `ENV_FILE="${BOT_DIR}/.env"`). But both `live.sh` (line 10-18) and `run-loop.sh` (line 12-20) prefer `$CLAUDE_WORKING_DIR/.superturtle/.env` and print a WARNING when they fall back to the bot-dir `.env`:
+
+```bash
+# live.sh line 16
+echo "[live] WARNING: Using legacy .env in bot dir. Move it to ${CLAUDE_WORKING_DIR}/.superturtle/.env"
+```
+
+Users who run `./super_turtle/setup` instead of `superturtle init` (which correctly uses `.superturtle/.env`) see a legacy warning on their very first bot start. The setup script also writes to `claude-telegram-bot/.env`, which is gitignored by the bot's `.gitignore` — correct for secrets, but inconsistent with the current canonical location.
+
+**Fix:** Change `ENV_FILE` on line 39 from `"${BOT_DIR}/.env"` to `"${ROOT_DIR}/.superturtle/.env"` (creating `.superturtle/` if needed), matching the convention that `superturtle init` and the runtime scripts expect.
+
+---
+
+### 29. Bug: npm `files` list ships test files in the published package
+
+**File:** `super_turtle/package.json`, line 55
+**Impact:** The `"state/*.py"` glob matches both production code and test files:
+- `state/conductor_state.py` (production)
+- `state/run_state_writer.py` (production)
+- `state/__init__.py` (production)
+- `state/test_conductor_state.py` (test — should not ship)
+- `state/test_run_state_writer.py` (test — should not ship)
+
+Similarly, `"subturtle/subturtle_loop/__main__.py"` (line 53) ships dead code that finding #19 already identified as unused.
+
+**Fix:** Replace `"state/*.py"` with explicit file paths: `"state/__init__.py"`, `"state/conductor_state.py"`, `"state/run_state_writer.py"`. Remove the `subturtle_loop/__main__.py` entry if that module is confirmed dead.
+
+---
+
+### 30. Bug: `pyproject.toml` CLI entry point runs stale/dead code
+
+**File:** `super_turtle/subturtle/pyproject.toml`, line 19
+**Impact:** The `[project.scripts]` section defines:
+
+```toml
+subturtle-run = "subturtle_loop.__main__:main"
+```
+
+This points to `subturtle_loop/__main__.py`, which finding #19 identified as dead code with its own disconnected prompts and orchestration patterns. The canonical SubTurtle loop runs through `super_turtle/subturtle/__main__.py` (invoked by `ctl spawn` via `python3 -m __main__`). Anyone who installs the package (`pip install -e .`) and runs `subturtle-run` gets the wrong, stale loop implementation.
+
+**Fix:** Either update the entry point to reference the canonical `__main__.py` (if a pip-installable CLI is desired), or remove the `[project.scripts]` section entirely since `ctl` already handles SubTurtle invocation.
+
+---
+
+### 31. Maintenance risk: Dependencies duplicated between two package.json files with no sync
+
+**Files:** `super_turtle/package.json` (lines 9-18) and `super_turtle/claude-telegram-bot/package.json` (lines 17-26)
+**Impact:** Both files declare identical `dependencies` blocks (`grammy`, `openai`, `pino`, `zod`, etc.). The outer package.json is the npm-published manifest; the inner one is the Bun dev/runtime manifest. When a dependency is added or version-bumped, both files must be manually updated. There is no workspace link, no shared config, and no CI check that detects drift. If they diverge, the npm-installed version gets different deps than the dev version, causing hard-to-debug runtime differences.
+
+```json
+// super_turtle/package.json
+"dependencies": { "@grammyjs/runner": "^2.0.3", ... "zod": "^4.2.1" }
+
+// super_turtle/claude-telegram-bot/package.json
+"dependencies": { "@grammyjs/runner": "^2.0.3", ... "zod": "^4.2.1" }
+```
+
+**Fix:** Add a simple CI/test script that compares the two `dependencies` objects and fails if they diverge. Or restructure so the outer package.json uses a `"bundleDependencies"` approach or a pre-publish script that copies deps from the inner file.
+
+---
+
+### 32. Inconsistency: `mcp-config.ts` `REPO_ROOT` variable name is misleading
+
+**File:** `super_turtle/claude-telegram-bot/mcp-config.ts`, line 8
+**Impact:** The variable is named `REPO_ROOT` but resolves to `claude-telegram-bot/` (the directory containing `mcp-config.ts`), not the actual repo root or even the `super_turtle/` package root:
+
+```ts
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)));
+// Resolves to: .../super_turtle/claude-telegram-bot/
+```
+
+Meanwhile, `config.ts` uses the more accurately named `SUPER_TURTLE_DIR` for the actual package root. Anyone adding a new MCP server that needs paths relative to the repo root or package root will be misled by this name.
+
+**Fix:** Rename `REPO_ROOT` to `BOT_DIR` or `MCP_BASE_DIR` to reflect what it actually points to.
+
+---
+
+### 33. Bug: `superturtle.js` `start()` injects unescaped paths into shell command string
+
+**File:** `super_turtle/bin/superturtle.js`, lines 514-521
+**Impact:** The `cmd` variable interpolates `BOT_DIR`, `cwd`, and log paths directly into a shell string that tmux executes via `/bin/sh`:
+
+```js
+const cmd =
+    `cd "${BOT_DIR}"` +
+    ` && export CLAUDE_WORKING_DIR="${cwd}"` +
+    ` && export SUPER_TURTLE_DIR="${PACKAGE_ROOT}"` +
+    ...
+    ` && ./run-loop.sh 2>&1 | tee -a "${logPaths.loop}"`;
+```
+
+If any path contains shell metacharacters (`"`, `$`, `` ` ``, `\`), the command breaks or is misinterpreted. While unlikely for typical installations, this can happen with project directories containing `$` (e.g., `my$project`) or double quotes. The `spawnSync` call passes `cmd` as a raw argument to `tmux new-session`, which runs it through the shell.
+
+**Fix:** Shell-escape each interpolated value (replace `\` → `\\`, `"` → `\"`, `$` → `\$`, `` ` `` → `` \` ``) or build the command using the `-e` environment variable flags (already done for some vars) and reference `$VARS` in the shell string instead of literal paths.
+
+---
+
+## Summary — Root config files
+
+| # | Severity | Type | File | Fix effort |
+|---|----------|------|------|------------|
+| 28 | Medium | Bug | setup | 10 min |
+| 29 | Low | Bug | package.json (npm) | 2 min |
+| 30 | Low | Bug | pyproject.toml | 2 min |
+| 31 | Low | Maintenance | both package.json | 15 min |
+| 32 | Low | Naming | mcp-config.ts | 2 min |
+| 33 | Low | Bug | superturtle.js | 10 min |
