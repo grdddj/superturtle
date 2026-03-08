@@ -2,7 +2,7 @@
 
 Reviewer: Claude (automated)
 Date: 2026-03-08
-Scope: `super_turtle/claude-telegram-bot/src/` (TypeScript source files)
+Scope: `super_turtle/claude-telegram-bot/src/`, `super_turtle/subturtle/`, `super_turtle/meta/`
 
 ---
 
@@ -361,3 +361,113 @@ cron_jobs_path.write_text(json.dumps(jobs, indent=2))  # Write — no lock
 | 18 | Low | Bug | browser-screenshot.sh | 2 min |
 | 19 | Low | Dead code | subturtle_loop/__main__.py | 5 min |
 | 20 | Medium | Bug | ctl (cron-jobs.json) | 20 min |
+
+---
+
+## Findings — `super_turtle/meta/` (prompt files and CLI launcher)
+
+Scope: `META_SHARED.md` (526 lines, system prompt for meta agent), `ORCHESTRATOR_PROMPT.md` (105 lines, overnight orchestrator cron), `DECOMPOSITION_PROMPT.md` (110 lines, task splitting protocol), `CODEX_TELEGRAM_BOOTSTRAP.md` (24 lines, Codex driver bootstrap), `claude-meta` (36 lines, standalone CLI launcher).
+
+### 21. Bug: `claude-meta` hardcoded repo path in error hint
+
+**File:** `super_turtle/meta/claude-meta`, line 6
+**Impact:** The error hint message tells users to `cd /agentic` — a hardcoded path that is wrong for most installations. Users cloning the repo elsewhere get a misleading diagnostic.
+
+```bash
+echo "[claude-meta] hint: cd /agentic && ./super_turtle/meta/claude-meta" >&2
+```
+
+**Fix:** Replace with a dynamic path or a generic instruction: `echo "[claude-meta] hint: cd to the repo root (where AGENTS.md lives) and retry" >&2`.
+
+---
+
+### 22. Inconsistency: `claude-meta` uses `--append-system-prompt` vs bot uses `--system-prompt`
+
+**File:** `super_turtle/meta/claude-meta`, line 34 vs `src/session.ts`, line 549
+**Impact:** The standalone CLI script (`claude-meta`) uses `--append-system-prompt`, which adds META_SHARED.md *on top of* Claude's default system prompt. The Telegram bot uses `--system-prompt`, which *replaces* the default system prompt entirely. This means the meta agent has Claude's default instructions when run via the CLI but loses them when run via Telegram. Depending on which path, the meta agent may behave differently on edge cases covered by Claude's defaults (safety, tool usage patterns, etc.).
+
+```bash
+# claude-meta (appends — Claude defaults preserved)
+exec claude --append-system-prompt "$meta_text" "$@"
+
+# session.ts (replaces — Claude defaults removed)
+args.push("--system-prompt", META_PROMPT);
+```
+
+**Fix:** Decide which behavior is intended. If META_SHARED.md is designed to be self-contained, change `claude-meta` to use `--system-prompt` for consistency. If Claude's default instructions are needed, change the bot to use `--append-system-prompt`.
+
+---
+
+### 23. Stale reference: META_SHARED.md tells meta agent to "use" internal TypeScript functions
+
+**File:** `super_turtle/meta/META_SHARED.md`, line 387
+**Impact:** The "How to check usage" section says: *"Use `getUsageLines()` (Claude Code usage) and `getCodexQuotaLines()` (Codex usage) as the decision inputs."* These are internal TypeScript functions in `src/handlers/commands.ts` — the meta agent cannot call them directly. The preceding line correctly says to call `bot_control` with action `usage`, but this line confuses the meta agent about how to access usage data.
+
+```markdown
+**How to check usage:**
+- Call `bot_control` with action `usage`.
+- Use `getUsageLines()` (Claude Code usage) and `getCodexQuotaLines()` (Codex usage) as the decision inputs.
+```
+
+**Fix:** Replace line 387 with: *"The output includes Claude Code usage and Codex quota data — use those numbers as the decision inputs for the matrix below."*
+
+---
+
+### 24. Incomplete docs: META_SHARED.md cron format omits `silent` field
+
+**File:** `super_turtle/meta/META_SHARED.md`, lines 494-496
+**Impact:** The cron job format documentation lists `id`, `prompt`, `type`, `fire_at`, `interval_ms`, `created_at` — but omits the `silent` boolean field. The `CronJob` interface in `src/cron.ts` (line 26) has `silent?: boolean`, and the ORCHESTRATOR_PROMPT.md (step 5) tells the agent to set `Silent: false` without explaining it's a JSON field. When the meta agent manually writes cron jobs following the documented format, the `silent` field is missing, causing the job to default to non-silent (backward-compatible, but undocumented behavior that could surprise).
+
+**Fix:** Add `silent` (boolean, optional, defaults to `false` — `true` means job output stays silent unless notable) to the field list on line 495.
+
+---
+
+### 25. Stale pattern: ORCHESTRATOR_PROMPT.md ignores conductor system entirely
+
+**File:** `super_turtle/meta/ORCHESTRATOR_PROMPT.md`, steps 1-3
+**Impact:** The orchestrator surveys SubTurtles by reading CLAUDE.md files, checking `ctl list`, and inspecting `git log`. It has no awareness of the conductor system (`workers/<name>.json`, `events.jsonl`, wakeups, inbox). The conductor now tracks worker lifecycle state with structured events — completion, failure, timeout, checkpoints — but the orchestrator ignores all of this. It checks for self-completion by looking for `## Loop Control` + `STOP` in the CLAUDE.md, but the conductor already processes this and creates a `completion_pending` wakeup. This means the orchestrator duplicates work the conductor already handles and misses richer status data.
+
+```markdown
+## Step 1: Survey running SubTurtles
+1. Read its state file: `.subturtles/<name>/CLAUDE.md`
+2. Check recent commits: `git log --oneline -10`
+3. Check if it self-completed (look for `## Loop Control` + `STOP` in its CLAUDE.md)
+```
+
+**Fix:** Update step 1 to also read `{{DATA_DIR}}/state/workers/<name>.json` for canonical lifecycle state (checkpoint signatures, terminal outcomes). Update step 3 to check conductor state for completed/failed workers instead of re-parsing the CLAUDE.md directive. Reference the conductor wakeup queue for pending lifecycle events.
+
+---
+
+### 26. Possibly stale: `claude-meta` allowed tools list uses `Task` instead of `Agent`
+
+**File:** `super_turtle/meta/claude-meta`, line 23
+**Impact:** The `--allowedTools` list includes `Task,TaskOutput,TaskStop`. The current Claude CLI tool for launching subagents is called `Agent` (visible in Claude Code's own tool catalog). If `Task` has been fully renamed to `Agent` without a backward-compatible alias, the `claude-meta` script would silently prevent the meta agent from spawning subagent tasks — a critical capability for the orchestrator.
+
+```bash
+allowed_tools="Task,TaskOutput,TaskStop,Bash,Glob,Grep,Read,Edit,Write,..."
+```
+
+**Fix:** Verify whether `Task` is still accepted by the Claude CLI as an alias for `Agent`. If not, replace `Task` with `Agent` in the allowed tools string.
+
+---
+
+### 27. Dead export: ORCHESTRATOR_PROMPT.md loaded by config.ts but never imported
+
+**File:** `super_turtle/meta/ORCHESTRATOR_PROMPT.md` (via `src/config.ts`, lines 281-295)
+**Impact:** `config.ts` reads, template-expands, and exports `ORCHESTRATOR_PROMPT`, but no other TypeScript file imports it. The orchestrator prompt is actually consumed by `ctl` (shell script), which reads the file directly and does its own template expansion. The config.ts load is wasted startup work and adds confusion about where the orchestrator prompt is consumed.
+
+**Fix:** Remove the `ORCHESTRATOR_PROMPT` loading and export from `config.ts`. The bot doesn't need it — `ctl` handles its own prompt loading.
+
+---
+
+## Summary — Meta prompts
+
+| # | Severity | Type | File | Fix effort |
+|---|----------|------|------|------------|
+| 21 | Low | Bug | claude-meta | 2 min |
+| 22 | Medium | Inconsistency | claude-meta vs session.ts | 5 min |
+| 23 | Low | Stale reference | META_SHARED.md | 2 min |
+| 24 | Low | Incomplete docs | META_SHARED.md | 2 min |
+| 25 | Medium | Stale pattern | ORCHESTRATOR_PROMPT.md | 20 min |
+| 26 | Medium | Possibly stale | claude-meta | 2 min |
+| 27 | Low | Dead code | ORCHESTRATOR_PROMPT.md (config.ts) | 5 min |
