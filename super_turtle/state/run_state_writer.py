@@ -9,7 +9,12 @@ from typing import Any, Mapping, Sequence
 
 from super_turtle.state.conductor_state import ConductorStateStore
 
-DEFAULT_HANDOFF_NOTE = "This summary is refreshed by supervision flows."
+DEFAULT_HANDOFF_NOTE = "Rendered from canonical conductor state."
+WORKSPACE_FILTER_HANDOFF_NOTE = "Workers without live workspaces are omitted from active sections."
+ACTIVE_WORKER_STATES = frozenset(
+    {"planned", "starting", "running", "completion_pending", "failure_pending", "stop_pending"}
+)
+RECENT_UPDATE_STATES = frozenset({"completed", "failed", "timed_out", "stopped"})
 
 
 def _utc_now_iso() -> str:
@@ -26,6 +31,7 @@ def render_handoff(
     updated_at: str,
     active_runs: Sequence[str],
     recent_milestones: Sequence[str],
+    pending_wakeups: Sequence[str] | None = None,
     notes: Sequence[str] | None = None,
 ) -> str:
     lines: list[str] = [
@@ -33,25 +39,219 @@ def render_handoff(
         "",
         f"Last updated: {updated_at}",
         "",
-        "## Active Runs",
+        "## Active Workers",
     ]
 
     if active_runs:
         lines.extend(f"- {item}" for item in active_runs)
     else:
-        lines.append("- None yet.")
+        lines.append("- None.")
 
-    lines.extend(["", "## Recent Milestones"])
+    lines.extend(["", "## Pending Wakeups"])
+    pending_list = list(pending_wakeups or [])
+    if pending_list:
+        lines.extend(f"- {item}" for item in pending_list)
+    else:
+        lines.append("- None.")
+
+    lines.extend(["", "## Recent Worker Updates"])
     if recent_milestones:
         lines.extend(f"- {item}" for item in recent_milestones)
     else:
-        lines.append("- None yet.")
+        lines.append("- None.")
 
     lines.extend(["", "## Notes"])
     notes_list = list(notes or [DEFAULT_HANDOFF_NOTE])
     lines.extend(f"- {item}" for item in notes_list)
     lines.append("")
     return "\n".join(lines)
+
+
+def render_conductor_handoff(
+    *,
+    updated_at: str,
+    active_workers: Sequence[str],
+    pending_wakeups: Sequence[str],
+    recent_updates: Sequence[str],
+    notes: Sequence[str] | None = None,
+) -> str:
+    lines: list[str] = [
+        "# SubTurtle Long-Run Handoff",
+        "",
+        f"Last updated: {updated_at}",
+        "",
+        "## Active Workers",
+    ]
+
+    if active_workers:
+        lines.extend(f"- {item}" for item in active_workers)
+    else:
+        lines.append("- None.")
+
+    lines.extend(["", "## Pending Wakeups"])
+    if pending_wakeups:
+        lines.extend(f"- {item}" for item in pending_wakeups)
+    else:
+        lines.append("- None.")
+
+    lines.extend(["", "## Recent Worker Updates"])
+    if recent_updates:
+        lines.extend(f"- {item}" for item in recent_updates)
+    else:
+        lines.append("- None.")
+
+    lines.extend(["", "## Notes"])
+    notes_list = list(notes or [DEFAULT_HANDOFF_NOTE, WORKSPACE_FILTER_HANDOFF_NOTE])
+    lines.extend(f"- {item}" for item in notes_list)
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _string_value(value: Any) -> str | None:
+    if isinstance(value, str):
+        trimmed = value.strip()
+        return trimmed or None
+    return None
+
+
+def _mapping_value(value: Any) -> dict[str, Any]:
+    return dict(value) if isinstance(value, Mapping) else {}
+
+
+def _sort_newest(records: Sequence[Mapping[str, Any]], *timestamp_keys: str) -> list[dict[str, Any]]:
+    def sort_key(record: Mapping[str, Any]) -> tuple[str, str]:
+        for key in timestamp_keys:
+            value = _string_value(record.get(key))
+            if value:
+                return (value, _string_value(record.get("worker_name")) or "")
+        return ("", _string_value(record.get("worker_name")) or "")
+
+    return sorted((dict(record) for record in records), key=sort_key, reverse=True)
+
+
+def _workspace_exists(state: Mapping[str, Any]) -> bool:
+    workspace = _string_value(state.get("workspace"))
+    if not workspace:
+        return False
+    return Path(workspace).exists()
+
+
+def _worker_has_live_workspace(
+    conductor: ConductorStateStore, worker_name: str | None
+) -> bool:
+    if not worker_name:
+        return False
+    state = conductor.load_worker_state(worker_name) or {}
+    return _workspace_exists(state)
+
+
+def _format_checkpoint(checkpoint: Mapping[str, Any]) -> str | None:
+    parts: list[str] = []
+    iteration = checkpoint.get("iteration")
+    if isinstance(iteration, int):
+        parts.append(f"iter {iteration}")
+    head_sha = _string_value(checkpoint.get("head_sha"))
+    if head_sha:
+        parts.append(head_sha[:12])
+    recorded_at = _string_value(checkpoint.get("recorded_at"))
+    if recorded_at:
+        parts.append(recorded_at)
+    return " | ".join(parts) if parts else None
+
+
+def _format_active_worker(state: Mapping[str, Any]) -> str:
+    worker_name = _string_value(state.get("worker_name")) or "(unknown)"
+    lifecycle_state = _string_value(state.get("lifecycle_state")) or "unknown"
+    parts = [f"{worker_name} [{lifecycle_state}]"]
+    current_task = _string_value(state.get("current_task"))
+    if current_task:
+        parts.append(f"task: {current_task}")
+    checkpoint = _mapping_value(state.get("checkpoint"))
+    checkpoint_summary = _format_checkpoint(checkpoint)
+    if checkpoint_summary:
+        parts.append(f"checkpoint: {checkpoint_summary}")
+    updated_at = _string_value(state.get("updated_at"))
+    if updated_at:
+        parts.append(f"updated: {updated_at}")
+    return " | ".join(parts)
+
+
+def _format_pending_wakeup(wakeup: Mapping[str, Any]) -> str:
+    worker_name = _string_value(wakeup.get("worker_name")) or "(unknown)"
+    category = _string_value(wakeup.get("category")) or "unknown"
+    summary = _string_value(wakeup.get("summary")) or "(missing summary)"
+    parts = [f"{worker_name} [{category}]", summary]
+    created_at = _string_value(wakeup.get("created_at"))
+    if created_at:
+        parts.append(f"created: {created_at}")
+    return " | ".join(parts)
+
+
+def _format_recent_update(state: Mapping[str, Any]) -> str:
+    worker_name = _string_value(state.get("worker_name")) or "(unknown)"
+    lifecycle_state = _string_value(state.get("lifecycle_state")) or "unknown"
+    parts = [f"{worker_name} [{lifecycle_state}]"]
+    stop_reason = _string_value(state.get("stop_reason"))
+    if stop_reason:
+        parts.append(f"reason: {stop_reason}")
+    terminal_at = _string_value(state.get("terminal_at"))
+    updated_at = _string_value(state.get("updated_at"))
+    if terminal_at:
+        parts.append(f"terminal: {terminal_at}")
+    elif updated_at:
+        parts.append(f"updated: {updated_at}")
+    return " | ".join(parts)
+
+
+def refresh_handoff_from_conductor(
+    state_dir: str | Path,
+    *,
+    notes: Sequence[str] | None = None,
+    updated_at: str | None = None,
+) -> str:
+    writer = RunStateWriter(state_dir)
+    conductor = ConductorStateStore(state_dir)
+
+    worker_states = [
+        state
+        for state in conductor.list_worker_states()
+        if _workspace_exists(state)
+    ]
+    active_workers = [
+        _format_active_worker(state)
+        for state in _sort_newest(worker_states, "updated_at", "created_at")
+        if _string_value(state.get("lifecycle_state")) in ACTIVE_WORKER_STATES
+    ]
+    recent_updates = [
+        _format_recent_update(state)
+        for state in _sort_newest(worker_states, "terminal_at", "updated_at", "created_at")
+        if _string_value(state.get("lifecycle_state")) in RECENT_UPDATE_STATES
+    ][:8]
+    pending_wakeups = [
+        _format_pending_wakeup(wakeup)
+        for wakeup in _sort_newest(
+            [
+                wakeup
+                for wakeup in conductor.list_wakeups(delivery_state="pending")
+                if _string_value(wakeup.get("category")) != "silent"
+                and _worker_has_live_workspace(
+                    conductor, _string_value(wakeup.get("worker_name"))
+                )
+            ],
+            "created_at",
+            "updated_at",
+        )
+    ][:8]
+
+    content = render_conductor_handoff(
+        updated_at=updated_at or _utc_now_iso(),
+        active_workers=active_workers,
+        pending_wakeups=pending_wakeups,
+        recent_updates=recent_updates,
+        notes=notes,
+    )
+    _atomic_write_text(writer.handoff_md_file, content)
+    return content
 
 
 def _atomic_write_text(path: Path, content: str) -> None:
@@ -74,11 +274,12 @@ def ensure_state_files(state_dir: str | Path) -> tuple[Path, Path]:
     runs_jsonl_file.touch(exist_ok=True)
     if not handoff_md_file.exists():
         handoff_md_file.write_text(
-            render_handoff(
+            render_conductor_handoff(
                 updated_at="not yet",
-                active_runs=[],
-                recent_milestones=[],
-                notes=[DEFAULT_HANDOFF_NOTE],
+                active_workers=[],
+                pending_wakeups=[],
+                recent_updates=[],
+                notes=[DEFAULT_HANDOFF_NOTE, WORKSPACE_FILTER_HANDOFF_NOTE],
             ),
             encoding="utf-8",
         )
@@ -138,6 +339,18 @@ class RunStateWriter:
         )
         _atomic_write_text(self.handoff_md_file, content)
         return content
+
+    def refresh_handoff_from_conductor(
+        self,
+        *,
+        notes: Sequence[str] | None = None,
+        updated_at: str | None = None,
+    ) -> str:
+        return refresh_handoff_from_conductor(
+            self.state_dir,
+            notes=notes,
+            updated_at=updated_at,
+        )
 
 
 def _load_json_object(raw_payload: str | None, *, arg_name: str) -> dict[str, Any] | None:
@@ -199,6 +412,22 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Add one notes line (repeatable).",
     )
     handoff_parser.add_argument(
+        "--updated-at",
+        default=None,
+        help="Override timestamp string (defaults to current UTC).",
+    )
+
+    refresh_handoff_parser = subparsers.add_parser(
+        "refresh-handoff-from-conductor",
+        help="Rewrite handoff.md from canonical worker state and wakeups.",
+    )
+    refresh_handoff_parser.add_argument(
+        "--note",
+        action="append",
+        default=[],
+        help="Add one notes line (repeatable).",
+    )
+    refresh_handoff_parser.add_argument(
         "--updated-at",
         default=None,
         help="Override timestamp string (defaults to current UTC).",
@@ -356,6 +585,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(str(writer.handoff_md_file))
         return 0
 
+    if args.command == "refresh-handoff-from-conductor":
+        notes = args.note if args.note else None
+        writer.refresh_handoff_from_conductor(
+            notes=notes,
+            updated_at=args.updated_at,
+        )
+        print(str(writer.handoff_md_file))
+        return 0
+
     conductor = ConductorStateStore(args.state_dir)
 
     if args.command == "put-worker":
@@ -422,6 +660,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             updated_at=args.updated_at,
         )
         written = conductor.write_worker_state(state)
+        writer.refresh_handoff_from_conductor()
         print(json.dumps(written, sort_keys=True))
         return 0
 
@@ -458,6 +697,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             updated_at=args.updated_at,
         )
         written = conductor.write_wakeup(wakeup)
+        writer.refresh_handoff_from_conductor()
         print(json.dumps(written, sort_keys=True))
         return 0
 

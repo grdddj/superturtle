@@ -1,4 +1,4 @@
-import { existsSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { resolve } from "path";
 import { WORKING_DIR, CTL_PATH, DASHBOARD_ENABLED, DASHBOARD_AUTH_TOKEN, DASHBOARD_BIND_ADDR, DASHBOARD_PORT, META_PROMPT, SUPER_TURTLE_DIR } from "./config";
 import { getJobs } from "./cron";
@@ -154,6 +154,39 @@ async function readSubturtles(): Promise<ListedSubTurtle[]> {
   } catch {
     return [];
   }
+}
+
+type ConductorWorkerLaneState = {
+  worker_name: string;
+  lifecycle_state?: string | null;
+  workspace?: string | null;
+  loop_type?: string | null;
+  current_task?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+function isObjectLike(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function readConductorWorkerState(name: string): ConductorWorkerLaneState | null {
+  const path = resolve(WORKING_DIR, ".superturtle/state/workers", `${name}.json`);
+  if (!existsSync(path)) return null;
+
+  try {
+    const parsed = JSON.parse(readFileSync(path, "utf-8"));
+    if (!isObjectLike(parsed)) return null;
+    return parsed as ConductorWorkerLaneState;
+  } catch {
+    return null;
+  }
+}
+
+function parseIsoDate(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 export function safeSubstring(input: string, max: number): string {
@@ -549,9 +582,16 @@ async function buildSessionTurns(
 }
 
 async function buildSubturtleLanes(turtles: TurtleView[]): Promise<SubturtleLaneView[]> {
+  const conductorStates = new Map<string, ConductorWorkerLaneState | null>();
+  for (const turtle of turtles) {
+    conductorStates.set(turtle.name, readConductorWorkerState(turtle.name));
+  }
+
   return Promise.all(
     turtles.map(async (turtle) => {
-      const statePath = `${WORKING_DIR}/.subturtles/${turtle.name}/CLAUDE.md`;
+      const conductorState = conductorStates.get(turtle.name) || null;
+      const workspacePath = conductorState?.workspace || `${WORKING_DIR}/.subturtles/${turtle.name}`;
+      const statePath = `${workspacePath}/CLAUDE.md`;
       const backlogItems = await readClaudeBacklogItems(statePath);
       const backlogTotal = backlogItems.length;
       const backlogDone = backlogItems.filter((item) => item.done).length;
@@ -559,13 +599,16 @@ async function buildSubturtleLanes(turtles: TurtleView[]): Promise<SubturtleLane
         backlogItems.find((item) => item.current && !item.done)?.text ||
         backlogItems.find((item) => !item.done)?.text ||
         "";
+      const conductorElapsed = elapsedFrom(
+        parseIsoDate(conductorState?.created_at || conductorState?.updated_at)
+      );
 
       return {
         name: turtle.name,
-        status: turtle.status,
-        type: turtle.type || "unknown",
-        elapsed: turtle.elapsed,
-        task: turtle.task || "",
+        status: conductorState?.lifecycle_state || turtle.status,
+        type: conductorState?.loop_type || turtle.type || "unknown",
+        elapsed: turtle.status === "running" ? turtle.elapsed : conductorElapsed,
+        task: conductorState?.current_task || turtle.task || "",
         backlogDone,
         backlogTotal,
         backlogCurrent,

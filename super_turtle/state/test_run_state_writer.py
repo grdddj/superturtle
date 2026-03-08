@@ -25,6 +25,9 @@ class RunStateWriterTests(unittest.TestCase):
             handoff_content = handoff_md_file.read_text(encoding="utf-8")
             self.assertIn("# SubTurtle Long-Run Handoff", handoff_content)
             self.assertIn("Last updated: not yet", handoff_content)
+            self.assertIn("## Active Workers", handoff_content)
+            self.assertIn("## Pending Wakeups", handoff_content)
+            self.assertIn("## Recent Worker Updates", handoff_content)
             self.assertIn(f"- {DEFAULT_HANDOFF_NOTE}", handoff_content)
 
     def test_append_event_writes_jsonl_entry(self) -> None:
@@ -65,6 +68,90 @@ class RunStateWriterTests(unittest.TestCase):
             self.assertIn("- long-run-alpha (last event: spawn at 2026-02-27T00:00:00Z)", handoff_content)
             self.assertIn("- long-run-alpha: completion (done) at 2026-02-27T01:00:00Z", handoff_content)
             self.assertIn("- Auto-refreshed by test.", handoff_content)
+
+    def test_refresh_handoff_from_conductor_renders_live_workers_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            live_workspace = Path(tmp_dir) / ".subturtles" / "alpha"
+            live_workspace.mkdir(parents=True)
+            missing_workspace = Path(tmp_dir) / ".subturtles" / "ghost"
+
+            self.assertEqual(
+                main(
+                    [
+                        "--state-dir",
+                        tmp_dir,
+                        "put-worker",
+                        "--worker-name",
+                        "alpha",
+                        "--lifecycle-state",
+                        "running",
+                        "--updated-by",
+                        "supervisor",
+                        "--workspace",
+                        str(live_workspace),
+                        "--current-task",
+                        "Ship conductor-rendered handoff",
+                    ]
+                ),
+                0,
+            )
+            self.assertEqual(
+                main(
+                    [
+                        "--state-dir",
+                        tmp_dir,
+                        "put-worker",
+                        "--worker-name",
+                        "ghost",
+                        "--lifecycle-state",
+                        "running",
+                        "--updated-by",
+                        "supervisor",
+                        "--workspace",
+                        str(missing_workspace),
+                        "--current-task",
+                        "This should stay filtered",
+                    ]
+                ),
+                0,
+            )
+            self.assertEqual(
+                main(
+                    [
+                        "--state-dir",
+                        tmp_dir,
+                        "enqueue-wakeup",
+                        "--worker-name",
+                        "alpha",
+                        "--category",
+                        "notable",
+                        "--summary",
+                        "Alpha needs a checkpoint review",
+                    ]
+                ),
+                0,
+            )
+            self.assertEqual(
+                main(
+                    [
+                        "--state-dir",
+                        tmp_dir,
+                        "refresh-handoff-from-conductor",
+                        "--updated-at",
+                        "2026-03-08T09:00:00Z",
+                    ]
+                ),
+                0,
+            )
+
+            handoff_content = (Path(tmp_dir) / "handoff.md").read_text(encoding="utf-8")
+            self.assertIn("Last updated: 2026-03-08T09:00:00Z", handoff_content)
+            self.assertIn("## Active Workers", handoff_content)
+            self.assertIn("alpha [running]", handoff_content)
+            self.assertIn("Ship conductor-rendered handoff", handoff_content)
+            self.assertIn("## Pending Wakeups", handoff_content)
+            self.assertIn("Alpha needs a checkpoint review", handoff_content)
+            self.assertNotIn("ghost [running]", handoff_content)
 
     def test_cli_commands_smoke(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

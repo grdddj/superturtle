@@ -84,14 +84,18 @@ ensure_run_state_files() {
 
 Last updated: not yet
 
-## Active Runs
-- None yet.
+## Active Workers
+- None.
 
-## Recent Milestones
-- None yet.
+## Pending Wakeups
+- None.
+
+## Recent Worker Updates
+- None.
 
 ## Notes
-- This summary is refreshed by supervision flows.
+- Rendered from canonical conductor state.
+- Workers without live workspaces are omitted from active sections.
 EOF
   fi
 }

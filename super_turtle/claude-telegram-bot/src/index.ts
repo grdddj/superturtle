@@ -16,6 +16,7 @@ import {
   CODEX_USER_ENABLED,
   TOKEN_PREFIX,
   IPC_DIR,
+  SUPERTURTLE_DATA_DIR,
 } from "./config";
 import { unlinkSync, readFileSync, existsSync, writeFileSync, openSync, closeSync, mkdirSync } from "fs";
 import {
@@ -204,6 +205,38 @@ function shouldPrepareSilentSubturtleSnapshot(
   if (!target) return null;
   if (target.mode && target.mode !== "silent") return null;
   return target.workerName;
+}
+
+function refreshConductorHandoff(): void {
+  const proc = Bun.spawnSync(
+    [
+      "python3",
+      "-m",
+      "super_turtle.state.run_state_writer",
+      "--state-dir",
+      `${SUPERTURTLE_DATA_DIR}/state`,
+      "refresh-handoff-from-conductor",
+    ],
+    {
+      cwd: WORKING_DIR,
+      env: {
+        ...process.env,
+        SUPER_TURTLE_PROJECT_DIR: WORKING_DIR,
+        CLAUDE_WORKING_DIR: WORKING_DIR,
+      },
+    }
+  );
+
+  if (proc.exitCode !== 0) {
+    const stderr = proc.stderr.toString().trim();
+    cronLog.warn(
+      {
+        exitCode: proc.exitCode,
+        stderr: stderr || undefined,
+      },
+      "Failed to refresh conductor handoff"
+    );
+  }
 }
 
 async function prepareSubturtleSnapshot(
@@ -519,6 +552,7 @@ const startCronTimer = () => {
         supervisorTick.reconciled > 0 ||
         supervisorTick.errors > 0
       ) {
+        refreshConductorHandoff();
         cronLog.info(
           { supervisorTick },
           `[conductor] sent=${supervisorTick.sent} reconciled=${supervisorTick.reconciled} errors=${supervisorTick.errors} skipped=${supervisorTick.skipped}`

@@ -447,9 +447,10 @@ The migration is still in a mixed mode:
 - legacy `.superturtle/state/runs.jsonl` and `handoff.md` still exist for compatibility and current operator surfaces
 - `ctl spawn` now writes structured supervision cron metadata (`job_kind`, `worker_name`, `supervision_mode`) so recurring checks resolve workers from disk state first instead of depending on prompt regexes
 - silent cron now prepares snapshots from canonical worker state, filtered worker events, and worker wakeups before falling back to `ctl status`, `CLAUDE.md`, git history, and tunnel metadata
+- `handoff.md` now renders from canonical worker state plus pending wakeups, and dashboard lanes prefer conductor worker fields for currently listed SubTurtles
 - milestone/stuck judgment is still model-mediated, and silent milestone/stuck updates do not yet share the same inbox/reconciliation path as deterministic lifecycle events
 
-The next step is to replace remaining rendered/operator surfaces with views derived directly from the conductor store instead of compatibility summaries.
+The next step is to replace prompt-mediated milestone/stuck judgment with deterministic supervisor policy on top of the conductor store.
 
 ## Verification
 

@@ -49,7 +49,7 @@ git checkout dev && git merge main
 ---
 
 ## Current task
-Redesign SubTurtle orchestration so durable state, not chat/session memory, is the control plane. Current focus: re-render operator-facing handoff and dashboard views from structured conductor state instead of stale summary files or prompt heuristics.
+Redesign SubTurtle orchestration so durable state, not chat/session memory, is the control plane. Current focus: replace the remaining prompt-mediated silent milestone/stuck judgment with deterministic supervisor policy on top of conductor state.
 
 ## SubTurtle orchestration redesign scope
 
@@ -106,8 +106,7 @@ We are redesigning the weak parts:
 - ✅ Current worker execution model: isolated workspaces, `CLAUDE.md` state files, commit-per-iteration yolo/slow loops, and self-stop directives
 
 ## Roadmap (Upcoming)
-- Convert the remaining completion/stuck/error handling from prompt-driven inference to supervisor reconciliation
-- Render handoff/dashboard views from structured orchestration state
+- Convert the remaining silent milestone/stuck/error handling from prompt-driven inference to supervisor reconciliation
 - Add restart, recovery, and stale-cleanup tests for conductor behavior
 
 ## Backlog
@@ -119,7 +118,8 @@ We are redesigning the weak parts:
 - [x] Expand the supervisor reconciliation path so silent cron milestone/stuck checks consume structured state instead of prompt inference
 - [x] Design and implement meta-agent wake-up/inbox semantics for background worker events during active user conversations
 - [x] Rework silent cron jobs to become reconciliation/notification triggers instead of the primary source of orchestration truth
-- [ ] Re-render `handoff.md`, dashboard state, and operator summaries from structured state <- current
+- [x] Re-render `handoff.md`, dashboard state, and operator summaries from structured state
+- [ ] Replace prompt-mediated silent milestone/stuck judgment with deterministic supervisor policy <- current
 - [ ] Add end-to-end tests for restart recovery, stale cron cleanup, mid-chat completion delivery, and multi-worker orchestration
 
 ## Notes
@@ -131,7 +131,7 @@ We are redesigning the weak parts:
 - Legacy completion cron handoff has been removed from the SubTurtle self-stop path; completion delivery now rides the canonical wakeup queue
 - Silent supervision snapshots now load `workers/<name>.json`, filtered `events.jsonl`, and worker wakeups before falling back to `ctl status`, `CLAUDE.md`, git log, and tunnel metadata
 - `ctl spawn` now registers structured supervision cron jobs with `job_kind=subturtle_supervision`, `worker_name`, and `supervision_mode`, and the bot prefers those fields over prompt regex parsing
-- Silent snapshot prep no longer refreshes `handoff.md`; handoff rendering remains a separate derived-view task
+- `handoff.md` is now refreshed from canonical worker state plus pending wakeups, and dashboard lanes prefer conductor worker fields for live SubTurtles
 - Reconciled lifecycle wakeups now also create durable meta-agent inbox items; the next successful interactive Claude/Codex turn injects them as non-chat background context and acknowledges them after the turn completes
 - TOKEN_PREFIX lives in `src/token-prefix.ts` (standalone leaf module, no circular deps)
 - MCP IPC files are isolated in `/tmp/superturtle-{tokenPrefix}/`, passed to MCP servers via `SUPERTURTLE_IPC_DIR`

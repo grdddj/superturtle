@@ -29,6 +29,7 @@ from pathlib import Path
 
 from .subturtle_loop import Claude, Codex
 from super_turtle.state.conductor_state import ConductorStateStore
+from super_turtle.state.run_state_writer import refresh_handoff_from_conductor
 
 # Package root (super_turtle/), used for resolving skills directory
 _SUPER_TURTLE_DIR = os.environ.get(
@@ -420,6 +421,17 @@ def _record_completion_pending(state_dir: Path, name: str, project_dir: Path) ->
         payload={"kind": "completion_requested"},
     )
     store.write_wakeup(wakeup)
+    _refresh_handoff(project_dir, name)
+
+
+def _refresh_handoff(project_dir: Path, name: str) -> None:
+    try:
+        refresh_handoff_from_conductor(_run_state_dir(project_dir))
+    except (OSError, ValueError, json.JSONDecodeError, RuntimeError) as error:
+        print(
+            f"[subturtle:{name}] WARNING: failed to refresh handoff: {error}",
+            file=sys.stderr,
+        )
 
 
 def _git_head_sha(project_dir: Path) -> str | None:
@@ -490,6 +502,7 @@ def _record_checkpoint(
             else None,
         )
         store.write_worker_state(state)
+        _refresh_handoff(project_dir, name)
     except (OSError, ValueError, json.JSONDecodeError, RuntimeError) as error:
         print(
             f"[subturtle:{name}] WARNING: failed to record checkpoint: {error}",
@@ -568,6 +581,7 @@ def _record_fatal_error(
             payload=error_payload,
         )
         store.write_wakeup(wakeup)
+        _refresh_handoff(project_dir, name)
     except (OSError, ValueError, json.JSONDecodeError, RuntimeError) as record_error:
         print(
             f"[subturtle:{name}] WARNING: failed to record fatal error state: {record_error}",
