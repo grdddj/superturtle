@@ -99,7 +99,7 @@ See the [full TOS compliance page](https://www.superturtle.dev/docs/config/tos-c
 
 ## Security
 
-Super Turtle runs Claude Code with `--dangerously-skip-permissions`. Every file read, file write, and shell command happens without a confirmation prompt. This is by design — confirming each action from your phone would make the tool unusable.
+Super Turtle runs Claude Code with `--dangerously-skip-permissions` plus an explicit `--allowedTools` allowlist for the bot's normal tool surface. Every file read, file write, and shell command happens without a confirmation prompt. This is by design — confirming each action from your phone would make the tool unusable.
 
 You should run Super Turtle in a sandboxed or dedicated environment (VM, container, separate user account) — it has full access to read, write, and execute within configured paths. Multiple defense layers (user allowlist, rate limiting, path validation, command blocking, audit logging) reduce risk, but the permission model is inherently open. Read the [full security model](https://www.superturtle.dev/docs/config/security) for threat model, incident response, and deployment checklist.
 

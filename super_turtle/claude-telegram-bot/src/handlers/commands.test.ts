@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from "bun:test";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { afterEach, describe, expect, it, mock } from "bun:test";
+import { mkdirSync } from "fs";
 import { resolve } from "path";
 import { codexSession } from "../codex-session";
 import { SUPERTURTLE_DATA_DIR } from "../config";
@@ -90,14 +90,22 @@ function mockClaudeCredentialLookupFailure(): () => void {
 
 const superturtleDataDir = SUPERTURTLE_DATA_DIR;
 mkdirSync(superturtleDataDir, { recursive: true });
-const cronJobsPath = resolve(superturtleDataDir, "cron-jobs.json");
-const originalCronJobsText = existsSync(cronJobsPath) ? readFileSync(cronJobsPath, "utf-8") : null;
 const originalSessionStopTyping = session.stopTyping;
 const originalSessionKill = session.kill;
 const originalSessionModel = session.model;
 const originalSessionEffort = session.effort;
 const originalSessionActiveDriver = session.activeDriver;
 const originalCodexKill = codexSession.kill;
+
+async function loadCommandsModuleWithCronJobs(jobs: Array<Record<string, unknown>>) {
+  const actualCron = await import("../cron");
+  mock.module("../cron", () => ({
+    ...actualCron,
+    getJobs: () => jobs,
+  }));
+
+  return import(`./commands.ts?commands-cron=${Date.now()}-${Math.random()}`);
+}
 
 afterEach(() => {
   session.stopTyping = originalSessionStopTyping;
@@ -106,12 +114,7 @@ afterEach(() => {
   session.effort = originalSessionEffort;
   session.activeDriver = originalSessionActiveDriver;
   codexSession.kill = originalCodexKill;
-
-  if (originalCronJobsText !== null) {
-    writeFileSync(cronJobsPath, originalCronJobsText);
-  } else if (existsSync(cronJobsPath)) {
-    writeFileSync(cronJobsPath, "[]\n");
-  }
+  mock.restore();
 });
 
 describe("getCommandLines", () => {
@@ -778,10 +781,9 @@ describe("handlers with mock Context", () => {
   });
 
   it("handleCron shows no-jobs message when cron job list is empty", async () => {
-    writeFileSync(cronJobsPath, "[]\n");
-
+    const { handleCron: isolatedHandleCron } = await loadCommandsModuleWithCronJobs([]);
     const { ctx, replies } = mockContext("/cron");
-    await handleCron(ctx as any);
+    await isolatedHandleCron(ctx as any);
 
     expect(replies).toHaveLength(1);
     expect(replies[0]!.extra?.parse_mode).toBe("HTML");
@@ -793,37 +795,29 @@ describe("handlers with mock Context", () => {
     const now = Date.now();
     const longPrompt = "Run recurring maintenance task with a very long prompt to force truncation";
     const expectedTruncatedPrompt = `${longPrompt.slice(0, 37)}...`;
-
-    writeFileSync(
-      cronJobsPath,
-      JSON.stringify(
-        [
-          {
-            id: "job-1",
-            prompt: "Do a quick status check",
-            chat_id: 123,
-            type: "one-shot",
-            interval_ms: null,
-            fire_at: now + 5 * 60 * 1000,
-            created_at: new Date(now).toISOString(),
-          },
-          {
-            id: "job-2",
-            prompt: longPrompt,
-            chat_id: 123,
-            type: "recurring",
-            interval_ms: 15 * 60 * 1000,
-            fire_at: now + 2 * 60 * 60 * 1000,
-            created_at: new Date(now).toISOString(),
-          },
-        ],
-        null,
-        2
-      )
-    );
+    const { handleCron: isolatedHandleCron } = await loadCommandsModuleWithCronJobs([
+      {
+        id: "job-1",
+        prompt: "Do a quick status check",
+        chat_id: 123,
+        type: "one-shot",
+        interval_ms: null,
+        fire_at: now + 5 * 60 * 1000,
+        created_at: new Date(now).toISOString(),
+      },
+      {
+        id: "job-2",
+        prompt: longPrompt,
+        chat_id: 123,
+        type: "recurring",
+        interval_ms: 15 * 60 * 1000,
+        fire_at: now + 2 * 60 * 60 * 1000,
+        created_at: new Date(now).toISOString(),
+      },
+    ]);
 
     const { ctx, replies } = mockContext("/cron");
-    await handleCron(ctx as any);
+    await isolatedHandleCron(ctx as any);
 
     expect(replies).toHaveLength(1);
     expect(replies[0]!.extra?.parse_mode).toBe("HTML");
@@ -841,32 +835,24 @@ describe("handlers with mock Context", () => {
 
   it("handleCron prefers structured SubTurtle supervision labels", async () => {
     const now = Date.now();
-
-    writeFileSync(
-      cronJobsPath,
-      JSON.stringify(
-        [
-          {
-            id: "job-structured",
-            prompt: "legacy prompt fallback should not be shown",
-            chat_id: 123,
-            type: "recurring",
-            interval_ms: 10 * 60 * 1000,
-            silent: true,
-            job_kind: "subturtle_supervision",
-            worker_name: "worker-a",
-            supervision_mode: "silent",
-            fire_at: now + 60 * 1000,
-            created_at: new Date(now).toISOString(),
-          },
-        ],
-        null,
-        2
-      )
-    );
+    const { handleCron: isolatedHandleCron } = await loadCommandsModuleWithCronJobs([
+      {
+        id: "job-structured",
+        prompt: "legacy prompt fallback should not be shown",
+        chat_id: 123,
+        type: "recurring",
+        interval_ms: 10 * 60 * 1000,
+        silent: true,
+        job_kind: "subturtle_supervision",
+        worker_name: "worker-a",
+        supervision_mode: "silent",
+        fire_at: now + 60 * 1000,
+        created_at: new Date(now).toISOString(),
+      },
+    ]);
 
     const { ctx, replies } = mockContext("/cron");
-    await handleCron(ctx as any);
+    await isolatedHandleCron(ctx as any);
 
     expect(replies).toHaveLength(1);
     expect(replies[0]!.text).toContain("🔁 <code>SubTurtle worker-a (silent)</code>");

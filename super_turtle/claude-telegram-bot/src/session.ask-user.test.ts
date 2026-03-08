@@ -191,4 +191,73 @@ describe("ClaudeSession ask_user tool routing", () => {
     expect(config.mcpServers?.["bot-control"]?.env?.TELEGRAM_CHAT_ID).toBe(String(chatId));
     expect(config.mcpServers?.["send-turtle"]?.env?.TELEGRAM_CHAT_ID).toBe(String(chatId));
   });
+
+  it("passes an explicit allowed tool list to Claude CLI", async () => {
+    let spawnedArgs: string[] = [];
+
+    Bun.spawn = ((cmd: unknown, _opts?: unknown) => {
+      spawnedArgs = Array.isArray(cmd) ? cmd.map((value) => String(value)) : [];
+
+      const lines = [
+        JSON.stringify({
+          type: "assistant",
+          session_id: "session-allowed-tools-123",
+          message: {
+            content: [{ type: "text", text: "ok" }],
+          },
+        }),
+        JSON.stringify({
+          type: "result",
+          session_id: "session-allowed-tools-123",
+          usage: { input_tokens: 1, output_tokens: 1 },
+        }),
+      ];
+
+      const output = `${lines.join("\n")}\n`;
+      const encoder = new TextEncoder();
+      const encoded = encoder.encode(output);
+
+      const stdout = new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoded);
+          controller.close();
+        },
+      });
+
+      const stderr = new ReadableStream({
+        start(controller) {
+          controller.close();
+        },
+      });
+
+      return {
+        stdout,
+        stderr,
+        pid: 99996,
+        kill: () => {},
+        exited: Promise.resolve(0),
+      } as unknown as ReturnType<typeof Bun.spawn>;
+    }) as typeof Bun.spawn;
+
+    const { ClaudeSession } = await loadSessionModule();
+    const session = new ClaudeSession();
+
+    await session.sendMessageStreaming(
+      "hello",
+      "tester",
+      123,
+      async () => {},
+      6769019304
+    );
+
+    const allowedToolsIndex = spawnedArgs.indexOf("--allowedTools");
+    expect(allowedToolsIndex).toBeGreaterThan(-1);
+
+    const allowedTools = spawnedArgs[allowedToolsIndex + 1] || "";
+    expect(allowedTools).toContain("Bash");
+    expect(allowedTools).toContain("Edit");
+    expect(allowedTools).toContain("Write");
+    expect(allowedTools).toContain("mcp__send-turtle__send_turtle");
+    expect(allowedTools).toContain("mcp__bot-control__ask_user");
+  });
 });

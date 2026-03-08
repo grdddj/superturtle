@@ -126,6 +126,7 @@ We are redesigning the weak parts:
 - [x] Add end-to-end tests for restart recovery, stale cron cleanup, mid-chat completion delivery, reused worker names, and multi-worker orchestration
 - [ ] Lock the conductor behind a 15-path core-flow matrix that matches real user behavior <- current
 - [ ] Fill any remaining matrix gaps, especially true switch-command/manual Telegram validation with multiple live SubTurtles
+- [ ] Add conductor state retention/gc so `.superturtle/state/` does not grow forever: prune old sent wakeups, acknowledged inbox items, stale archived worker records, and rotate/archive `events.jsonl`
 
 ## Notes
 - Multi-instance audit: `docs/audits/multi-instance-isolation.md`
@@ -150,6 +151,7 @@ We are redesigning the weak parts:
 - `conductor-core-flow.test.ts` now covers the happy path end-to-end (`baseline -> milestone -> completion -> inbox ack`), a parallel three-worker path (`milestone + completion + failure`), and the timeout terminal path
 - Claude and Codex inbox tests now also cover model changes while background worker events are pending, so the next interactive turn still injects and acknowledges those durable updates under the selected driver/model
 - The 15-path user-flow matrix now lives in `super_turtle/docs/long-run-state-tracking.md`; use it as the checklist for future conductor changes
+- Conductor storage retention is not implemented yet: workspaces already have `ctl gc`, but `.superturtle/state/` currently keeps historical worker records, wakeups, inbox items, and the append-only event log until we add explicit conductor gc/compaction
 - TOKEN_PREFIX lives in `src/token-prefix.ts` (standalone leaf module, no circular deps)
 - MCP IPC files are isolated in `/tmp/superturtle-{tokenPrefix}/`, passed to MCP servers via `SUPERTURTLE_IPC_DIR`
 - The bot is the meta agent; system prompt injection still lives in `super_turtle/claude-telegram-bot/src/config.ts`

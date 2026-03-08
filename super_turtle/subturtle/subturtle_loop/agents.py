@@ -1,11 +1,44 @@
 """Concrete agent classes for SubTurtle loop orchestration."""
 
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 
 MAX_CAPTURE_CHARS = 500_000
+CLAUDE_ALLOWED_TOOLS = [
+    "Task",
+    "TaskOutput",
+    "TaskStop",
+    "Bash",
+    "Glob",
+    "Grep",
+    "Read",
+    "Edit",
+    "Write",
+    "NotebookEdit",
+    "WebFetch",
+    "TodoWrite",
+    "WebSearch",
+    "ToolSearch",
+    "AskUserQuestion",
+    "Skill",
+    "EnterPlanMode",
+    "ExitPlanMode",
+    "EnterWorktree",
+    "CronCreate",
+    "CronDelete",
+    "CronList",
+]
+
+
+def _allowed_tools_arg() -> str:
+    tools = list(CLAUDE_ALLOWED_TOOLS)
+    extra = os.environ.get("CLAUDE_ALLOWED_TOOLS_EXTRA", "")
+    if extra:
+        tools.extend(part.strip() for part in extra.replace(",", " ").split() if part.strip())
+    return ",".join(dict.fromkeys(tools))
 
 
 def _run_streaming(cmd: list[str], cwd: Path) -> str:
@@ -62,6 +95,8 @@ class Claude:
             "--permission-mode",
             "plan",
             "--dangerously-skip-permissions",
+            "--allowedTools",
+            _allowed_tools_arg(),
         ]
         for add_dir in self.add_dirs:
             cmd.extend(["--add-dir", add_dir])
@@ -77,6 +112,8 @@ class Claude:
         cmd = [
             "claude",
             "--dangerously-skip-permissions",
+            "--allowedTools",
+            _allowed_tools_arg(),
         ]
         for add_dir in self.add_dirs:
             cmd.extend(["--add-dir", add_dir])

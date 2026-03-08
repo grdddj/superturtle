@@ -4,8 +4,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 CTL="${ROOT_DIR}/super_turtle/subturtle/ctl"
 NAME="smoke-status-$(date +%s)"
-WORK_DIR="${ROOT_DIR}/.subturtles/${NAME}"
 TMP_DIR="$(mktemp -d)"
+PROJECT_DIR="${TMP_DIR}/project"
+WORK_DIR="${PROJECT_DIR}/.subturtles/${NAME}"
 TMP_STATE="${TMP_DIR}/CLAUDE.md"
 FAKE_BIN_DIR="${TMP_DIR}/bin"
 STATE_FILE="${TMP_STATE}"
@@ -21,6 +22,7 @@ cleanup() {
 trap cleanup EXIT
 
 mkdir -p "${FAKE_BIN_DIR}"
+mkdir -p "${PROJECT_DIR}"
 mkdir -p "$(dirname "${STATE_FILE}")"
 cat > "${STATE_FILE}" <<'STATE'
 # Current task
@@ -53,6 +55,7 @@ SH
 chmod +x "${FAKE_BIN_DIR}/codex"
 
 export PATH="${FAKE_BIN_DIR}:$PATH"
+export SUPER_TURTLE_PROJECT_DIR="${PROJECT_DIR}"
 
 cd "${ROOT_DIR}"
 

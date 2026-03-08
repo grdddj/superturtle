@@ -3,13 +3,14 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 CTL="${ROOT_DIR}/super_turtle/subturtle/ctl"
-CRON_JOBS_FILE="${ROOT_DIR}/.superturtle/cron-jobs.json"
-RUN_STATE_DIR="${ROOT_DIR}/.superturtle/state"
-CONDUCTOR_EVENTS_FILE="${RUN_STATE_DIR}/events.jsonl"
-CONDUCTOR_WORKERS_DIR="${RUN_STATE_DIR}/workers"
-CONDUCTOR_WAKEUPS_DIR="${RUN_STATE_DIR}/wakeups"
-SUBTURTLES_DIR="${ROOT_DIR}/.subturtles"
-ARCHIVE_DIR="${SUBTURTLES_DIR}/.archive"
+PROJECT_DIR=""
+CRON_JOBS_FILE=""
+RUN_STATE_DIR=""
+CONDUCTOR_EVENTS_FILE=""
+CONDUCTOR_WORKERS_DIR=""
+CONDUCTOR_WAKEUPS_DIR=""
+SUBTURTLES_DIR=""
+ARCHIVE_DIR=""
 
 RUN_ID="$(date +%s)-$$"
 TMP_DIR=""
@@ -42,6 +43,17 @@ make_test_name() {
 track_subturtle() {
   local name="$1"
   TEST_SUBTURTLES+=("$name")
+}
+
+set_project_paths() {
+  PROJECT_DIR="$1"
+  CRON_JOBS_FILE="${PROJECT_DIR}/.superturtle/cron-jobs.json"
+  RUN_STATE_DIR="${PROJECT_DIR}/.superturtle/state"
+  CONDUCTOR_EVENTS_FILE="${RUN_STATE_DIR}/events.jsonl"
+  CONDUCTOR_WORKERS_DIR="${RUN_STATE_DIR}/workers"
+  CONDUCTOR_WAKEUPS_DIR="${RUN_STATE_DIR}/wakeups"
+  SUBTURTLES_DIR="${PROJECT_DIR}/.subturtles"
+  ARCHIVE_DIR="${SUBTURTLES_DIR}/.archive"
 }
 
 backup_cron_jobs() {
@@ -82,7 +94,9 @@ setup_harness() {
   TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/test-ctl-integration.XXXXXX")"
   FAKE_BIN_DIR="${TMP_DIR}/bin"
   CRON_BACKUP_FILE="${TMP_DIR}/cron-jobs.json.bak"
+  set_project_paths "${TMP_DIR}/project"
 
+  mkdir -p "$PROJECT_DIR"
   mkdir -p "$(dirname "$CRON_JOBS_FILE")"
   if [[ ! -f "$CRON_JOBS_FILE" ]]; then
     printf '%s\n' "[]" > "$CRON_JOBS_FILE"
@@ -92,6 +106,7 @@ setup_harness() {
   setup_fake_bins
 
   export PATH="${FAKE_BIN_DIR}:${ORIGINAL_PATH}"
+  export SUPER_TURTLE_PROJECT_DIR="$PROJECT_DIR"
 
   mkdir -p "$SUBTURTLES_DIR" "$ARCHIVE_DIR"
   cd "$ROOT_DIR"
@@ -129,6 +144,7 @@ cleanup_test_subturtles() {
 teardown_harness() {
   cleanup_test_subturtles || true
   restore_cron_jobs || true
+  unset SUPER_TURTLE_PROJECT_DIR
   export PATH="$ORIGINAL_PATH"
   rm -rf "$TMP_DIR"
 }

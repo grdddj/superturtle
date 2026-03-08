@@ -69,6 +69,54 @@ interface StreamJsonEvent {
   [key: string]: unknown;
 }
 
+const CLAUDE_CORE_ALLOWED_TOOLS = [
+  "Task",
+  "TaskOutput",
+  "TaskStop",
+  "Bash",
+  "Glob",
+  "Grep",
+  "Read",
+  "Edit",
+  "Write",
+  "NotebookEdit",
+  "WebFetch",
+  "TodoWrite",
+  "WebSearch",
+  "ToolSearch",
+  "AskUserQuestion",
+  "Skill",
+  "EnterPlanMode",
+  "ExitPlanMode",
+  "EnterWorktree",
+  "CronCreate",
+  "CronDelete",
+  "CronList",
+] as const;
+
+const CLAUDE_BOT_MCP_ALLOWED_TOOLS = [
+  "mcp__send-turtle__send_turtle",
+  "mcp__bot-control__bot_control",
+  "mcp__bot-control__ask_user",
+  "mcp__bot-control__pino_logs",
+] as const;
+
+function splitAllowedTools(raw: string | undefined): string[] {
+  return (raw || "")
+    .split(/[,\s]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function getClaudeAllowedTools(): string[] {
+  const tools = [
+    ...CLAUDE_CORE_ALLOWED_TOOLS,
+    ...(Object.keys(MCP_SERVERS).length > 0 ? CLAUDE_BOT_MCP_ALLOWED_TOOLS : []),
+    ...splitAllowedTools(process.env.CLAUDE_ALLOWED_TOOLS_EXTRA),
+  ];
+  return [...new Set(tools)];
+}
+
 // Write MCP config to a temp JSON file for --mcp-config flag
 process.env.SUPERTURTLE_IPC_DIR = IPC_DIR;
 const MCP_CONFIG_FILE = `/tmp/superturtle-${TOKEN_PREFIX}-mcp-config.json`;
@@ -488,6 +536,9 @@ export class ClaudeSession {
       "--output-format", "stream-json",
       "--model", this.model,
       "--dangerously-skip-permissions",
+      // Claude Code 2.1.71 still prompts for Bash/MCP tools in print mode unless
+      // they are explicitly allowlisted, even with dangerously-skip enabled.
+      "--allowedTools", getClaudeAllowedTools().join(","),
       "--setting-sources", "user,project",
     ];
 
