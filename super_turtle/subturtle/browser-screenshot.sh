@@ -107,7 +107,7 @@ while [[ $# -gt 0 ]]; do
     # Legacy Peekaboo flags — accept and ignore
     --app|--mode|--capture-focus)
       warn "$1 is a legacy Peekaboo flag and will be ignored"
-      shift 2
+      shift
       ;;
     --retina|--json-output)
       warn "$1 is a legacy Peekaboo flag and will be ignored"
