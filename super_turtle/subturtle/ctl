@@ -37,10 +37,9 @@ usage() {
   echo "           yolo-codex — Single Codex call per iteration (Ralph loop)"
   echo "           yolo-codex-spark — Single Codex Spark call per iteration (Ralph loop)"
   echo "         Skills: repeatable --skill flags load Claude Code skills (e.g. --skill frontend --skill testing)"
-  echo "  spawn [name] [--type TYPE] [--timeout DURATION] [--state-file PATH|-] [--cron-interval DURATION] [--cron-mode MODE] [--skill NAME ...]"
+  echo "  spawn [name] [--type TYPE] [--timeout DURATION] [--state-file PATH|-] [--cron-interval DURATION] [--skill NAME ...]"
   echo "         Create workspace, seed CLAUDE.md from --state-file/stdin, start SubTurtle, and auto-register cron"
-  echo "         Defaults: --type yolo-codex, --timeout ${DEFAULT_TIMEOUT}, --cron-interval 10m, --cron-mode silent"
-  echo "         Cron modes: silent (watchdog-only), orchestrator (full-auto overnight mode)"
+  echo "         Defaults: --type yolo-codex, --timeout ${DEFAULT_TIMEOUT}, --cron-interval 10m"
   echo "  stop   [name]                        Stop a SubTurtle gracefully"
   echo "  status [name]                        Check if running + time remaining"
   echo "  logs   [name]                        Tail a SubTurtle's log"
@@ -848,35 +847,12 @@ METAEOF
   write_conductor_worker_state "$name" "running" "supervisor" || true
 }
 
-build_orchestrator_prompt() {
-  local orch_file="${SUPER_TURTLE_DIR}/meta/ORCHESTRATOR_PROMPT.md"
-  if [[ ! -f "$orch_file" ]]; then
-    echo "ERROR: ORCHESTRATOR_PROMPT.md not found at ${orch_file}" >&2
-    return 1
-  fi
-  # Read file and template placeholders
-  sed \
-    -e "s|{{CTL_PATH}}|${SCRIPT_DIR}/ctl|g" \
-    -e "s|{{DATA_DIR}}|${PROJECT_DIR}/.superturtle|g" \
-    -e "s|{{SUPER_TURTLE_DIR}}|${SUPER_TURTLE_DIR}|g" \
-    "$orch_file"
-}
-
 register_spawn_cron_job() {
   local name="$1"
   local interval_ms="$2"
-  local cron_mode="${3:-silent}"
   local cron_jobs_file="$CRON_JOBS_FILE"
 
-  local prompt_text=""
-  local is_silent="true"
-
-  if [[ "$cron_mode" == "orchestrator" ]]; then
-    prompt_text="$(build_orchestrator_prompt)" || return 1
-    is_silent="false"
-  fi
-
-  "$PYTHON" - "$cron_jobs_file" "$name" "$interval_ms" "$is_silent" "$prompt_text" "${SCRIPT_DIR}/ctl" "$cron_mode" <<'PY'
+  "$PYTHON" - "$cron_jobs_file" "$name" "$interval_ms" "${SCRIPT_DIR}/ctl" <<'PY'
 import datetime
 import json
 import secrets
@@ -886,26 +862,17 @@ from pathlib import Path
 cron_jobs_path = Path(sys.argv[1])
 name = sys.argv[2]
 interval_ms = int(sys.argv[3])
-is_silent_str = sys.argv[4]
-custom_prompt = sys.argv[5] if len(sys.argv) > 5 else ""
-ctl_path = sys.argv[6] if len(sys.argv) > 6 else "./super_turtle/subturtle/ctl"
-
-is_silent = is_silent_str.lower() == "true"
-cron_mode = sys.argv[7] if len(sys.argv) > 7 else ("silent" if is_silent else "orchestrator")
-
-if custom_prompt:
-    prompt = custom_prompt
-else:
-    prompt = (
-        f"[SILENT CHECK-IN] Check SubTurtle {name}: run `{ctl_path} status {name}`, "
-        f"inspect `.subturtles/{name}/CLAUDE.md`, and review `git log --oneline -10`.\n"
-        "Rules: Do NOT message the user unless one of these conditions is met:\n"
-        f"- 🎉 SubTurtle completed all backlog items -> stop SubTurtle {name} and report what shipped\n"
-        f"- ⚠️ SubTurtle appears stuck (no meaningful progress across 2+ checks) -> stop it, diagnose, and report\n"
-        "- ❌ SubTurtle errored, crashed, or is otherwise broken -> report the error clearly\n"
-        "- 🚀 New milestone reached (significant backlog progress) -> send one brief update\n"
-        "If SubTurtle is progressing normally without notable events, respond with only: [SILENT]"
-    )
+ctl_path = sys.argv[4] if len(sys.argv) > 4 else "./super_turtle/subturtle/ctl"
+prompt = (
+    f"[SILENT CHECK-IN] Check SubTurtle {name}: run `{ctl_path} status {name}`, "
+    f"inspect `.subturtles/{name}/CLAUDE.md`, and review `git log --oneline -10`.\n"
+    "Rules: Do NOT message the user unless one of these conditions is met:\n"
+    f"- 🎉 SubTurtle completed all backlog items -> stop SubTurtle {name} and report what shipped\n"
+    f"- ⚠️ SubTurtle appears stuck (no meaningful progress across 2+ checks) -> stop it, diagnose, and report\n"
+    "- ❌ SubTurtle errored, crashed, or is otherwise broken -> report the error clearly\n"
+    "- 🚀 New milestone reached (significant backlog progress) -> send one brief update\n"
+    "If SubTurtle is progressing normally without notable events, respond with only: [SILENT]"
+)
 
 jobs = []
 if cron_jobs_path.exists():
@@ -935,10 +902,10 @@ now_ms = int(datetime.datetime.now(datetime.timezone.utc).timestamp() * 1000)
 job = {
     "id": job_id,
     "prompt": prompt,
-    "silent": is_silent,
+    "silent": True,
     "job_kind": "subturtle_supervision",
     "worker_name": name,
-    "supervision_mode": cron_mode,
+    "supervision_mode": "silent",
     "type": "recurring",
     "fire_at": now_ms + interval_ms,
     "interval_ms": interval_ms,
@@ -1079,7 +1046,6 @@ do_spawn() {
   local timeout_str="${DEFAULT_TIMEOUT}"
   local loop_type="yolo-codex"
   local cron_interval="10m"
-  local cron_mode="silent"
   local state_file=""
   local -a skills=()
 
@@ -1090,17 +1056,10 @@ do_spawn() {
       --type)    loop_type="${2:?missing type value}"; shift 2 ;;
       --state-file) state_file="${2:?missing state file path}"; shift 2 ;;
       --cron-interval) cron_interval="${2:?missing cron interval}"; shift 2 ;;
-      --cron-mode) cron_mode="${2:?missing cron mode}"; shift 2 ;;
       --skill)   skills+=("${2:?missing skill name}"); shift 2 ;;
       *) echo "Unknown option: $1" >&2; exit 1 ;;
     esac
   done
-
-  # Validate cron mode
-  case "$cron_mode" in
-    silent|orchestrator) ;;
-    *) echo "ERROR: unknown cron mode '${cron_mode}' (must be: silent, orchestrator)" >&2; exit 1 ;;
-  esac
 
   local cron_interval_secs
   cron_interval_secs="$(parse_duration "$cron_interval")" || exit 1
@@ -1150,7 +1109,7 @@ do_spawn() {
   do_start "${start_args[@]}"
 
   local cron_job_id
-  if ! cron_job_id="$(register_spawn_cron_job "$name" "$cron_interval_ms" "$cron_mode")"; then
+  if ! cron_job_id="$(register_spawn_cron_job "$name" "$cron_interval_ms")"; then
     echo "[subturtle:${name}] ERROR: failed to register cron job in ${CRON_JOBS_FILE}" >&2
     echo "[subturtle:${name}] stopping SubTurtle because cron registration failed" >&2
     if is_running "$name"; then
@@ -1161,7 +1120,7 @@ do_spawn() {
 
   echo "CRON_JOB_ID=${cron_job_id}" >> "$(meta_file "$name")"
 
-  echo "[subturtle:${name}] cron registered (${cron_job_id}, every ${cron_interval}, mode: ${cron_mode})"
+  echo "[subturtle:${name}] cron registered (${cron_job_id}, every ${cron_interval})"
   write_conductor_worker_state "$name" "running" "supervisor" || true
   echo ""
   do_list

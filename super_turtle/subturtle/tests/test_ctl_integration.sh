@@ -1344,62 +1344,21 @@ JOBS
   return 0
 }
 
-test_spawn_orchestrator_cron_mode() {
-  local name state_path cron_job_id
-  name="$(make_test_name "spawn-orchestrator-cron")"
+test_spawn_rejects_removed_cron_mode_flag() {
+  local name state_path out_file err_file output
+  name="$(make_test_name "spawn-rejects-cron-mode-flag")"
   state_path="${TMP_DIR}/${name}.md"
+  out_file="${TMP_DIR}/${name}.out"
+  err_file="${TMP_DIR}/${name}.err"
 
-  write_valid_state_file "$state_path" "spawn orchestrator cron mode"
+  write_valid_state_file "$state_path" "spawn rejects removed cron mode flag"
 
-  if ! "$CTL" spawn "$name" --type yolo-codex --timeout 2m --cron-mode orchestrator --cron-interval 20m --state-file "$state_path" >/dev/null; then
-    fail "spawn failed for ${name}"
+  if run_and_capture "$out_file" "$err_file" "$CTL" spawn "$name" --type yolo-codex --timeout 2m --cron-mode orchestrator --cron-interval 20m --state-file "$state_path"; then
+    fail "spawn unexpectedly accepted --cron-mode for ${name}"
     return 1
   fi
-  track_subturtle "$name"
-
-  cron_job_id="$(meta_value "$name" "CRON_JOB_ID")"
-  assert_not_empty "$cron_job_id" "CRON_JOB_ID" || return 1
-
-  if ! python3 - "$CRON_JOBS_FILE" "$cron_job_id" "$name" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-cron_jobs_path = Path(sys.argv[1])
-cron_job_id = sys.argv[2]
-name = sys.argv[3]
-
-raw = cron_jobs_path.read_text(encoding="utf-8").strip() if cron_jobs_path.exists() else ""
-jobs = json.loads(raw) if raw else []
-if not isinstance(jobs, list):
-    raise SystemExit(2)
-
-match = None
-for job in jobs:
-    if isinstance(job, dict) and str(job.get("id")) == cron_job_id:
-        match = job
-        break
-
-if not isinstance(match, dict):
-    raise SystemExit(1)
-
-checks = [
-    match.get("type") == "recurring",
-    int(match.get("interval_ms", -1)) == 1200000,
-    match.get("silent") is False,
-    match.get("job_kind") == "subturtle_supervision",
-    match.get("worker_name") == name,
-    match.get("supervision_mode") == "orchestrator",
-    "Orchestrator Wake-Up" in str(match.get("prompt", "")),
-]
-raise SystemExit(0 if all(checks) else 1)
-PY
-  then
-    fail "expected orchestrator cron job settings for ${name}"
-    return 1
-  fi
-
-  stop_subturtle_if_running "$name"
+  output="$(cat "$out_file" "$err_file")"
+  assert_contains "$output" "Unknown option: --cron-mode" || return 1
   return 0
 }
 
@@ -1457,7 +1416,7 @@ register_test test_gc_archives_old
 register_test test_reschedule_cron
 register_test test_spawn_validates_cli
 register_test test_spawn_preserves_existing_cron_jobs
-register_test test_spawn_orchestrator_cron_mode
+register_test test_spawn_rejects_removed_cron_mode_flag
 
 run_all_tests() {
   local test_name
