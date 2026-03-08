@@ -165,6 +165,49 @@ describe("stop handlers", () => {
     expect(codexStops).toBe(0);
   });
 
+  it("stopForegroundWork leaves SubTurtles running", async () => {
+    let stopTypingCalls = 0;
+    let claudeStops = 0;
+    let spawnSyncCalls = 0;
+
+    session.stopTyping = () => {
+      stopTypingCalls += 1;
+    };
+    session.activeDriver = "claude";
+    claudeDriver.stop = async () => {
+      claudeStops += 1;
+      return "stopped";
+    };
+
+    Bun.spawnSync = ((cmd: unknown, _opts?: unknown) => {
+      spawnSyncCalls += 1;
+      if (!Array.isArray(cmd)) {
+        return originalSpawnSync(cmd as Parameters<typeof Bun.spawnSync>[0]);
+      }
+
+      return {
+        stdout: Buffer.from(""),
+        stderr: Buffer.from("unexpected command"),
+        success: false,
+        exitCode: 1,
+      } as ReturnType<typeof Bun.spawnSync>;
+    }) as typeof Bun.spawnSync;
+
+    const { stopForegroundWork } = await loadStopModule("stop-foreground-work");
+    const result = await stopForegroundWork();
+
+    expect(result).toEqual({
+      driverStopResult: "stopped",
+      queueCleared: 0,
+      attempted: [],
+      stopped: [],
+      failed: [],
+    });
+    expect(stopTypingCalls).toBe(1);
+    expect(claudeStops).toBe(1);
+    expect(spawnSyncCalls).toBe(0);
+  });
+
   it("does not clear stopRequested when Claude stop returns pending", async () => {
     const restoreProcessing = session.startProcessing();
     session.activeDriver = "claude";
@@ -326,6 +369,56 @@ describe("stop handlers", () => {
     } finally {
       deferredQueue.clearDeferredQueue(chatId);
       deferredQueue.unsuppressDrain(chatId);
+    }
+  });
+
+  it("handleStop reports foreground-only stop without stopping SubTurtles", async () => {
+    const actualImportSuffix = `${Date.now()}-${Math.random()}`;
+    const actualStreaming = await import(`./streaming.ts?stop-foreground=${actualImportSuffix}`);
+    const deferredQueue = await import(`../deferred-queue.ts?stop-foreground=${actualImportSuffix}`);
+    const actualDriverRouting = await import(
+      `./driver-routing.ts?stop-foreground=${actualImportSuffix}`
+    );
+
+    mock.module("./streaming", () => ({
+      ...actualStreaming,
+      getStreamingState: () => undefined,
+      clearStreamingState: () => {},
+      cleanupToolMessages: async () => {},
+    }));
+    mock.module("../deferred-queue", () => ({ ...deferredQueue }));
+    mock.module("./driver-routing", () => ({
+      ...actualDriverRouting,
+      stopActiveDriverQuery: async () => false,
+    }));
+
+    let replies: string[] = [];
+    Bun.spawnSync = ((cmd: unknown, _opts?: unknown) => {
+      if (!Array.isArray(cmd)) {
+        return originalSpawnSync(cmd as Parameters<typeof Bun.spawnSync>[0]);
+      }
+      throw new Error(`handleStop should not call ctl for foreground-only stop: ${cmd.join(" ")}`);
+    }) as typeof Bun.spawnSync;
+
+    const { handleStop } = await import(`./stop.ts?stop-foreground=${actualImportSuffix}`);
+    const ctx = {
+      chat: { id: 41003 },
+      api: {
+        editMessageText: async () => {},
+        deleteMessage: async () => {},
+      },
+      reply: async (text: string) => {
+        replies.push(text);
+        return {} as any;
+      },
+    } as unknown as Context;
+
+    try {
+      await handleStop(ctx, 41003);
+      expect(replies).toEqual(["🛑 Stopped current work."]);
+    } finally {
+      deferredQueue.clearDeferredQueue(41003);
+      deferredQueue.unsuppressDrain(41003);
     }
   });
 

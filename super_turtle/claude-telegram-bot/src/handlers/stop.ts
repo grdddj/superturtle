@@ -79,7 +79,10 @@ export function stopAllRunningSubturtles(): StopSubturtlesResult {
   };
 }
 
-export async function stopAllRunningWork(chatId?: number): Promise<StopAllRunningWorkResult> {
+async function performStop(
+  chatId: number | undefined,
+  stopSubturtles: boolean
+): Promise<StopAllRunningWorkResult> {
   // Suppress drain FIRST — wins the race against finally-block drains
   // that fire when we kill the driver process below.
   if (chatId != null) {
@@ -88,7 +91,9 @@ export async function stopAllRunningWork(chatId?: number): Promise<StopAllRunnin
 
   session.stopTyping();
   const driverStopResult = await stopActiveDriverQuery();
-  const subturtleResult = stopAllRunningSubturtles();
+  const subturtleResult = stopSubturtles
+    ? stopAllRunningSubturtles()
+    : { attempted: [], stopped: [], failed: [] };
   const queueCleared = chatId != null ? clearDeferredQueue(chatId) : 0;
 
   return {
@@ -98,13 +103,22 @@ export async function stopAllRunningWork(chatId?: number): Promise<StopAllRunnin
   };
 }
 
+export async function stopAllRunningWork(chatId?: number): Promise<StopAllRunningWorkResult> {
+  return performStop(chatId, true);
+}
+
+export async function stopForegroundWork(chatId?: number): Promise<StopAllRunningWorkResult> {
+  return performStop(chatId, false);
+}
+
 /**
- * Unified stop handler — used by text "stop", voice "stop", and /stop command.
- * Kills current work, clears the queue, stops SubTurtles, confirms to user.
+ * Unified user-facing stop handler for all stop entrypoints.
+ * Stops the active foreground run and clears the queue, but leaves background
+ * SubTurtles alone.
  */
 export async function handleStop(ctx: Context, chatId: number): Promise<void> {
   const state = getStreamingState(chatId);
-  const result = await stopAllRunningWork(chatId);
+  const result = await stopForegroundWork(chatId);
   if (state) {
     await cleanupToolMessages(ctx, state);
 
@@ -137,14 +151,17 @@ export async function handleStop(ctx: Context, chatId: number): Promise<void> {
   }
   clearStreamingState(chatId);
 
-  let message = "🛑 Stopped.";
+  let message = "🛑 Stopped current work.";
   if (result.queueCleared > 0) {
-    message = `🛑 Stopped. Cleared ${result.queueCleared} queued message${result.queueCleared === 1 ? "" : "s"}.`;
+    message =
+      `🛑 Stopped current work. Cleared ${result.queueCleared} queued message` +
+      `${result.queueCleared === 1 ? "" : "s"}.`;
   }
 
   stopLog.info(
     {
       chatId,
+      stopSubturtles: false,
       driverStopResult: result.driverStopResult,
       subturtlesAttempted: result.attempted.length,
       subturtlesStopped: result.stopped.length,

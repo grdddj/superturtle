@@ -146,7 +146,7 @@ export async function handleVoice(ctx: Context): Promise<void> {
       `🎤 "${displayTranscript}"`
     );
 
-    // 9. Voice stop intent should interrupt active runs immediately.
+    // 9. Voice stop intent should interrupt the foreground run immediately.
     if (isStopIntent(transcript)) {
       await handleStop(ctx, chatId);
       return;

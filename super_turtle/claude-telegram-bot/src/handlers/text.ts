@@ -126,7 +126,7 @@ export async function handleText(
     messageTruncated: message.length > 500,
   });
 
-  // 1.5. Bare "stop" — intercept and abort (acts like /stop)
+  // 1.5. Bare "stop" — interrupt the foreground run/queue only.
   if (isStopIntent(message)) {
     await handleStop(ctx, chatId);
     return;

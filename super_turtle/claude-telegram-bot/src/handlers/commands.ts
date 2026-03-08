@@ -49,7 +49,7 @@ export function getCommandLines(): string[] {
     : `/switch - Driver controls (Codex unavailable)`;
   return [
     `/new - Fresh session`,
-    `/stop - Stop all work`,
+    `/stop - Stop current work`,
     `/model - Switch model/effort`,
     switchLine,
     `/usage - Subscription usage`,
@@ -64,7 +64,7 @@ export function getCommandLines(): string[] {
 }
 
 /**
- * /stop command — explicit slash command to stop all work.
+ * /stop command — explicit slash command to stop current foreground work.
  * Same behavior as typing "stop" or saying "stop" via voice.
  */
 export async function handleStopCommand(ctx: Context): Promise<void> {
