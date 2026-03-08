@@ -1,5 +1,5 @@
 # Current task
-Review root config files (`CLAUDE.md`, `package.json`, `tsconfig`, etc.) for substantive issues and add findings to `reviews/codex-review.md`.
+All review tasks completed.
 
 # End goal with specs
 A concise review document listing the biggest issues found across the codebase that would be straightforward to fix. Focus on:
@@ -23,6 +23,9 @@ Skip nitpicks, style issues, and minor refactors. Only report issues where the i
 - [x] Review `super_turtle/claude-telegram-bot/src/` — all TypeScript source files
 - [x] Review `super_turtle/subturtle/` — Python loop runner, ctl CLI, helpers
 - [x] Review `super_turtle/meta/` — prompt files for inconsistencies or stale references
-- [ ] Review root config files (CLAUDE.md, package.json, tsconfig, etc.) <- current
-- [ ] Write final `reviews/codex-review.md` with prioritized findings
-- [ ] Commit the review file
+- [x] Review root config files (CLAUDE.md, package.json, tsconfig, etc.)
+- [x] Write final `reviews/codex-review.md` with prioritized findings
+- [x] Commit the review file
+
+## Loop Control
+STOP

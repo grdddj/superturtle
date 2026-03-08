@@ -60,3 +60,15 @@
    - File: `super_turtle/meta/META_SHARED.md:47-53`, `super_turtle/meta/META_SHARED.md:119`, `super_turtle/meta/META_SHARED.md:487-503`, `super_turtle/meta/ORCHESTRATOR_PROMPT.md:59-65`, `super_turtle/claude-telegram-bot/src/session.ts:72-94`, `super_turtle/claude-telegram-bot/src/cron.ts:150-199`
    - Issue: the shared prompt says direct edits to `.superturtle/cron-jobs.json` are allowed, later says not to edit it during spawn, and its scheduling sections still describe manual JSON append/remove flows. That bypasses the available `CronCreate`/`CronDelete`/`CronList` tool surface and adds more unsynchronized writers to the same file the bot and `ctl` already mutate.
    - Fix: remove manual cron-file editing instructions from the prompts, route scheduling through the cron tools or one helper path, and reserve raw JSON edits for recovery/debug-only cases.
+
+## Root config / packaging sweep
+
+1. High: published npm package documents a macOS launchagent flow it does not ship
+   - File: `super_turtle/package.json:26-41`, `super_turtle/claude-telegram-bot/README.md:200-205`, `super_turtle/claude-telegram-bot/CLAUDE.md:108-117`
+   - Issue: the package whitelist publishes `claude-telegram-bot/systemd/` but omits `claude-telegram-bot/launchagent/`, while both shipped docs tell macOS users to copy `launchagent/com.claude-telegram-ts.plist.template`. `npm pack` confirms only the systemd service template lands in the tarball, so the documented macOS service setup fails immediately for npm installs.
+   - Fix: add `claude-telegram-bot/launchagent/` to the published `files` list or replace the shipped launchagent instructions with a path that actually exists in the tarball.
+
+2. Medium: standalone bot docs still describe the removed Agent SDK and an auth path the runtime no longer uses
+   - File: `super_turtle/claude-telegram-bot/README.md:61-85`, `super_turtle/claude-telegram-bot/CLAUDE.md:24-28`, `super_turtle/claude-telegram-bot/package.json:17-26`, `super_turtle/claude-telegram-bot/src/session.ts:6`
+   - Issue: the manual setup docs say the bot depends on `@anthropic-ai/claude-agent-sdk` and can authenticate via `ANTHROPIC_API_KEY`, but the package has no Agent SDK dependency and `session.ts` shells out to the local `claude` CLI instead. Operators following the docs can waste time configuring an env var and dependency path the current runtime ignores.
+   - Fix: rewrite the standalone README/CLAUDE docs around the CLI-based Claude driver, remove the stale Agent SDK references, and document the actual authentication/runtime prerequisites.
