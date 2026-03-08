@@ -441,6 +441,8 @@ Current producer coverage:
 - the bot timer consumes pending wake-ups directly from `.superturtle/state/wakeups/`, appends reconciliation events (`worker.completed`, `worker.failed`, `worker.cleanup_verified`, `worker.cron_removed`, `worker.inbox_enqueued`, `worker.notification_sent`), and sends Telegram notifications without injecting those lifecycle facts into the meta-agent session
 - the bot timer also writes `.superturtle/state/inbox/<id>.json` for notable/critical lifecycle wake-ups so the next successful interactive Claude/Codex turn sees those background events as injected context and then acknowledges them durably
 - the bot timer now runs deterministic silent supervision for structured SubTurtle cron jobs, comparing canonical checkpoint/backlog signatures across checks and emitting `worker.milestone_reached` / `worker.stuck_detected` plus notable wake-ups when policy thresholds are met
+- the bot timer now repairs missing `completion_requested`, `fatal_error`, and `timeout` wake-ups from canonical worker state before delivery, so pending terminal transitions can still complete after a bot restart or partial state loss
+- stale recurring SubTurtle cron cleanup is now persisted back into conductor state via `worker.cron_removed`, rather than existing only as an operator warning path
 
 The migration is still in a mixed mode:
 
@@ -464,7 +466,7 @@ python3 -m py_compile super_turtle/state/run_state_writer.py super_turtle/state/
 python3 -m pytest super_turtle/subturtle/tests/test_subturtle_main.py
 bash super_turtle/subturtle/tests/test_ctl_integration.sh
 bun run --bun tsc --noEmit
-bun test src/conductor-supervisor.test.ts
+bun test src/conductor-supervisor.test.ts src/conductor-inbox.test.ts src/session.conductor-inbox.test.ts src/codex-session.conductor-inbox.test.ts
 ```
 
 ## Next implementation slice

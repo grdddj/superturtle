@@ -72,7 +72,12 @@ import {
 import { buildCronScheduledPrompt } from "./cron-scheduled-prompt";
 import { UpdateDedupeCache } from "./update-dedupe";
 import { startTurtleGreetings } from "./turtle-greetings";
-import { processPendingConductorWakeups, processSilentSubturtleSupervision } from "./conductor-supervisor";
+import {
+  cleanupStaleRecurringSubturtleCron,
+  processPendingConductorWakeups,
+  processSilentSubturtleSupervision,
+  recoverPendingWorkerWakeups,
+} from "./conductor-supervisor";
 import {
   buildPreparedSnapshotPrompt,
 } from "./conductor-snapshot";
@@ -471,6 +476,15 @@ const startCronTimer = () => {
 
   setInterval(async () => {
     try {
+      const recoveredState = recoverPendingWorkerWakeups();
+      if (recoveredState.recoveredWakeups > 0 || recoveredState.reconciled > 0) {
+        refreshConductorHandoff();
+        cronLog.info(
+          { recoveredState },
+          `[conductor] recovered_wakeups=${recoveredState.recoveredWakeups} reconciled=${recoveredState.reconciled}`
+        );
+      }
+
       const supervisorTick = await processPendingConductorWakeups({
         listJobs: getJobs,
         removeJob,
@@ -551,14 +565,21 @@ const startCronTimer = () => {
                 `[cron:${job.id}] deterministic_subturtle_supervision worker=${supervisedWorkerName} sent=${supervisionResult.sent} created_wakeups=${supervisionResult.createdWakeups}`
               );
             }
-            const running = isSubturtleRunning(supervisedWorkerName);
-            const recurringStillExists = getJobs().some((j) => j.id === job.id);
-            if (!running && recurringStillExists && job.type === "recurring") {
-              removeJob(job.id);
-              await bot.api.sendMessage(
-                resolvedChatId,
-                `⚠️ SubTurtle ${supervisedWorkerName} is not running but cron ${job.id} was still active. I removed that recurring cron to prevent repeat loops.`
-              );
+            if (job.type === "recurring") {
+              const staleCleanup = await cleanupStaleRecurringSubturtleCron({
+                workerName: supervisedWorkerName,
+                jobId: job.id,
+                chatId: resolvedChatId,
+                listJobs: getJobs,
+                removeJob,
+                sendMessage: async (chatId, text) => {
+                  await bot.api.sendMessage(chatId, text);
+                },
+                isWorkerRunning: (workerName: string) => isSubturtleRunning(workerName),
+              });
+              if (staleCleanup.removed || staleCleanup.reconciled > 0) {
+                refreshConductorHandoff();
+              }
             }
             continue;
           }
@@ -662,14 +683,19 @@ const startCronTimer = () => {
               const subturtleTarget = resolveSubturtleSupervisionTarget(job);
               const subturtleName = subturtleTarget?.workerName || null;
               if (subturtleName && job.type === "recurring") {
-                const running = isSubturtleRunning(subturtleName);
-                const recurringStillExists = getJobs().some((j) => j.id === job.id);
-                if (!running && recurringStillExists) {
-                  removeJob(job.id);
-                  await bot.api.sendMessage(
-                    resolvedChatId,
-                    `⚠️ SubTurtle ${subturtleName} is not running but cron ${job.id} was still active. I removed that recurring cron to prevent repeat loops.`
-                  );
+                const staleCleanup = await cleanupStaleRecurringSubturtleCron({
+                  workerName: subturtleName,
+                  jobId: job.id,
+                  chatId: resolvedChatId,
+                  listJobs: getJobs,
+                  removeJob,
+                  sendMessage: async (chatId, text) => {
+                    await bot.api.sendMessage(chatId, text);
+                  },
+                  isWorkerRunning: (workerName: string) => isSubturtleRunning(workerName),
+                });
+                if (staleCleanup.removed || staleCleanup.reconciled > 0) {
+                  refreshConductorHandoff();
                 }
               }
             } catch (error) {

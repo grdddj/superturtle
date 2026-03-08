@@ -77,7 +77,7 @@ We are redesigning the weak parts:
 ### Known gaps
 - `handoff.md` and `runs.jsonl` still exist for compatibility, so they must stay strictly derived from canonical conductor state
 - `subturtle.meta` still carries some spawn/runtime metadata; worker lifecycle truth now lives in the conductor store and those paths need continued convergence
-- End-to-end restart/recovery coverage is still thin around stale cron cleanup, mid-chat delivery, and multi-worker orchestration
+- Restart/recovery behavior is now repairing missing pending wakeups and persisting stale recurring-cron cleanup, but broader end-to-end coverage is still thin around true bot reboot flows and multi-worker orchestration
 - Silent milestone/stuck policy is now deterministic, but the remaining confidence gap is proving the full conductor flow under restart and recovery conditions
 
 ## End goal with specs
@@ -128,10 +128,11 @@ We are redesigning the weak parts:
 - Current runtime consumer: the bot timer now drains pending conductor wakeups directly, emits reconciliation events, removes stale cron jobs, and sends Telegram notifications without routing those lifecycle updates through the meta-agent conversation thread
 - Legacy completion cron handoff has been removed from the SubTurtle self-stop path; completion delivery now rides the canonical wakeup queue
 - Silent SubTurtle supervision now runs deterministic supervisor policy over canonical worker state, backlog completion, and checkpoint signatures; milestone/stuck wakeups flow through the same inbox and Telegram delivery path as lifecycle wakeups without terminal cleanup side effects
+- The bot timer now recreates missing `completion_requested` / `fatal_error` / `timeout` wakeups from canonical worker state before delivery, and stale recurring SubTurtle cron cleanup is persisted as a conductor event instead of existing only as an inline warning
 - `ctl spawn` now registers structured supervision cron jobs with `job_kind=subturtle_supervision`, `worker_name`, and `supervision_mode`, and the bot prefers those fields over prompt regex parsing
 - `handoff.md` is now refreshed from canonical worker state plus pending wakeups, and dashboard lanes prefer conductor worker fields for live SubTurtles
 - Reconciled lifecycle wakeups now also create durable meta-agent inbox items; the next successful interactive Claude/Codex turn injects them as non-chat background context and acknowledges them after the turn completes
-- Current conductor coverage now includes multi-worker inbox recovery plus driver-level interactive acknowledgment tests for both Claude and Codex session paths
+- Current conductor coverage now includes recreated pending-wakeup recovery, stale recurring-cron cleanup, multi-worker inbox recovery, and driver-level interactive acknowledgment tests for both Claude and Codex session paths
 - TOKEN_PREFIX lives in `src/token-prefix.ts` (standalone leaf module, no circular deps)
 - MCP IPC files are isolated in `/tmp/superturtle-{tokenPrefix}/`, passed to MCP servers via `SUPERTURTLE_IPC_DIR`
 - The bot is the meta agent; system prompt injection still lives in `super_turtle/claude-telegram-bot/src/config.ts`

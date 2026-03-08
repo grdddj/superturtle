@@ -100,6 +100,36 @@ export interface ProcessSilentSubturtleSupervisionOptions
   chatId: number;
 }
 
+export interface RecoverPendingWorkerWakeupsOptions {
+  stateDir?: string;
+  nowIso?: () => string;
+}
+
+export interface RecoverPendingWorkerWakeupsResult {
+  recoveredWakeups: number;
+  reconciled: number;
+}
+
+export interface CleanupStaleRecurringSubturtleCronOptions {
+  stateDir?: string;
+  workingDir?: string;
+  ctlPath?: string;
+  workerName: string;
+  jobId: string;
+  chatId?: number | null;
+  listJobs: () => Array<{ id: string }>;
+  removeJob: (id: string) => boolean;
+  sendMessage: (chatId: number, text: string) => Promise<void>;
+  isWorkerRunning?: (workerName: string) => boolean;
+  nowIso?: () => string;
+}
+
+export interface CleanupStaleRecurringSubturtleCronResult {
+  removed: boolean;
+  notified: boolean;
+  reconciled: number;
+}
+
 const CONDUCTOR_SCHEMA_VERSION = 1;
 const EVENT_EMITTED_BY = "supervisor";
 const TERMINAL_WAKEUP_KINDS = new Set(["completion_requested", "fatal_error", "timeout"]);
@@ -169,6 +199,44 @@ function loadPendingWakeups(stateDir: string): WakeupRecord[] {
       if (left !== right) return left.localeCompare(right);
       return a.id.localeCompare(b.id);
     });
+}
+
+function loadWakeups(stateDir: string): WakeupRecord[] {
+  const { wakeupsDir } = statePaths(stateDir);
+  if (!existsSync(wakeupsDir)) return [];
+
+  return readdirSync(wakeupsDir)
+    .filter((name) => name.endsWith(".json"))
+    .map((name) => readJsonObject<WakeupRecord>(join(wakeupsDir, name)))
+    .filter((value): value is WakeupRecord => value !== null);
+}
+
+function loadWorkerStates(stateDir: string): WorkerStateRecord[] {
+  const { workersDir } = statePaths(stateDir);
+  if (!existsSync(workersDir)) return [];
+
+  return readdirSync(workersDir)
+    .filter((name) => name.endsWith(".json"))
+    .map((name) => readJsonObject<WorkerStateRecord>(join(workersDir, name)))
+    .filter((value): value is WorkerStateRecord => value !== null);
+}
+
+function loadWorkerEvents(stateDir: string, workerName: string): WorkerEventRecord[] {
+  const { eventsPath } = statePaths(stateDir);
+  if (!existsSync(eventsPath)) return [];
+
+  return readFileSync(eventsPath, "utf-8")
+    .split(/\r?\n/)
+    .filter((line) => line.trim().length > 0)
+    .map((line) => {
+      try {
+        const parsed = JSON.parse(line);
+        return isObjectRecord(parsed) ? (parsed as unknown as WorkerEventRecord) : null;
+      } catch {
+        return null;
+      }
+    })
+    .filter((value): value is WorkerEventRecord => value !== null && value.worker_name === workerName);
 }
 
 function loadWorkerState(stateDir: string, workerName: string): WorkerStateRecord | null {
@@ -534,6 +602,40 @@ function stringMetadataValue(metadata: Record<string, unknown>, key: string): st
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
+function existingWakeupKindsByWorker(stateDir: string): Map<string, Set<string>> {
+  const byWorker = new Map<string, Set<string>>();
+  for (const wakeup of loadWakeups(stateDir)) {
+    const kind = wakeupKind(wakeup);
+    if (!kind) continue;
+    const current = byWorker.get(wakeup.worker_name) || new Set<string>();
+    current.add(kind);
+    byWorker.set(wakeup.worker_name, current);
+  }
+  return byWorker;
+}
+
+function latestWorkerEvent(
+  stateDir: string,
+  workerName: string,
+  eventType: string
+): WorkerEventRecord | null {
+  const matching = loadWorkerEvents(stateDir, workerName)
+    .filter((event) => event.event_type === eventType)
+    .sort((left, right) => {
+      const leftKey = left.timestamp || "";
+      const rightKey = right.timestamp || "";
+      if (leftKey !== rightKey) return rightKey.localeCompare(leftKey);
+      return right.id.localeCompare(left.id);
+    });
+  return matching[0] || null;
+}
+
+function workerRecoveryChatId(workerState: WorkerStateRecord | null): number | null {
+  const supervisor = supervisorMetadata(workerState);
+  const chatId = supervisor.last_supervision_chat_id;
+  return typeof chatId === "number" && Number.isFinite(chatId) ? chatId : null;
+}
+
 function isWakeupReady(
   wakeup: WakeupRecord,
   running: boolean
@@ -568,6 +670,183 @@ function updateWakeupDelivery(
     updated_at: now,
     delivery,
   };
+}
+
+export function recoverPendingWorkerWakeups(
+  options: RecoverPendingWorkerWakeupsOptions = {}
+): RecoverPendingWorkerWakeupsResult {
+  const stateDir = options.stateDir || join(SUPERTURTLE_DATA_DIR, "state");
+  const nowIso = options.nowIso || utcNowIso;
+  const now = nowIso();
+  const wakeupKindsByWorker = existingWakeupKindsByWorker(stateDir);
+  let recoveredWakeups = 0;
+  let reconciled = 0;
+
+  for (const workerState of loadWorkerStates(stateDir)) {
+    const lifecycleState = workerState.lifecycle_state;
+    let recoveryKind = "";
+    let eventType = "";
+    let category: "critical" | "notable" = "notable";
+    let summary = "";
+    let payload: Record<string, unknown> = {};
+
+    if (
+      lifecycleState === "completion_pending" &&
+      !(wakeupKindsByWorker.get(workerState.worker_name)?.has("completion_requested"))
+    ) {
+      recoveryKind = "completion_requested";
+      eventType = "worker.completion_requested";
+      category = "notable";
+      summary = `SubTurtle ${workerState.worker_name} completed and needs reconciliation.`;
+      payload = { kind: "completion_requested" };
+    } else if (
+      lifecycleState === "failure_pending" &&
+      !(wakeupKindsByWorker.get(workerState.worker_name)?.has("fatal_error"))
+    ) {
+      const fatalErrorEvent = latestWorkerEvent(stateDir, workerState.worker_name, "worker.fatal_error");
+      const message =
+        typeof fatalErrorEvent?.payload?.message === "string" && fatalErrorEvent.payload.message.trim().length > 0
+          ? fatalErrorEvent.payload.message.trim()
+          : "Worker entered failure_pending without a recoverable wakeup.";
+      recoveryKind = "fatal_error";
+      eventType = "worker.fatal_error";
+      category = "critical";
+      summary = `SubTurtle ${workerState.worker_name} failed and needs reconciliation.`;
+      payload = { kind: "fatal_error", message };
+    } else if (
+      lifecycleState === "timed_out" &&
+      !(wakeupKindsByWorker.get(workerState.worker_name)?.has("timeout"))
+    ) {
+      recoveryKind = "timeout";
+      eventType = "worker.timed_out";
+      category = "critical";
+      summary = `SubTurtle ${workerState.worker_name} timed out and needs reconciliation.`;
+      payload = { kind: "timeout" };
+    }
+
+    if (!recoveryKind) {
+      continue;
+    }
+
+    const recoveryEvent = appendWorkerEvent(
+      stateDir,
+      workerState,
+      workerState.worker_name,
+      "worker.recovered",
+      workerState.lifecycle_state,
+      {
+        recovery_kind: "recreated_missing_wakeup",
+        recreated_wakeup_kind: recoveryKind,
+        source_event_type: eventType,
+      },
+      now
+    );
+
+    writeWakeup(
+      stateDir,
+      makeWakeup(workerState.worker_name, category, summary, {
+        runId: workerState.run_id,
+        reasonEventId: recoveryEvent.id,
+        createdAt: now,
+        payload,
+        metadata: {
+          recovered: true,
+          recovery_kind: "recreated_missing_wakeup",
+          ...(workerRecoveryChatId(workerState) !== null
+            ? { chat_id: workerRecoveryChatId(workerState) }
+            : {}),
+        },
+      })
+    );
+
+    const nextKinds = wakeupKindsByWorker.get(workerState.worker_name) || new Set<string>();
+    nextKinds.add(recoveryKind);
+    wakeupKindsByWorker.set(workerState.worker_name, nextKinds);
+
+    writeWorkerState(stateDir, {
+      ...workerState,
+      updated_at: now,
+      updated_by: EVENT_EMITTED_BY,
+      last_event_id: recoveryEvent.id,
+      last_event_at: recoveryEvent.timestamp,
+      metadata: mergeMetadata(workerState, {
+        last_recovered_at: now,
+        last_recovery_event_id: recoveryEvent.id,
+        last_recreated_wakeup_kind: recoveryKind,
+      }),
+    });
+
+    recoveredWakeups += 1;
+    reconciled += 1;
+  }
+
+  return { recoveredWakeups, reconciled };
+}
+
+export async function cleanupStaleRecurringSubturtleCron(
+  options: CleanupStaleRecurringSubturtleCronOptions
+): Promise<CleanupStaleRecurringSubturtleCronResult> {
+  const stateDir = options.stateDir || join(SUPERTURTLE_DATA_DIR, "state");
+  const workingDir = options.workingDir || WORKING_DIR;
+  const ctlPath = options.ctlPath || CTL_PATH;
+  const nowIso = options.nowIso || utcNowIso;
+  const isWorkerRunning =
+    options.isWorkerRunning || ((workerName: string) => defaultIsWorkerRunning(ctlPath, workingDir, workerName));
+
+  if (isWorkerRunning(options.workerName)) {
+    return { removed: false, notified: false, reconciled: 0 };
+  }
+
+  if (!options.listJobs().some((job) => job.id === options.jobId)) {
+    return { removed: false, notified: false, reconciled: 0 };
+  }
+
+  if (!options.removeJob(options.jobId)) {
+    return { removed: false, notified: false, reconciled: 0 };
+  }
+
+  const now = nowIso();
+  let reconciled = 0;
+  let notified = false;
+  const workerState = loadWorkerState(stateDir, options.workerName);
+  const supervisor = supervisorMetadata(workerState);
+  if (workerState && !supervisor.cron_removed_at) {
+    const cronRemovedEvent = appendWorkerEvent(
+      stateDir,
+      workerState,
+      options.workerName,
+      "worker.cron_removed",
+      workerState.lifecycle_state,
+      {
+        cron_job_id: options.jobId,
+        removal_reason: "stale_recurring_cron_cleanup",
+      },
+      now
+    );
+    writeWorkerState(stateDir, {
+      ...workerState,
+      updated_at: now,
+      updated_by: EVENT_EMITTED_BY,
+      last_event_id: cronRemovedEvent.id,
+      last_event_at: cronRemovedEvent.timestamp,
+      metadata: mergeMetadata(workerState, {
+        cron_removed_at: now,
+        cron_removed_event_id: cronRemovedEvent.id,
+        cron_removed_reason: "stale_recurring_cron_cleanup",
+      }),
+    });
+    reconciled += 1;
+  }
+
+  if (typeof options.chatId === "number" && Number.isFinite(options.chatId)) {
+    await options.sendMessage(
+      options.chatId,
+      `⚠️ SubTurtle ${options.workerName} is not running but cron ${options.jobId} was still active. I removed that recurring cron to prevent repeat loops.`
+    );
+    notified = true;
+  }
+
+  return { removed: true, notified, reconciled };
 }
 
 export async function processSilentSubturtleSupervision(

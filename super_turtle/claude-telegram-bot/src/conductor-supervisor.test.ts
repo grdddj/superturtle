@@ -8,9 +8,11 @@ import {
   listPendingMetaAgentInboxItems,
 } from "./conductor-inbox";
 import {
+  cleanupStaleRecurringSubturtleCron,
   parseCompletedBacklogItems,
-  processSilentSubturtleSupervision,
   processPendingConductorWakeups,
+  processSilentSubturtleSupervision,
+  recoverPendingWorkerWakeups,
 } from "./conductor-supervisor";
 
 const tempDirs: string[] = [];
@@ -50,6 +52,201 @@ Ship the feature
       "Implement API",
       "Wire UI",
     ]);
+  });
+});
+
+describe("recoverPendingWorkerWakeups", () => {
+  it("recreates a missing completion wakeup from completion_pending worker state", async () => {
+    const baseDir = makeStateDir();
+    const stateDir = join(baseDir, ".superturtle", "state");
+    const archiveWorkspace = join(baseDir, ".subturtles", ".archive", "worker-recover-complete");
+    mkdirSync(join(stateDir, "workers"), { recursive: true });
+    mkdirSync(join(stateDir, "wakeups"), { recursive: true });
+    mkdirSync(archiveWorkspace, { recursive: true });
+
+    writeFileSync(
+      join(archiveWorkspace, "CLAUDE.md"),
+      `# Current task
+
+Recover missing completion wakeup
+
+# Backlog
+- [x] Finish recovery path
+`,
+      "utf-8"
+    );
+
+    writeJson(join(stateDir, "workers", "worker-recover-complete.json"), {
+      kind: "worker_state",
+      schema_version: 1,
+      worker_name: "worker-recover-complete",
+      run_id: "run-recover-complete",
+      lifecycle_state: "completion_pending",
+      workspace: archiveWorkspace,
+      cron_job_id: "cron-recover-complete",
+      current_task: "Recover missing completion wakeup",
+      completion_requested_at: "2026-03-08T00:00:00Z",
+      metadata: {
+        supervisor: {
+          last_supervision_chat_id: 123,
+        },
+      },
+    });
+
+    const recovered = recoverPendingWorkerWakeups({
+      stateDir,
+      nowIso: () => "2026-03-08T01:00:00Z",
+    });
+
+    expect(recovered.recoveredWakeups).toBe(1);
+    expect(recovered.reconciled).toBe(1);
+
+    const wakeupFiles = readdirSync(join(stateDir, "wakeups"));
+    expect(wakeupFiles).toHaveLength(1);
+    const wakeup = JSON.parse(
+      readFileSync(join(stateDir, "wakeups", wakeupFiles[0]!), "utf-8")
+    );
+    expect(wakeup.payload.kind).toBe("completion_requested");
+    expect(wakeup.metadata.chat_id).toBe(123);
+    expect(wakeup.metadata.recovered).toBe(true);
+
+    const jobs = [{ id: "cron-recover-complete" }];
+    const sentMessages: string[] = [];
+    const delivered = await processPendingConductorWakeups({
+      stateDir,
+      defaultChatId: 123,
+      listJobs: () => [...jobs],
+      removeJob: (id) => {
+        const index = jobs.findIndex((job) => job.id === id);
+        if (index === -1) return false;
+        jobs.splice(index, 1);
+        return true;
+      },
+      sendMessage: async (_chatId, text) => {
+        sentMessages.push(text);
+      },
+      isWorkerRunning: () => false,
+      nowIso: () => "2026-03-08T01:00:01Z",
+    });
+
+    expect(delivered.sent).toBe(1);
+    expect(sentMessages[0]).toContain("🎉 Finished: worker-recover-complete");
+
+    const events = readFileSync(join(stateDir, "events.jsonl"), "utf-8");
+    expect(events).toContain('"event_type":"worker.recovered"');
+    expect(events).toContain('"event_type":"worker.completed"');
+  });
+
+  it("recreates a missing fatal-error wakeup from failure_pending worker state", () => {
+    const baseDir = makeStateDir();
+    const stateDir = join(baseDir, ".superturtle", "state");
+    const workspace = join(baseDir, ".subturtles", "worker-recover-failure");
+    mkdirSync(join(stateDir, "workers"), { recursive: true });
+    mkdirSync(join(stateDir, "wakeups"), { recursive: true });
+    mkdirSync(workspace, { recursive: true });
+
+    writeJson(join(stateDir, "workers", "worker-recover-failure.json"), {
+      kind: "worker_state",
+      schema_version: 1,
+      worker_name: "worker-recover-failure",
+      run_id: "run-recover-failure",
+      lifecycle_state: "failure_pending",
+      workspace,
+      cron_job_id: "cron-recover-failure",
+      current_task: "Recover missing fatal error wakeup",
+      stop_reason: "fatal_error",
+      metadata: {},
+    });
+    writeFileSync(
+      join(stateDir, "events.jsonl"),
+      `${JSON.stringify({
+        kind: "worker_event",
+        schema_version: 1,
+        id: "evt-fatal-recover",
+        timestamp: "2026-03-08T00:00:00Z",
+        worker_name: "worker-recover-failure",
+        run_id: "run-recover-failure",
+        event_type: "worker.fatal_error",
+        emitted_by: "subturtle",
+        lifecycle_state: "failure_pending",
+        idempotency_key: null,
+        payload: { kind: "fatal_error", message: "recovered boom" },
+      })}\n`,
+      "utf-8"
+    );
+
+    const recovered = recoverPendingWorkerWakeups({
+      stateDir,
+      nowIso: () => "2026-03-08T01:05:00Z",
+    });
+
+    expect(recovered.recoveredWakeups).toBe(1);
+
+    const wakeupFiles = readdirSync(join(stateDir, "wakeups"));
+    expect(wakeupFiles).toHaveLength(1);
+    const wakeup = JSON.parse(
+      readFileSync(join(stateDir, "wakeups", wakeupFiles[0]!), "utf-8")
+    );
+    expect(wakeup.payload.kind).toBe("fatal_error");
+    expect(wakeup.payload.message).toBe("recovered boom");
+    expect(wakeup.category).toBe("critical");
+  });
+});
+
+describe("cleanupStaleRecurringSubturtleCron", () => {
+  it("removes a stale recurring cron, persists the cleanup event, and warns the operator", async () => {
+    const baseDir = makeStateDir();
+    const stateDir = join(baseDir, ".superturtle", "state");
+    mkdirSync(join(stateDir, "workers"), { recursive: true });
+    mkdirSync(join(stateDir, "wakeups"), { recursive: true });
+
+    writeJson(join(stateDir, "workers", "worker-stale-cron.json"), {
+      kind: "worker_state",
+      schema_version: 1,
+      worker_name: "worker-stale-cron",
+      run_id: "run-stale-cron",
+      lifecycle_state: "running",
+      workspace: join(baseDir, ".subturtles", "worker-stale-cron"),
+      cron_job_id: "cron-stale-cron",
+      current_task: "Verify stale cron cleanup",
+      metadata: {},
+    });
+
+    const jobs = [{ id: "cron-stale-cron" }];
+    const sentMessages: string[] = [];
+    const result = await cleanupStaleRecurringSubturtleCron({
+      stateDir,
+      workerName: "worker-stale-cron",
+      jobId: "cron-stale-cron",
+      chatId: 123,
+      listJobs: () => [...jobs],
+      removeJob: (id) => {
+        const index = jobs.findIndex((job) => job.id === id);
+        if (index === -1) return false;
+        jobs.splice(index, 1);
+        return true;
+      },
+      sendMessage: async (_chatId, text) => {
+        sentMessages.push(text);
+      },
+      isWorkerRunning: () => false,
+      nowIso: () => "2026-03-08T02:00:00Z",
+    });
+
+    expect(result.removed).toBe(true);
+    expect(result.notified).toBe(true);
+    expect(result.reconciled).toBe(1);
+    expect(jobs).toHaveLength(0);
+    expect(sentMessages[0]).toContain("⚠️ SubTurtle worker-stale-cron is not running");
+
+    const updatedWorker = JSON.parse(
+      readFileSync(join(stateDir, "workers", "worker-stale-cron.json"), "utf-8")
+    );
+    expect(updatedWorker.metadata.supervisor.cron_removed_reason).toBe("stale_recurring_cron_cleanup");
+
+    const events = readFileSync(join(stateDir, "events.jsonl"), "utf-8");
+    expect(events).toContain('"event_type":"worker.cron_removed"');
+    expect(events).not.toContain('"event_type":"worker.cleanup_verified"');
   });
 });
 
