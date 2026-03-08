@@ -1066,7 +1066,7 @@ PY
     if (( py_status == 42 )); then
       echo "ERROR: no cron job found for id '${CRON_JOB_ID}'" >&2
     else
-      echo "ERROR: failed to update cron jobs in ${CRON_JOBS_FILE_REL}" >&2
+      echo "ERROR: failed to update cron jobs in ${CRON_JOBS_FILE}" >&2
     fi
     exit 1
   fi
@@ -1151,7 +1151,7 @@ do_spawn() {
 
   local cron_job_id
   if ! cron_job_id="$(register_spawn_cron_job "$name" "$cron_interval_ms" "$cron_mode")"; then
-    echo "[subturtle:${name}] ERROR: failed to register cron job in ${CRON_JOBS_FILE_REL}" >&2
+    echo "[subturtle:${name}] ERROR: failed to register cron job in ${CRON_JOBS_FILE}" >&2
     echo "[subturtle:${name}] stopping SubTurtle because cron registration failed" >&2
     if is_running "$name"; then
       do_stop "$name" >/dev/null 2>&1 || true
