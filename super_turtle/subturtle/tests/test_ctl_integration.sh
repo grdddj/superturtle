@@ -243,6 +243,34 @@ PY
   fi
 }
 
+assert_json_field_null() {
+  local path="$1"
+  local field_path="$2"
+
+  assert_file_exists "$path" || return 1
+
+  if ! python3 - "$path" "$field_path" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+field_path = sys.argv[2].split(".")
+value = json.loads(path.read_text(encoding="utf-8"))
+
+for segment in field_path:
+    if not isinstance(value, dict) or segment not in value:
+        raise SystemExit(1)
+    value = value[segment]
+
+raise SystemExit(0 if value is None else 1)
+PY
+  then
+    fail "expected ${path} field ${field_path} to be null"
+    return 1
+  fi
+}
+
 assert_worker_state_field_equals() {
   local name="$1"
   local field_path="$2"
@@ -254,6 +282,12 @@ assert_worker_state_field_nonempty() {
   local name="$1"
   local field_path="$2"
   assert_json_field_nonempty "$(worker_state_path "$name")" "$field_path"
+}
+
+assert_worker_state_field_null() {
+  local name="$1"
+  local field_path="$2"
+  assert_json_field_null "$(worker_state_path "$name")" "$field_path"
 }
 
 assert_event_exists() {
@@ -886,6 +920,8 @@ test_stop_cleans_cron() {
   fi
 
   assert_cron_job_missing "$cron_job_id" || return 1
+  assert_event_exists "$name" "worker.cron_removed" "supervisor" "stop_pending" || return 1
+  assert_worker_state_field_null "$name" "cron_job_id" || return 1
   return 0
 }
 

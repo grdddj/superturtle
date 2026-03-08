@@ -114,6 +114,14 @@ def _string_value(value: Any) -> str | None:
     return None
 
 
+def _explicit_optional_string(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value.strip() or None
+    return str(value)
+
+
 def _mapping_value(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
 
@@ -191,7 +199,15 @@ def _format_pending_wakeup(wakeup: Mapping[str, Any]) -> str:
 def _format_recent_update(state: Mapping[str, Any]) -> str:
     worker_name = _string_value(state.get("worker_name")) or "(unknown)"
     lifecycle_state = _string_value(state.get("lifecycle_state")) or "unknown"
-    parts = [f"{worker_name} [{lifecycle_state}]"]
+    metadata = _mapping_value(state.get("metadata"))
+    supervisor = _mapping_value(metadata.get("supervisor"))
+    resolved_terminal_state = _string_value(supervisor.get("resolved_terminal_state"))
+    rendered_state = (
+        resolved_terminal_state
+        if lifecycle_state == "archived" and resolved_terminal_state
+        else lifecycle_state
+    )
+    parts = [f"{worker_name} [{rendered_state}]"]
     stop_reason = _string_value(state.get("stop_reason"))
     if stop_reason:
         parts.append(f"reason: {stop_reason}")
@@ -202,6 +218,18 @@ def _format_recent_update(state: Mapping[str, Any]) -> str:
     elif updated_at:
         parts.append(f"updated: {updated_at}")
     return " | ".join(parts)
+
+
+def _state_should_render_recent_update(state: Mapping[str, Any]) -> bool:
+    lifecycle_state = _string_value(state.get("lifecycle_state"))
+    if lifecycle_state in RECENT_UPDATE_STATES:
+        return True
+    if lifecycle_state != "archived":
+        return False
+    metadata = _mapping_value(state.get("metadata"))
+    supervisor = _mapping_value(metadata.get("supervisor"))
+    resolved_terminal_state = _string_value(supervisor.get("resolved_terminal_state"))
+    return resolved_terminal_state in RECENT_UPDATE_STATES
 
 
 def refresh_handoff_from_conductor(
@@ -226,7 +254,7 @@ def refresh_handoff_from_conductor(
     recent_updates = [
         _format_recent_update(state)
         for state in _sort_newest(worker_states, "terminal_at", "updated_at", "created_at")
-        if _string_value(state.get("lifecycle_state")) in RECENT_UPDATE_STATES
+        if _state_should_render_recent_update(state)
     ][:8]
     pending_wakeups = [
         _format_pending_wakeup(wakeup)
@@ -605,61 +633,86 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         metadata = _load_json_object(args.metadata_json, arg_name="--metadata-json")
         existing = conductor.load_worker_state(args.worker_name) or {}
+        requested_run_id = (
+            _explicit_optional_string(args.run_id)
+            if args.run_id is not None
+            else existing.get("run_id")
+        )
+        existing_run_id = _string_value(existing.get("run_id"))
+        existing_for_defaults = (
+            {}
+            if requested_run_id
+            and existing_run_id
+            and requested_run_id != existing_run_id
+            else existing
+        )
         state = conductor.make_worker_state(
             worker_name=args.worker_name,
             lifecycle_state=args.lifecycle_state,
             updated_by=args.updated_by,
-            run_id=args.run_id if args.run_id is not None else existing.get("run_id"),
+            run_id=requested_run_id,
             workspace=(
-                args.workspace if args.workspace is not None else existing.get("workspace")
+                args.workspace
+                if args.workspace is not None
+                else existing_for_defaults.get("workspace")
             ),
             loop_type=(
-                args.loop_type if args.loop_type is not None else existing.get("loop_type")
+                args.loop_type
+                if args.loop_type is not None
+                else existing_for_defaults.get("loop_type")
             ),
-            pid=args.pid if args.pid is not None else existing.get("pid"),
+            pid=args.pid if args.pid is not None else existing_for_defaults.get("pid"),
             timeout_seconds=(
                 args.timeout_seconds
                 if args.timeout_seconds is not None
-                else existing.get("timeout_seconds")
+                else existing_for_defaults.get("timeout_seconds")
             ),
             cron_job_id=(
-                args.cron_job_id
+                _explicit_optional_string(args.cron_job_id)
                 if args.cron_job_id is not None
-                else existing.get("cron_job_id")
+                else existing_for_defaults.get("cron_job_id")
             ),
             current_task=(
                 args.current_task
                 if args.current_task is not None
-                else existing.get("current_task")
+                else existing_for_defaults.get("current_task")
             ),
             stop_reason=(
-                args.stop_reason
+                _explicit_optional_string(args.stop_reason)
                 if args.stop_reason is not None
-                else existing.get("stop_reason")
+                else existing_for_defaults.get("stop_reason")
             ),
             completion_requested_at=(
-                args.completion_requested_at
+                _explicit_optional_string(args.completion_requested_at)
                 if args.completion_requested_at is not None
-                else existing.get("completion_requested_at")
+                else existing_for_defaults.get("completion_requested_at")
             ),
             terminal_at=(
-                args.terminal_at
+                _explicit_optional_string(args.terminal_at)
                 if args.terminal_at is not None
-                else existing.get("terminal_at")
+                else existing_for_defaults.get("terminal_at")
             ),
             last_event_id=(
-                args.last_event_id
+                _explicit_optional_string(args.last_event_id)
                 if args.last_event_id is not None
-                else existing.get("last_event_id")
+                else existing_for_defaults.get("last_event_id")
             ),
             last_event_at=(
-                args.last_event_at
+                _explicit_optional_string(args.last_event_at)
                 if args.last_event_at is not None
-                else existing.get("last_event_at")
+                else existing_for_defaults.get("last_event_at")
             ),
-            checkpoint=checkpoint if checkpoint is not None else existing.get("checkpoint"),
-            metadata=metadata if metadata is not None else existing.get("metadata"),
-            created_at=args.created_at if args.created_at is not None else existing.get("created_at"),
+            checkpoint=(
+                checkpoint if checkpoint is not None else existing_for_defaults.get("checkpoint")
+            ),
+            metadata=(
+                metadata if metadata is not None else existing_for_defaults.get("metadata")
+            ),
+            created_at=(
+                _explicit_optional_string(args.created_at)
+                if args.created_at is not None
+                else existing_for_defaults.get("created_at")
+            ),
             updated_at=args.updated_at,
         )
         written = conductor.write_worker_state(state)

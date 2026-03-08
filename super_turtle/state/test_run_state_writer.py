@@ -173,6 +173,56 @@ class RunStateWriterTests(unittest.TestCase):
             self.assertIn("alpha [critical/processing]", handoff_content)
             self.assertNotIn("ghost [running]", handoff_content)
 
+    def test_refresh_handoff_from_conductor_renders_archived_completed_workers_in_recent_updates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            archive_workspace = Path(tmp_dir) / ".subturtles" / ".archive" / "omega"
+            archive_workspace.mkdir(parents=True)
+
+            self.assertEqual(
+                main(
+                    [
+                        "--state-dir",
+                        tmp_dir,
+                        "put-worker",
+                        "--worker-name",
+                        "omega",
+                        "--lifecycle-state",
+                        "archived",
+                        "--updated-by",
+                        "supervisor",
+                        "--workspace",
+                        str(archive_workspace),
+                        "--current-task",
+                        "Ship the final chapter",
+                        "--stop-reason",
+                        "completed",
+                        "--terminal-at",
+                        "2026-03-08T09:54:26Z",
+                        "--metadata-json",
+                        '{"supervisor":{"resolved_terminal_state":"completed"}}',
+                    ]
+                ),
+                0,
+            )
+            self.assertEqual(
+                main(
+                    [
+                        "--state-dir",
+                        tmp_dir,
+                        "refresh-handoff-from-conductor",
+                        "--updated-at",
+                        "2026-03-08T10:10:00Z",
+                    ]
+                ),
+                0,
+            )
+
+            handoff_content = (Path(tmp_dir) / "handoff.md").read_text(encoding="utf-8")
+            self.assertIn("## Recent Worker Updates", handoff_content)
+            self.assertIn("omega [completed]", handoff_content)
+            self.assertIn("reason: completed", handoff_content)
+            self.assertIn("terminal: 2026-03-08T09:54:26Z", handoff_content)
+
     def test_cli_commands_smoke(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             self.assertEqual(
@@ -340,6 +390,93 @@ class RunStateWriterTests(unittest.TestCase):
             self.assertEqual(parsed["run_id"], "run-999")
             self.assertEqual(parsed["cron_job_id"], "cron-1")
             self.assertEqual(parsed["current_task"], "Initial task")
+
+    def test_put_worker_resets_prior_state_when_run_id_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            self.assertEqual(
+                main(
+                    [
+                        "--state-dir",
+                        tmp_dir,
+                        "put-worker",
+                        "--worker-name",
+                        "epsilon-run",
+                        "--lifecycle-state",
+                        "archived",
+                        "--updated-by",
+                        "supervisor",
+                        "--run-id",
+                        "run-old",
+                        "--cron-job-id",
+                        "cron-old",
+                        "--current-task",
+                        "Old task",
+                        "--stop-reason",
+                        "completed",
+                        "--completion-requested-at",
+                        "2026-03-08T09:00:00Z",
+                        "--terminal-at",
+                        "2026-03-08T09:01:00Z",
+                        "--last-event-id",
+                        "evt-old",
+                        "--last-event-at",
+                        "2026-03-08T09:01:00Z",
+                        "--checkpoint-json",
+                        '{"iteration":7,"head_sha":"oldsha"}',
+                        "--metadata-json",
+                        '{"supervisor":{"last_progress_signature":"old-progress"}}',
+                        "--created-at",
+                        "2026-03-08T08:59:00Z",
+                        "--updated-at",
+                        "2026-03-08T09:01:00Z",
+                    ]
+                ),
+                0,
+            )
+            self.assertEqual(
+                main(
+                    [
+                        "--state-dir",
+                        tmp_dir,
+                        "put-worker",
+                        "--worker-name",
+                        "epsilon-run",
+                        "--lifecycle-state",
+                        "running",
+                        "--updated-by",
+                        "supervisor",
+                        "--run-id",
+                        "run-new",
+                        "--workspace",
+                        ".subturtles/epsilon-run",
+                        "--loop-type",
+                        "yolo-codex",
+                        "--current-task",
+                        "New task",
+                        "--created-at",
+                        "2026-03-08T10:00:00Z",
+                        "--updated-at",
+                        "2026-03-08T10:00:00Z",
+                    ]
+                ),
+                0,
+            )
+
+            worker_path = Path(tmp_dir) / "workers" / "epsilon-run.json"
+            parsed = json.loads(worker_path.read_text(encoding="utf-8"))
+            self.assertEqual(parsed["run_id"], "run-new")
+            self.assertEqual(parsed["lifecycle_state"], "running")
+            self.assertEqual(parsed["workspace"], ".subturtles/epsilon-run")
+            self.assertEqual(parsed["current_task"], "New task")
+            self.assertEqual(parsed["created_at"], "2026-03-08T10:00:00Z")
+            self.assertIsNone(parsed["cron_job_id"])
+            self.assertIsNone(parsed["stop_reason"])
+            self.assertIsNone(parsed["completion_requested_at"])
+            self.assertIsNone(parsed["terminal_at"])
+            self.assertIsNone(parsed["last_event_id"])
+            self.assertIsNone(parsed["last_event_at"])
+            self.assertEqual(parsed["checkpoint"], {})
+            self.assertEqual(parsed["metadata"], {})
 
 
 if __name__ == "__main__":

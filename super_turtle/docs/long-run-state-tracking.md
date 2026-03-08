@@ -445,6 +445,8 @@ Current producer coverage:
 - the bot now runs the same conductor maintenance pass once at startup and then on every timer tick, so wake-up recovery and stale recurring-cron cleanup happen immediately after a reboot instead of waiting for the first cron interval
 - startup conductor maintenance also requeues wake-ups stranded in `processing`, so a crash between the pre-send write and the final `sent` write becomes replayable recovery state instead of a permanent wedge
 - the 10-second bot cron loop is now single-flight and is armed only after boot-time maintenance completes, so restart recovery runs before recurring ticks and slow maintenance/delivery work cannot overlap the next timer tick
+- starting a new run with a reused worker name now resets prior checkpoint, supervisor metadata, and terminal residue instead of inheriting the previous run's progress signature
+- `ctl stop` now persists `worker.cron_removed` on successful stop-path cron cleanup, removes `CRON_JOB_ID` from the runtime meta file, and clears the canonical worker `cron_job_id` field before archive
 - stale recurring SubTurtle cron cleanup is now persisted back into conductor state via `worker.cron_removed`, rather than existing only as an operator warning path
 
 The migration is still in a mixed mode:
@@ -454,7 +456,7 @@ The migration is still in a mixed mode:
 - `ctl spawn` now writes structured supervision cron metadata (`job_kind`, `worker_name`, `supervision_mode`) so recurring checks resolve workers from disk state first instead of depending on prompt regexes
 - silent SubTurtle cron is now a deterministic reconciliation trigger, not a prompt-driven inference path
 - milestone and stuck wake-ups now go through the same inbox + Telegram delivery flow as completion/failure wake-ups, while cron removal and cleanup verification remain terminal-only side effects
-- `handoff.md` now renders from canonical worker state plus outstanding pending/processing wakeups, and dashboard lanes prefer conductor worker fields for currently listed SubTurtles
+- `handoff.md` now renders from canonical worker state plus outstanding pending/processing wakeups, and recent updates render archived completed/failed workers by canonical resolved terminal outcome instead of dropping them entirely
 - preview/tunnel URLs are attached to milestone wake-ups when present, but they are not yet a standalone milestone trigger
 
 The next step is to keep expanding restart and multi-worker coverage around the shared maintenance path, not to add another orchestration layer.

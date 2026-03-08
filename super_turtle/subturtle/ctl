@@ -276,9 +276,7 @@ write_conductor_worker_state() {
   if [[ -n "${TIMEOUT_SECONDS:-}" ]]; then
     writer_cmd+=(--timeout-seconds "$TIMEOUT_SECONDS")
   fi
-  if [[ -n "${CRON_JOB_ID:-}" ]]; then
-    writer_cmd+=(--cron-job-id "$CRON_JOB_ID")
-  fi
+  writer_cmd+=(--cron-job-id "${CRON_JOB_ID:-}")
   if [[ -n "$current_task" ]]; then
     writer_cmd+=(--current-task "$current_task")
   fi
@@ -421,6 +419,23 @@ read_meta() {
     CRON_JOB_ID="$(grep -m1 '^CRON_JOB_ID=' "$mf" 2>/dev/null | cut -d= -f2-)" || true
     return 0
   fi
+  return 1
+}
+
+remove_meta_key() {
+  local name="$1"
+  local key="$2"
+  local mf tmp_file
+  mf="$(meta_file "$name")"
+  [[ -f "$mf" ]] || return 0
+
+  tmp_file="$(mktemp "${mf}.XXXXXX")" || return 1
+  if awk -v prefix="${key}=" 'index($0, prefix) != 1 { print }' "$mf" > "$tmp_file"; then
+    mv "$tmp_file" "$mf"
+    return 0
+  fi
+
+  rm -f "$tmp_file"
   return 1
 }
 
@@ -1166,8 +1181,20 @@ do_stop() {
   # Remove recurring supervision cron before stopping the process.
   CRON_JOB_ID=""
   if read_meta "$name" && [[ -n "${CRON_JOB_ID:-}" ]]; then
+    local removed_cron_job_id="${CRON_JOB_ID}"
     if remove_spawn_cron_job "$CRON_JOB_ID"; then
       echo "[subturtle:${name}] cron job ${CRON_JOB_ID} removed"
+      if ! remove_meta_key "$name" "CRON_JOB_ID"; then
+        echo "[subturtle:${name}] WARNING: failed to clear CRON_JOB_ID from meta file" >&2
+      fi
+      CRON_JOB_ID=""
+      append_conductor_event \
+        "$name" \
+        "worker.cron_removed" \
+        "supervisor" \
+        "stop_pending" \
+        "{\"cron_job_id\":\"${removed_cron_job_id}\",\"removal_reason\":\"stop_requested\"}" || true
+      write_conductor_worker_state "$name" "stop_pending" "supervisor" "stop_requested" "" "$stop_requested_at" || true
     else
       echo "[subturtle:${name}] WARNING: failed to remove cron job ${CRON_JOB_ID}" >&2
     fi

@@ -49,7 +49,7 @@ git checkout dev && git merge main
 ---
 
 ## Current task
-Redesign SubTurtle orchestration so durable state, not chat/session memory, is the control plane. Current focus: keep hardening restart recovery so boot-time conductor maintenance replays stranded in-flight wakeups and keeps operator state aligned after crashes.
+Redesign SubTurtle orchestration so durable state, not chat/session memory, is the control plane. Current focus: push the next confidence layer after the `book-writer` validation by adding broader end-to-end recovery coverage on top of the now-correct worker reset, stop cleanup, and handoff rendering semantics.
 
 ## SubTurtle orchestration redesign scope
 
@@ -75,10 +75,12 @@ We are redesigning the weak parts:
 - `/status`, `/debug`, `/looplogs`, `/pinologs`, `superturtle doctor`, and `superturtle logs`
 
 ### Known gaps
+- Reusing a worker name across runs still leaks prior supervisor/checkpoint metadata because `put-worker` merges by worker name even when `run_id` changes
+- Manual/self-stop removes recurring cron jobs, but the stop path still does not always persist `worker.cron_removed` or clear stale `cron_job_id` in canonical worker state
+- `handoff.md` still under-reports archived completions because recent updates are filtered by raw lifecycle state and live workspace presence instead of resolved terminal outcome
 - `handoff.md` and `runs.jsonl` still exist for compatibility, so they must stay strictly derived from canonical conductor state
 - `subturtle.meta` still carries some spawn/runtime metadata; worker lifecycle truth now lives in the conductor store and those paths need continued convergence
-- Restart/recovery behavior is now repairing missing pending wakeups and persisting stale recurring-cron cleanup, but broader end-to-end coverage is still thin around true bot reboot flows and multi-worker orchestration
-- Silent milestone/stuck policy is now deterministic, but the remaining confidence gap is proving the full conductor flow under restart and recovery conditions
+- Restart/recovery behavior is much stronger now, but broader end-to-end coverage is still thin around multi-worker orchestration and true bot reboot flows
 
 ## End goal with specs
 - Every SubTurtle has explicit durable lifecycle state that can be reconstructed after any bot restart
@@ -105,7 +107,7 @@ We are redesigning the weak parts:
 - ✅ Current worker execution model: isolated workspaces, `CLAUDE.md` state files, commit-per-iteration yolo/slow loops, and self-stop directives
 
 ## Roadmap (Upcoming)
-- Add restart, recovery, stale-cleanup, and multi-worker tests for conductor behavior
+- Add restart, recovery, stale-cleanup, reused-name, and multi-worker tests for conductor behavior
 
 ## Backlog
 - [x] Define orchestration v2 ownership boundaries, lifecycle states, event types, and invariants
@@ -118,7 +120,10 @@ We are redesigning the weak parts:
 - [x] Rework silent cron jobs to become reconciliation/notification triggers instead of the primary source of orchestration truth
 - [x] Re-render `handoff.md`, dashboard state, and operator summaries from structured state
 - [x] Replace prompt-mediated silent milestone/stuck judgment with deterministic supervisor policy
-- [ ] Add end-to-end tests for restart recovery, stale cron cleanup, mid-chat completion delivery, and multi-worker orchestration <- current
+- [x] Reset worker state cleanly when a reused SubTurtle name starts a new run
+- [x] Persist `worker.cron_removed` and clear `cron_job_id` on the stop path, not only in supervisor reconciliation
+- [x] Render archived completed/failed workers in `handoff.md` recent updates using canonical terminal outcome
+- [ ] Add end-to-end tests for restart recovery, stale cron cleanup, mid-chat completion delivery, reused worker names, and multi-worker orchestration <- current
 
 ## Notes
 - Multi-instance audit: `docs/audits/multi-instance-isolation.md`
@@ -137,6 +142,8 @@ We are redesigning the weak parts:
 - Reconciled lifecycle wakeups now also create durable meta-agent inbox items; the next successful interactive Claude/Codex turn injects them as non-chat background context and acknowledges them after the turn completes
 - `handoff.md` now surfaces both `pending` and `processing` wakeups so in-flight recovery state stays visible to the operator instead of disappearing from the rendered summary
 - Current conductor coverage now includes recreated pending-wakeup recovery, `processing` wakeup replay on startup, stale recurring-cron cleanup, startup maintenance idempotency, multi-worker inbox recovery, and driver-level interactive acknowledgment tests for both Claude and Codex session paths
+- Live `book-writer` validation confirmed the end-to-end completion path works, but also surfaced three follow-ups: stale supervisor metadata survives reused worker names, stop-path cron removal is not always persisted canonically, and archived completions are missing from `handoff.md` recent updates
+- `put-worker` now resets checkpoint/metadata/terminal residue when a reused worker name starts a new `run_id`, `ctl stop` now persists `worker.cron_removed` and clears stale cron metadata, and `handoff.md` recent updates now render archived completed/failed workers by canonical resolved terminal outcome
 - TOKEN_PREFIX lives in `src/token-prefix.ts` (standalone leaf module, no circular deps)
 - MCP IPC files are isolated in `/tmp/superturtle-{tokenPrefix}/`, passed to MCP servers via `SUPERTURTLE_IPC_DIR`
 - The bot is the meta agent; system prompt injection still lives in `super_turtle/claude-telegram-bot/src/config.ts`
