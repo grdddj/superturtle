@@ -147,7 +147,7 @@ In a near-future capital where every citizen's final memories are notarized into
 - Arc movement: Mara emerges changed but not healed, committed to a more honest practice of remembrance that makes room for fracture, doubt, and the living.
 
 
-## Draft Chapters 4–9
+## Draft Chapters 4–11
 
 ## Chapter 4 — The Quiet Room
 
@@ -1521,3 +1521,226 @@ She watched her own city unfold in the rear glass and finally wrote a complete s
 `This is no longer a private search for a missing brother. This is a public request for a witness the city thought could be quarantined into mercy.`
 
 She let the page end there, before the line could decide the ending for her.
+
+## Chapter 11 — Terms of Betrayal
+
+When the bus dropped her at Sector B, the sky was the color of wet steel and every surveillance strip over the avenue was already awake.
+
+Mara did not go home.
+
+She turned first to a borrowed office three floors above a closed clinic, where the wall monitor still displayed the old civic feed. She brought the drives in a plain metal case and did not place them down until Rian had already connected a one-way analyzer to the desk.
+
+“No uploads until I say yes,” she told him.
+
+Rian glanced at her and held up both hands.
+
+“You’re not going to survive another day without saying it.”
+
+Mara sat and pressed play on the witness line.
+
+Static. Four-second delay. Silas.
+
+“You’re back.”
+
+“Don’t call me that,” he said. “I’m still alive and it is not a useful category.”
+
+“Where are you hearing me from?”
+
+“Node 13. Same room. Same panel.”
+
+“We copied the modules.”
+
+“Not all.”
+
+He paused.
+
+“The key is distributed. This one is only for custody routes, not for all ledgers.”
+
+“So you only brought us half the key?”
+
+“You brought back the right map. Someone else has to unlock the moral side.”
+
+“Who?”
+
+“You.”
+
+He sounded tired, but the tiredness had an edge now, a steel edge of urgency.
+
+“Listen,” Mara said. “Start from Tomas.”
+
+Silas exhaled once.
+
+“Tomas was trying to prove one thing first: the chain-of-custody records at Dock Nine weren’t missing. They were rerouted. Every time a worker died or an inspector asked to preserve a raw layer, the system tagged it as ‘public-risk content’ and passed it through a temporary review branch. I wrote the branch to avoid panic. Someone promoted it to permanent behavior.”
+
+Mara made a note: *temporary branch made permanent behavior.*
+
+“He copied the branch-level override log before he died,” Silas continued. “The moment he tried to submit, his own record got edited. Not immediately. First a delay, then a consult, then a replacement with ‘family-consent mismatch.’ They made the city think he was the only unstable source.”
+
+Rian, who had been listening in, frowned. “How did he die then?”
+
+Silas’s voice was lower now.
+
+“I think he didn’t die from one blow. He got cornered into an interview sequence at the old dock annex where his records became legally incomplete. That allowed them to classify him as unverified before his chain log was accepted.”
+
+“Meaning?”
+
+“Meaning he was never erased because he was inconvenient. He was erased as a process.”
+
+The monitor in the office emitted a warning tone and dropped to a local overlay.
+
+`AUTH CHECK: incomplete witness lane`  
+`USER: MARA VENN`  
+`REQUIRES: active consent packet`  
+
+Mara closed the case and reached for paper.
+
+“Don’t touch it until we can anchor it to witnesses,” she said.
+
+Silas laughed once, breathless.
+
+“You still write in paper terms.”
+
+“We still need to explain this to people without burning them,” she said.
+
+There was a scrape at the office door. Ione and Nera stood in the frame, both carrying jackets and looking as though they had already made one decision and were not yet sure about the next.
+
+Nera did not say hello. She set a bundle of folders on the table.
+
+“My father,” she said. “You asked for this in a question. I thought a question was not enough.”
+
+She slid across eight printed sheets—copies of witness transcripts and a copy of Tomas’s unedited chain notes, redacted only where she had personally crossed out names.
+
+“I didn’t want to send them through the city line,” Mara said.
+
+“Neither did I,” Nera answered. “But if we keep them private, we become what I think you were trying not to become.”
+
+Mara sat back, then looked at Silas on screen.
+
+“What exactly does your key do?” she asked.
+
+“It unlocks all retained custody layers at once,” Silas replied. “Everything routed under the same suppression protocol, all at once. The entire suppressed branch. Every dock file. Every medic note. Every witness form tagged with ‘stability.’ If you release that layer cleanly, you do this right once and the city can’t pretend it was an isolated leak. But you will also wake every family who agreed to forget for safety.”
+
+Rian touched the monitor.
+
+“That’s the problem.”
+
+Nera looked up from her folder.
+
+“My father didn’t want the city to remember him crying,” she said. “He signed those consent lines. He believed mercy was his right to be gone.”
+
+“If that right becomes a weapon?” Mara asked.
+
+Nera’s mouth moved and then stopped. “Then the right was never real.”
+
+Silas said, “Use the key and we publish ten thousand fragments, not one headline. You’ll have to carry the weight of saying yes to all of them at once.”
+
+Mara tapped the pages. “Not if we sequence the witnesses first.”
+
+She pulled up a local whiteboard and began writing in thick strokes.
+
+`1. Verify Tomas branch with raw ledgers.`  
+`2. Add living witnesses for each cluster.`  
+`3. Offer each family a choice of public, sealed, or delayed release.`  
+`4. Prepare release partner in three channels.`
+
+Ione tapped the table.
+
+“I can run the first two clusters,” she said. “Families near the docks. Survivors already expect trouble.”
+
+Nera sat very still.
+
+“Can my father’s note go first?” she asked.
+
+Mara considered and shook her head.
+
+“Not yet.”
+
+Nera’s jaw tightened.
+
+“You’re keeping it private?”
+
+“I’m keeping it from becoming a slogan,” Mara said. “If this is true, it belongs to the living people it names. The city can’t be the first editor of how we find them.”
+
+Silas looked straight into the mic and spoke slowly.
+
+“I can give you every technical token now.”
+
+“Not everything.”
+
+Mara heard herself answering before she had finished her thought.
+
+“No. If we push the full key now, we’re one panic away from a purge that labels everyone in these files as unstable.”
+
+Silas was silent long enough that Rian looked at her, then at the monitor.
+
+“You’re right,” he said finally. “Useful panic kills process.”
+
+Mara put her hand over the notes and spoke evenly, as if speaking to all of them at once.
+
+“This is the difference between testimony and harvest. We don’t collect everyone at once and call it courage. We choose where courage is due first.”
+
+“And if the city stops us?” Rian asked.
+
+“Then we do it anyway, but in lanes we’ve already named as accountable.”
+
+The line to Node 13 clicked open.
+
+“You keep using the word we,” Silas said. “That’s not how this ends for me. I’m a compromised witness. Use that fact and use it wisely.”
+
+Mara lifted the notebook. “I know.”
+
+She turned to Nera.
+
+“You brought me your father’s papers. You can still decide to go dark.”
+
+Nera nodded once and slid the folder closer, fingers shaking.
+
+“Then add me to the delayed lane,” she said. “After his name is spoken in a room where I can hear my own.”
+
+Mara nodded, wrote it down, and marked the folder with red tape.
+
+`Nera Pell — delayed consent`
+
+The day moved from dark to bright without changing. In that office, every minute became a list.
+
+By evening, they had assembled a chain of names, seven living witnesses, one distributed key shard, and two routes for release that did not require a full city shutdown. The key itself, when tested in simulated lane, lit cleanly and gave the first cluster of Dock Nine records: signatures, overrides, payroll anomalies, and the line where Tomas’s chain-of-custody crossed the ministerial stamp.
+
+The room was quiet after the first confirmation. Even the monitor fan sounded too loud.
+
+Mara looked at Silas.
+
+“One more thing.”
+
+“Yes.”
+
+“If this goes wrong, everyone blames us because we chose witnesses over mercy.”
+
+He did not answer.
+
+“Good,” she said. “Then we have to be clear now, in writing, that mercy is not permission to erase history. That’s the whole reason they had to call me.”
+
+She opened a fresh sheet and wrote at the top:
+
+`LIFE LINE: DO NOT PUBLISH A HALF WITNESS.`
+
+Below it she wrote three names and one name for every witness lane, leaving space for signatures that still had to be earned.
+
+When she looked up, Silas gave a small, exhausted nod.
+
+“You changed your brother into a witness,” he said.
+
+Mara stood and shut down the monitor feed.
+
+“No,” she said. “I changed the way we owe the dead to the living.”
+
+She packed the drives before sunrise and turned out the screen.
+
+On the last line she wrote before leaving:
+
+`To expose the public harm, we must not manufacture new private harms on the route.`
+
+Outside, the city’s announcement strips began one by one, reciting weather, transit, and maintenance notices.
+
+Mara stood by the alley curb and made herself a promise in her own language:
+
+`I will not call this mercy if it has no witnesses.`
