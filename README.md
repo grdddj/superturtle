@@ -49,7 +49,9 @@ superturtle init --token <BOT_TOKEN> --user <TELEGRAM_USER_ID> --openai-key <KEY
 
 ## SubTurtles
 
-SubTurtles are autonomous worker agents that run in loops. The Meta Agent spawns them for tasks, monitors progress, and reports back to you. Each SubTurtle gets its own working directory under `.subturtles/` with a task file, CLAUDE.md, and logs.
+SubTurtles are autonomous worker agents that run in isolated loops. The Meta Agent spawns them for bounded tasks, while the conductor owns durable worker lifecycle state and recovery. Each SubTurtle gets its own working directory under `.subturtles/` with a task file, `CLAUDE.md`, and logs, while canonical orchestration state lives under `.superturtle/state/`.
+
+Workers emit checkpoints, completion requests, and fatal-error facts. The conductor reconciles those facts into lifecycle states such as `running`, `completion_pending`, `completed`, `failed`, `timed_out`, and `archived`, then drives wakeups and inbox delivery from that persisted state instead of chat history.
 
 Loop types:
 
