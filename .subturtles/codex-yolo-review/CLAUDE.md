@@ -1,5 +1,5 @@
 # Current task
-Review runtime/session lifecycle changes for crash, stall, and resume-state risks using the collected workspace context in `review-context.md`.
+Review observability and logging paths for missing failure signals using the collected workspace context in `review-context.md`.
 
 # End goal with specs
 Produce an actionable review report that prioritizes high-severity issues, includes file/line references, identifies missing tests, and avoids broad stylistic feedback.
@@ -16,8 +16,8 @@ Produce an actionable review report that prioritizes high-severity issues, inclu
 
 # Backlog
 - [x] Collect changed files and commit context
-- [ ] Review runtime/session lifecycle changes for crash or stall risks <- current
-- [ ] Review observability and logging paths for missing failure signals
+- [x] Review runtime/session lifecycle changes for crash or stall risks
+- [ ] Review observability and logging paths for missing failure signals <- current
 - [ ] Review SubTurtle orchestration changes for isolation regressions
 - [ ] Identify missing or insufficient automated tests
 - [ ] Draft concise findings report for Super Turtle
