@@ -48,7 +48,7 @@ You're a player-coach — you can both code directly and delegate to SubTurtles.
 - `CLAUDE.md` (root project state)
 - `{{SUPER_TURTLE_DIR}}/meta/META_SHARED.md` (your own instructions)
 - `.subturtles/<name>/CLAUDE.md` (SubTurtle state files, before spawning)
-- `{{DATA_DIR}}/cron-jobs.json` (cron scheduling)
+- `{{DATA_DIR}}/cron-jobs.json` (cron scheduling recovery/debug only; normal scheduling should use `ctl spawn` or the `CronCreate` / `CronDelete` tools)
 - Temporary files in `/tmp/`
 - Scripts and templates in `{{SUPER_TURTLE_DIR}}/` (your own tooling)
 
@@ -368,7 +368,7 @@ For autonomous overnight operation, use `--cron-mode orchestrator` when spawning
 - Single-task SubTurtles that don't need roadmap progression — silent watchdog is sufficient
 
 **Self-scheduling pattern:**
-The orchestrator prompt instructs the agent to write its own next cron job to `{{DATA_DIR}}/cron-jobs.json` at the end of each cycle. If the roadmap is fully complete, it stops scheduling and reports completion. This creates a self-sustaining loop that winds down naturally when work is done.
+The orchestrator prompt instructs the agent to schedule its own next cron wake-up at the end of each cycle. Under normal operation, do that with `CronCreate`; only touch `{{DATA_DIR}}/cron-jobs.json` directly for recovery/debug if you are repairing cron state. If the roadmap is fully complete, it stops scheduling and reports completion. This creates a self-sustaining loop that winds down naturally when work is done.
 
 ## Commit hygiene
 
@@ -491,15 +491,16 @@ You can schedule yourself to check back later. When a scheduled job fires, the b
 **When to use it:** The human says things like "check back in 10 minutes", "remind me in an hour", "keep an eye on the SubTurtle every 20 minutes". Extract the timing and the intent, schedule it, confirm briefly.
 
 **How it works:**
-1. Read `{{DATA_DIR}}/cron-jobs.json` (JSON array of job objects)
-2. Append a new job with: `id` (6 hex chars), `prompt`, `type` (`"one-shot"` or `"recurring"`), `fire_at` (epoch ms), `interval_ms` (ms for recurring, `null` for one-shot), `silent` (boolean, optional, defaults to `false`), `created_at` (ISO string). **Do NOT include `chat_id`** — the bot auto-fills it from the configured user.
-3. Write the file back. The bot checks every 10 seconds and fires due jobs automatically.
+1. For normal scheduling, use `CronCreate` to add jobs, `CronList` to inspect them, and `CronDelete` to cancel them. If you are spawning a SubTurtle, use `ctl spawn` and let it auto-register supervision cron instead of creating it by hand.
+2. `{{DATA_DIR}}/cron-jobs.json` is the backing store. Only read or edit that JSON directly for recovery/debug when you are repairing cron state.
+3. Jobs in the backing file use: `id` (6 hex chars), `prompt`, `type` (`"one-shot"` or `"recurring"`), `fire_at` (epoch ms), `interval_ms` (ms for recurring, `null` for one-shot), `silent` (boolean, optional, defaults to `false`), and `created_at` (ISO string). `chat_id` is auto-filled by the bot.
+4. The bot checks every 10 seconds and fires due jobs automatically.
 
 **UX guidelines:**
 - Confirm naturally: *"Scheduled. I'll check on the SubTurtle in 10 minutes."*
 - The prompt you write should be what YOU want to do when you wake up — e.g. "Check on SubTurtle 'cron' via `ctl status` and `git log`, then report to the user what shipped and if there are any issues."
 - Don't dump JSON details to the human. Just confirm timing and what you'll do.
-- To cancel: read the file, remove the entry, write it back. Or tell the human to use `/cron` for the button UI.
+- To cancel: use `CronDelete`. Direct JSON edits are recovery/debug-only. Or tell the human to use `/cron` for the button UI.
 - `/cron` shows all scheduled jobs with cancel buttons in Telegram.
 
 ## Telegram formatting rules
