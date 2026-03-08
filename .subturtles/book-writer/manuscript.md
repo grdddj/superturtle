@@ -543,3 +543,242 @@ She opened the second and read one sentence in careful block letters:
 It was signed with a letter she recognized from the boy in the post office and the woman she met at 11-B.
 
 And this time, when she closed her door, the city did not know whether to remember her.
+
+## Chapter 7 — The Missing Year
+
+At 12:17 the clocks in the city did what the city sometimes did to keep an argument honest: they stopped.
+
+For twelve minutes there was a stillness Mara had only heard in old elevators and hospital corridors. Every wall sensor stayed green. The rain on the river glass stopped halfway down the pane as if someone had pressed pause.
+
+She stood on the river landing with the two envelopes in her coat and the blank carbon card in her hand.
+
+The witness house had no sign. It was a disused ferry warehouse painted matte black, with shutters down and a brass bell that read **STORAGE**.
+
+Mara turned the bolt and stepped inside.
+
+A row of bunks occupied one wall. Crates held old printers, signal jammers, and folded maps. No one looked at her directly. A woman in a navy coat, hair bound in a scarf, came from behind a partition and extended a chipped mug.
+
+"You are late," she said.
+
+"I came at 12:17."
+
+"You came at 12:17 by the city's clock. By yours it's 12:19."
+
+The woman smiled without softening. "I am Sera. Drink. If you keep your voice low and your fingers warm, we keep our dead out of the room."
+
+Mara looked at her cup. The coffee smelled like bitter almonds and machine oil.
+
+"I'm not here for ceremony," Mara said. "I'm here for Silas Venn."
+
+Sera set the mug down and nodded toward a wall of filing boards. "Then this isn't the place for ceremony. Sit." She pointed at a table lamp and a box of cables.
+
+On that table, Rian Quill sat with three screens open and one hand on a keyboard. His hair was tied back with what looked like a stripped-out power cord. He looked up and, for a moment, Mara recognized the version of him from her memory: quick and alert, as if every room had one more exit than anyone else believed.
+
+"You brought something," he said.
+
+"Two envelopes and a stack of notes."
+
+Rian nodded. "Good. We already have names from 11-B. Now we need proof that the names were real before they were gone."
+
+Sera slid a hard shell folder toward Mara. On it, in felt-tip marker: **HOSTEL / SALVATION / YEAR 7**.
+
+"This is where we reconstruct the missing year," Sera said. "You want payroll stubs. We want hostels. I need both." She reached for a data key and handed it to him.
+
+Rian pulled the key from the shell and plugged it into a terminal. The screen bloomed into yellow text.
+
+`HOSTEL INDEX: ARCHIVED / ACCESS FRAGMENTED`
+
+He frowned. "Good sign. Means only partial sync has survived." He tapped a line.
+
+Rows appeared as if written by a tired machine:
+
+`Name | Dorm | Week | Access Window | Notes`
+
+`S. VENN | KITE LODGE | 7 | 14:03-18:45 | temporary`
+
+`S. VENN | KITE LODGE | 44 | 09:10-11:40 | contractor`
+
+`S. VENN | KITE LODGE | 89 | 07:00-23:00 | 11-B` etc.
+
+Mara bent toward the screen. "Hostel logs for three years with one name and two job titles?"
+
+Rian clicked. "Not years. These are shifted segments. Somebody scrubbed and then compressed. But you can read the shape." He filtered. "Kite Lodge was for transfer auditors in contract crisis periods. It isn't a housing line. It is a holding line."
+
+Sera handed her a notebook. Across the margin of the first page was written in block print: **PUBLIC MEMORIAL DESIGNS ARCHIVE - DIVISION C**.
+
+"I spent two nights copying this," Sera said. "Most of it used to be public architecture records. It still has payroll trails." She passed the notebook with three tabs cut from a grocery bag.
+
+The tabbed pages had machine code at top and hand-entered notes below.
+
+- `07/03 — SILAS VENN moved from Memorial Public Layer to Contractor Queue`
+- `11/16 — training completion: anomaly flag triage`
+- `11/20 — transfer clearance: emergency duty`.
+
+Mara felt cold. The handwriting was clean, bureaucratic, and familiar. Silas had worked those rooms once, as she had. Public memorial design. It was the same term she used to fill forms.
+
+"Who authored these?" she asked.
+
+Sera shrugged. "No signature. Just audit hash, and enough damage to know someone didn't want the trail broken."
+
+Rian had brought up payroll stubs now. A column of amounts, dates, and codes ran down the edge of the display.
+
+`SILAS VENN — 00:03 stipend reduction / temporary contractor`.
+
+`SILAS VENN — 00:14 hazard stipend / anomaly triage`.
+
+`SILAS VENN — 00:28 civic emergency duty / no public ledger`.
+
+"Hazard stipend," Mara said. "That is not for memory writing."
+
+"It tracks where he was on nights he vanished from herds of work logs," Rian said. "He wasn't just rewriting memorial lines for families. He was triaging something flagged as unstable."
+
+She pulled a new page from the notebook. The print was faint, but clear enough under angle:
+
+`D9. REACTION INDEX
+Draft protocol, phase zero.
+Temporary filter. Temporary only.
+Do not release unless oversight approves.`
+
+A second page had a single circled phrase in blue pencil:
+
+`The city cannot carry all truth after a rupture.`
+
+Mara read it three times and felt anger move through her like ice.
+
+"Where did this come from?" she asked.
+
+Rian swiveled to a backup channel. "From a private message cache I pulled from an offline relay outside Larch Nine. It was never meant to be indexed. If you want the raw packet, it's here." He opened one of the old drives and played a clipped audio file.
+
+The voice was thin and metallic, with static between words. It was Silas's, unmistakable even with age on it.
+
+> To whoever inherits this, if archive is ever yours, remember this was temporary.
+> Dock Nine shook the whole civic stack.
+> We built a filter because we were drowning in panic, then we called it mercy.
+> The protocol held. Then someone asked for permanence.
+
+Mara sat back and closed her eyes.
+
+"Temporary mercy," she said. "That line could excuse a war."
+
+"He said that before," Sera replied quietly. "That line keeps the city calm long enough to make it legal."
+
+A new message appeared on Rian's screen, unprompted.
+
+`NEW ACCESS WINDOW OPENED: CONTRACTOR NODE 11-B / 2 HOURS`
+
+"Too easy," Rian muttered, but he was moving immediately.
+
+They left in silence, moving through alleys and shuttered loading docks until they reached a narrow stairwell beneath a maintenance bridge. The smell of sea salt mixed with coolant. Above them, freight trains moved in the dark and did not need passengers.
+
+At the stairwell landing, Sera scanned the floor with a wand and slid a panel aside. Behind it: a cramped room with six metal desks, each covered in stamped cards and stamped-out forms.
+
+Rian held her hand over a warning strip and switched lights on.
+
+"This is contractor node memory for emergency years," he said. "Not officially active. Not officially dead."
+
+Mara scanned the stacks. Most files were blank where redaction heat had touched them. But in one corner box labeled `SHIFT CHRONICLE - ANOMALY`, she found a folder from 8.0 months of the year she had been grieving and hunting.
+
+Inside was a printed ledger with carbon marks and coffee stains.
+
+One entry read:
+
+`SILAS VENN — anomaly triage lead / 03:14 / 7a`
+
+Another:
+
+`SILENCE / 03:16 / branch suppression protocol`.
+
+Mara recognized the time codes again. 03:14, 03:16. The times that had marked Lena's disappearance in branch 11-B. She had treated them as coincidence once; here they were operating hours.
+
+She opened another envelope of stubs. This one contained a single folded note from a clerk in payroll, written in the same blue pencil as the cache line.
+
+`If you see 03:14 and 03:16, log it twice. This is when the branch was rerouted.`
+
+Rian looked at her. "Rerouted to where?"
+
+"The quiet branch," she said, hearing her own voice as if someone else said it. "Where you don't get to testify if the city is already wrong."
+
+"Maybe," Rian said, "or where the city puts what it can no longer defend."
+
+Mara held the note flat against the desk lamp.
+
+"I need a final line," she said. "I need the line where he left the public layer."
+
+Sera turned three pages of the payroll summary and tapped one row with a knuckle.
+
+`07/19: transfer complete. Source division: PUBLIC MEMORIAL DESIGN.
+Destination: CONTRACTOR WING / ANOMALY TRIAGE (quiet assignment).`
+
+Underneath, in courier font, was a hand-written addition in the same blue:
+
+`He asked for a hard copy of Dock Nine before moving on.`
+
+Mara stared at that sentence for a full minute. She imagined Silas making that request, not yet knowing she would someday hear it in her own room like an apology.
+
+"Do you have any record of who approved it?" she asked.
+
+Rian typed a query.
+
+`Approvals withheld from output.
+Reason: operational necessity.`
+He cursed softly and tried alternate channels.
+
+`Approver hash: 8r-quiet-...`
+
+`Approver unknown.`
+
+"No name," she said. "Good. That means it's a structure, not a person. That is worse."
+
+Outside the contractor node a distant siren changed direction twice and then fell silent. The clocks in the room had stopped. On her recorder, the fan from the apartment had clicked once, as if it had recognized silence again.
+
+Mara pulled the last bundle from the folder: five stubs tied together with green twine. They were payroll notes from a year of transfer windows, each with matching signatures and alternating roles.
+
+`Public Memorial: Lead Narrative Curator`
+
+`Private Contractor: Narrative Drift Analyst`
+
+`Public Memorial: on standby`
+
+`Private Contractor: anomaly escalation`
+
+`Public Memorial: reassigned`
+
+She placed the pages in order and made three copies in her notebook.
+
+Then she did what she had avoided since Chapter 6.
+
+She wrote the line she had been trying not to write in the recorder:
+
+`The first full year I know Silas worked inside the Quiet Index system was after Dock Nine, and it appears to have begun as a temporary emergency filter he now helped enforce.`
+
+Sera put a hand on her shoulder.
+
+"If he was building it as a temporary filter," the woman said, "it still means he stood in the room when people decided temporary should become permanent."
+
+Mara nodded once. The room was full of stale metal and printer heat and the kind of old fear that smells like dust.
+
+When she stepped back into the stairwell, the first drops of rain came back, sharp and hard.
+
+Rian followed her to the stairs. He held out the old flash drive.
+
+"Not all of it," he said. "Enough for now. But we need to corroborate this with Dock Nine hospital and housing records. There were too many hands. Too many signatures." 
+
+Mara closed the stair door and looked up at the dead clocks on her phone as if she could force them to move.
+
+"I have a year to build noise," she said.
+
+Rian gave the smallest nod. "Then we start with the missing year before the year is closed again."
+
+She took the drive and the notebook and moved into rain.
+
+At home, she pinned a line from the hidden note directly above the map she had drawn the night before:
+
+`Temporary filter = mercy protocol. Mercy was the first lie.`
+
+Under it she added one hand-drawn arrow:
+
+`Chapter 7 evidence complete -> Dock Nine anomaly trail`.
+
+Then she opened an old folder and typed a single line in hard copy before she slept:
+
+`Silas was not missing from the city on day one. He was moved.`
