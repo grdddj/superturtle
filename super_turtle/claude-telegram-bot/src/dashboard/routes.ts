@@ -63,6 +63,7 @@ type DashboardRouteDependencies = {
   validateSessionId(sessionId: string): boolean;
 };
 
+// Route table wiring only; route dependencies keep the module decoupled from implementation details.
 export function createDashboardRoutes({
   buildCurrentJobDetail,
   buildProcessDetail,

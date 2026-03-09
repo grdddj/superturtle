@@ -1,5 +1,5 @@
 # Current task
-Do a final pass for naming consistency and module-level comments where needed. <- current
+All backlog items completed.
 
 # End goal with specs
 - Dashboard server code is organized into cohesive modules under `super_turtle/claude-telegram-bot/src/dashboard/`.
@@ -27,4 +27,7 @@ Do a final pass for naming consistency and module-level comments where needed. <
 - [x] Extract route handlers/table wiring into routes module while preserving patterns
 - [x] Update imports/exports in `dashboard.ts` to thin entrypoint and remove dead code
 - [x] Run dashboard-focused tests and fix regressions introduced by extraction
-- [ ] Do a final pass for naming consistency and module-level comments where needed <- current
+- [x] Do a final pass for naming consistency and module-level comments where needed
+
+## Loop Control
+STOP

@@ -18,6 +18,7 @@ import type {
 } from "../dashboard-types";
 import { buildDashboardOverviewResponse } from "./data";
 
+// Session-focused data builders and the short-lived cached overview used by the main dashboard shell.
 type SessionSnapshot = {
   row: SessionListItem;
   messages: SessionMessageView[];
@@ -153,7 +154,7 @@ function getDriverProcessStates(): DriverProcessState[] {
   return getSessionObservabilityProviders().map((provider) => provider.getDriverProcessState());
 }
 
-async function buildSessionSnapshotsForProviders(
+async function collectSessionSnapshotsForProviders(
   providers: ReturnType<typeof getSessionObservabilityProviders>
 ): Promise<Map<string, SessionSnapshot>> {
   const snapshots = new Map<string, SessionSnapshot>();
@@ -202,12 +203,12 @@ async function buildSessionSnapshotsForProviders(
   return snapshots;
 }
 
-async function buildSessionSnapshots(): Promise<Map<string, SessionSnapshot>> {
-  return buildSessionSnapshotsForProviders(getSessionObservabilityProviders());
+async function collectSessionSnapshots(): Promise<Map<string, SessionSnapshot>> {
+  return collectSessionSnapshotsForProviders(getSessionObservabilityProviders());
 }
 
 export async function buildSessionListResponse(): Promise<SessionListResponse> {
-  const snapshots = await buildSessionSnapshots();
+  const snapshots = await collectSessionSnapshots();
   const sessions = sortSessionRows(Array.from(snapshots.values()).map((snapshot) => snapshot.row));
   return {
     generatedAt: new Date().toISOString(),
@@ -222,7 +223,7 @@ export async function buildSessionDetail(
   if (!validateSessionId(sessionId)) return null;
   const provider = getSessionObservabilityProvider(driver);
   const key = buildSessionKey(driver, sessionId);
-  const snapshot = (await buildSessionSnapshotsForProviders([provider])).get(key);
+  const snapshot = (await collectSessionSnapshotsForProviders([provider])).get(key);
   if (!snapshot) return null;
   const savedSession: SavedSession = {
     session_id: snapshot.row.sessionId,

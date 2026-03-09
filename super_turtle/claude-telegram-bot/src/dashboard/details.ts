@@ -31,6 +31,7 @@ import {
   readFileOr,
 } from "./helpers";
 
+// Detail builders back the drill-down pages and APIs for a single process, job, or SubTurtle.
 const CONDUCTOR_STATE_DIR = join(SUPERTURTLE_DATA_DIR, "state");
 
 function loadWorkerEventsForDetail(workerName: string, maxEvents = 20): Array<{

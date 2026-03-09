@@ -45,6 +45,7 @@ import {
   safeSubstring,
 } from "./helpers";
 
+// Data assembly for dashboard APIs: read runtime state once, then derive dashboard-facing views from it.
 const CONDUCTOR_STATE_DIR = join(SUPERTURTLE_DATA_DIR, "state");
 
 type ConductorWorkerLaneState = {
@@ -153,7 +154,7 @@ function buildBacklogSummary(backlogItems: ClaudeBacklogItem[]): {
   };
 }
 
-async function buildPreparedDashboardTurtles(
+async function prepareDashboardTurtles(
   turtles?: Array<ListedSubTurtle | TurtleView>
 ): Promise<PreparedDashboardTurtle[]> {
   const sourceTurtles = turtles || await readSubturtles();
@@ -215,7 +216,7 @@ function sortSubturtleLanes(lanes: SubturtleLaneView[]): SubturtleLaneView[] {
   });
 }
 
-function buildDashboardStateFromPreparedTurtles(preparedTurtles: PreparedDashboardTurtle[]): DashboardState {
+function assembleDashboardState(preparedTurtles: PreparedDashboardTurtle[]): DashboardState {
   const turtles = preparedTurtles.map((turtle) => ({
     name: turtle.name,
     status: turtle.status,
@@ -308,7 +309,7 @@ function buildDashboardStateFromPreparedTurtles(preparedTurtles: PreparedDashboa
   };
 }
 
-function buildCurrentJobsFromPreparedTurtles(preparedTurtles: PreparedDashboardTurtle[]): CurrentJobView[] {
+function assembleCurrentJobs(preparedTurtles: PreparedDashboardTurtle[]): CurrentJobView[] {
   const jobs: CurrentJobView[] = [];
 
   for (const driverState of getDriverProcessStates()) {
@@ -341,7 +342,7 @@ function buildCurrentJobsFromPreparedTurtles(preparedTurtles: PreparedDashboardT
 }
 
 export async function buildSubturtleListResponse(): Promise<SubturtleListResponse> {
-  const lanes = (await buildPreparedDashboardTurtles()).map(buildLaneView);
+  const lanes = (await prepareDashboardTurtles()).map(buildLaneView);
   return {
     generatedAt: new Date().toISOString(),
     lanes: sortSubturtleLanes(lanes),
@@ -349,7 +350,7 @@ export async function buildSubturtleListResponse(): Promise<SubturtleListRespons
 }
 
 export async function buildDashboardState(): Promise<DashboardState> {
-  return buildDashboardStateFromPreparedTurtles(await buildPreparedDashboardTurtles());
+  return assembleDashboardState(await prepareDashboardTurtles());
 }
 
 export function buildConductorResponse(): ConductorResponse {
@@ -365,20 +366,20 @@ export function buildConductorResponse(): ConductorResponse {
 }
 
 export async function buildCurrentJobs(): Promise<CurrentJobView[]> {
-  return buildCurrentJobsFromPreparedTurtles(await buildPreparedDashboardTurtles());
+  return assembleCurrentJobs(await prepareDashboardTurtles());
 }
 
 export async function buildDashboardOverviewResponse(
   buildSessions: () => Promise<SessionListResponse>
 ): Promise<DashboardOverviewResponse> {
   const [preparedTurtles, sessions] = await Promise.all([
-    buildPreparedDashboardTurtles(),
+    prepareDashboardTurtles(),
     buildSessions(),
   ]);
-  const dashboard = buildDashboardStateFromPreparedTurtles(preparedTurtles);
+  const dashboard = assembleDashboardState(preparedTurtles);
   const jobs: CurrentJobsResponse = {
     generatedAt: dashboard.generatedAt,
-    jobs: buildCurrentJobsFromPreparedTurtles(preparedTurtles),
+    jobs: assembleCurrentJobs(preparedTurtles),
   };
 
   return {

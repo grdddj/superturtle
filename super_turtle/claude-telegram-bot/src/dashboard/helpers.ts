@@ -1,6 +1,7 @@
 import { DASHBOARD_AUTH_TOKEN } from "../config";
 import type { ClaudeBacklogItem } from "../handlers/commands";
 
+// Shared low-level helpers used across dashboard data assembly, rendering, and route handling.
 export type DashboardProcessStatus = "running" | "idle" | "queued" | "stopped" | "error";
 
 export function jsonResponse(data: unknown, status = 200): Response {

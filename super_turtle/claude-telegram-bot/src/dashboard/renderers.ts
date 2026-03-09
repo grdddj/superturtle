@@ -14,6 +14,7 @@ import {
   renderJsonPre,
 } from "./helpers";
 
+// HTML-only renderers for the operator dashboard and detail pages.
 const DASHBOARD_STICKER_URL = "https://www.gstatic.com/android/keyboard/emojikitchen/20201001/u1f60e/u1f60e_u1f422.png";
 
 const DETAIL_THEME_CSS = `
