@@ -1,5 +1,5 @@
 # Current task
-Run `subturtle` Python tests and address refactor regressions <- current
+Clean imports/type hints/docstrings after extraction <- current
 
 # End goal with specs
 - `subturtle/__main__.py` no longer contains all prompts, parsing, loop orchestration, and state helpers in one file.
@@ -25,6 +25,6 @@ Run `subturtle` Python tests and address refactor regressions <- current
 - [x] Extract state-file helper functions into a dedicated module with tests kept green
 - [x] Extract loop helper/orchestration utilities into module(s) with minimal API surface
 - [x] Reduce `__main__.py` to argument parsing and top-level control flow
-- [ ] Run `subturtle` Python tests and address refactor regressions <- current
-- [ ] Clean imports/type hints/docstrings after extraction for readability
+- [x] Run `subturtle` Python tests and address refactor regressions
+- [ ] Clean imports/type hints/docstrings after extraction for readability <- current
 - [ ] Confirm packaged and monorepo import paths both still work
