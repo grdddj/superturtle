@@ -1,5 +1,5 @@
 # Current task
-Update imports/exports in `dashboard.ts` to thin entrypoint and remove dead code. <- current
+Run dashboard-focused tests and fix regressions introduced by extraction. <- current
 
 # End goal with specs
 - Dashboard server code is organized into cohesive modules under `super_turtle/claude-telegram-bot/src/dashboard/`.
@@ -25,6 +25,6 @@ Update imports/exports in `dashboard.ts` to thin entrypoint and remove dead code
 - [x] Extract dashboard overview/conductor/current-jobs data builders into dedicated module(s)
 - [x] Extract HTML rendering for dashboard + detail pages into renderer module(s)
 - [x] Extract route handlers/table wiring into routes module while preserving patterns
-- [ ] Update imports/exports in `dashboard.ts` to thin entrypoint and remove dead code <- current
-- [ ] Run dashboard-focused tests and fix regressions introduced by extraction
+- [x] Update imports/exports in `dashboard.ts` to thin entrypoint and remove dead code
+- [ ] Run dashboard-focused tests and fix regressions introduced by extraction <- current
 - [ ] Do a final pass for naming consistency and module-level comments where needed
