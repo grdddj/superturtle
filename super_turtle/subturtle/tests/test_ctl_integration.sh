@@ -185,6 +185,15 @@ assert_not_contains() {
   [[ "$haystack" != *"$needle"* ]] || fail "expected output to not contain '$needle'"
 }
 
+assert_matches_regex() {
+  local haystack="$1"
+  local pattern="$2"
+  if ! printf '%s\n' "$haystack" | grep -Eq -- "$pattern"; then
+    fail "expected output to match regex '$pattern'"
+    return 1
+  fi
+}
+
 assert_file_contains() {
   local path="$1"
   local needle="$2"
@@ -694,6 +703,38 @@ test_spawn_file_state() {
   return 0
 }
 
+test_spawn_output_parity() {
+  local name state_path ws spawn_output row out_file err_file
+  name="$(make_test_name "spawn-output")"
+  state_path="${TMP_DIR}/${name}.md"
+  ws="${SUBTURTLES_DIR}/${name}"
+  out_file="${TMP_DIR}/${name}.out"
+  err_file="${TMP_DIR}/${name}.err"
+
+  write_valid_state_file "$state_path" "spawn output parity test"
+
+  if ! run_and_capture "$out_file" "$err_file" "$CTL" spawn "$name" --type yolo-codex --timeout 2m --state-file "$state_path"; then
+    fail "spawn failed for ${name}"
+    return 1
+  fi
+  track_subturtle "$name"
+  spawn_output="$(cat "$out_file" "$err_file")"
+
+  assert_contains "$spawn_output" "[subturtle:${name}] spawning (type: yolo-codex, timeout: 2m)..." || return 1
+  assert_contains "$spawn_output" "[subturtle:${name}] workspace: ${ws}" || return 1
+  assert_contains "$spawn_output" "[subturtle:${name}] log: ${ws}/subturtle.log" || return 1
+  assert_matches_regex "$spawn_output" "\\[subturtle:${name}\\] spawned as yolo-codex \\(PID [0-9]+\\)" || return 1
+  assert_matches_regex "$spawn_output" "\\[subturtle:${name}\\] watchdog armed \\(2m, PID [0-9]+\\)" || return 1
+  assert_matches_regex "$spawn_output" "\\[subturtle:${name}\\] cron registered \\([0-9a-f]{6}, every 10m\\)" || return 1
+
+  row="$(printf '%s\n' "$spawn_output" | grep -E "^[[:space:]]*${name}[[:space:]]" | tail -n 1)"
+  assert_not_empty "$row" "spawn list row for ${name}" || return 1
+  assert_contains "$row" "running" || return 1
+  assert_contains "$row" "yolo-codex" || return 1
+  assert_contains "$row" "spawn output parity test" || return 1
+  return 0
+}
+
 test_spawn_with_skills() {
   local name state_path ws skills_json
   name="$(make_test_name "spawn-skills")"
@@ -826,7 +867,7 @@ test_status_stopped() {
   stop_subturtle_if_running "$name"
 
   status_output="$("$CTL" status "$name")"
-  assert_contains "$status_output" "[subturtle:${name}] not running" || return 1
+  assert_equals "$status_output" "[subturtle:${name}] not running" || return 1
   return 0
 }
 
@@ -942,6 +983,31 @@ test_stop_kills_process() {
   fi
 
   assert_pid_dead "$pid" || return 1
+  return 0
+}
+
+test_stop_output_parity() {
+  local name state_path ws pid stop_output cron_job_id
+  name="$(make_test_name "stop-output")"
+  state_path="${TMP_DIR}/${name}.md"
+  ws="${SUBTURTLES_DIR}/${name}"
+
+  write_valid_state_file "$state_path" "stop output parity test"
+
+  if ! "$CTL" spawn "$name" --type yolo-codex --timeout 2m --state-file "$state_path" >/dev/null; then
+    fail "spawn failed for ${name}"
+    return 1
+  fi
+  track_subturtle "$name"
+
+  pid="$(cat "${ws}/subturtle.pid")"
+  cron_job_id="$(meta_value "$name" "CRON_JOB_ID")"
+  stop_output="$("$CTL" stop "$name")"
+
+  assert_contains "$stop_output" "[subturtle:${name}] cron job ${cron_job_id} removed" || return 1
+  assert_contains "$stop_output" "[subturtle:${name}] stopping (PID ${pid})..." || return 1
+  assert_contains "$stop_output" "[subturtle:${name}] stopped" || return 1
+  assert_contains "$stop_output" "[subturtle:${name}] archived to ${ARCHIVE_DIR}/${name}" || return 1
   return 0
 }
 
@@ -1124,8 +1190,11 @@ SH
   row="$(printf '%s\n' "$list_output" | grep -E "^[[:space:]]*${name}[[:space:]]" | head -n 1)"
   assert_not_empty "$row" "list row for ${name}" || return 1
   assert_contains "$row" "running" || return 1
+  assert_contains "$row" "yolo-codex" || return 1
+  assert_matches_regex "$row" "\\(PID [0-9]+\\)" || return 1
   assert_contains "$row" "5m left" || return 1
   assert_contains "$row" "- [ ] List parser task" || return 1
+  assert_contains "$row" "[skills: [\"frontend\"]]" || return 1
   assert_not_contains "$row" "<- current" || return 1
 
   stop_subturtle_if_running "$name"
@@ -1397,6 +1466,7 @@ register_test test_harness_bootstrap
 register_test test_spawn_creates_workspace
 register_test test_spawn_stdin_state
 register_test test_spawn_file_state
+register_test test_spawn_output_parity
 register_test test_spawn_with_skills
 register_test test_status_running
 register_test test_status_mocked_shell_output
@@ -1405,6 +1475,7 @@ register_test test_status_stale_pid_preserves_meta
 register_test test_spawn_missing_state_file
 register_test test_spawn_rejects_invalid_state_file
 register_test test_stop_kills_process
+register_test test_stop_output_parity
 register_test test_stop_cleans_cron
 register_test test_stop_archives_workspace
 register_test test_stop_already_dead

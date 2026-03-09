@@ -1,5 +1,5 @@
 # Current task
-Verify command output parity for key flows (`spawn`, `stop`, `list`, `status`) <- current
+Run `subturtle` integration/smoke tests and fix extraction regressions <- current
 
 # End goal with specs
 - `subturtle/ctl` becomes a compact command dispatcher with shared initialization.
@@ -25,6 +25,6 @@ Verify command output parity for key flows (`spawn`, `stop`, `list`, `status`) <
 - [x] Move shared path/meta/time/parse helpers into a shared lib module
 - [x] Move conductor/run-state writer helpers into dedicated module
 - [x] Move command handlers into command modules and keep dispatcher in `ctl`
-- [ ] Verify command output parity for key flows (`spawn`, `stop`, `list`, `status`) <- current
-- [ ] Run `subturtle` integration/smoke tests and fix extraction regressions
+- [x] Verify command output parity for key flows (`spawn`, `stop`, `list`, `status`)
+- [ ] Run `subturtle` integration/smoke tests and fix extraction regressions <- current
 - [ ] Trim duplicated logic and add concise comments only where flow is non-obvious
