@@ -878,7 +878,8 @@ async function sendChunkedMessages(
  */
 export function createStatusCallback(
   ctx: Context,
-  state: StreamingState
+  state: StreamingState,
+  options: { showToolStatus?: boolean } = {}
 ): StatusCallback {
   const chatId = ctx.chat?.id;
   if (typeof chatId === "number") {
@@ -914,7 +915,7 @@ export function createStatusCallback(
         if (isSpawnOrchestrationToolStatus(content)) {
           state.sawSpawnOrchestration = true;
         }
-        if (!shouldSendToolStatusMessage(content)) {
+        if (!shouldSendToolStatusMessage(content, options.showToolStatus)) {
           return;
         }
         // Tool status content is pre-formatted HTML (from formatToolStatus

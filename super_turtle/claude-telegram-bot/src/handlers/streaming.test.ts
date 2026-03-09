@@ -331,7 +331,6 @@ describe("cleanupToolMessages()", () => {
 
 describe("tool status visibility", () => {
   it("hides routine tool status messages by default while still marking tool usage", async () => {
-    process.env.SHOW_TOOL_STATUS = "false";
     const state = new StreamingState();
     const replyMock = mock(async () => ({ message_id: 1 }));
     const ctx = {
@@ -339,7 +338,9 @@ describe("tool status visibility", () => {
       reply: replyMock,
     } as unknown as Context;
 
-    const statusCallback = createStatusCallback(ctx, state);
+    const statusCallback = createStatusCallback(ctx, state, {
+      showToolStatus: false,
+    });
     await statusCallback("tool", "<code>git status</code>");
 
     expect(replyMock).not.toHaveBeenCalled();
@@ -348,7 +349,6 @@ describe("tool status visibility", () => {
   });
 
   it("still shows failure-like tool statuses in quiet mode", async () => {
-    process.env.SHOW_TOOL_STATUS = "false";
     const state = new StreamingState();
     const replyMock = mock(async () => ({ message_id: 2, chat: { id: 321 } }));
     const ctx = {
@@ -356,7 +356,9 @@ describe("tool status visibility", () => {
       reply: replyMock,
     } as unknown as Context;
 
-    const statusCallback = createStatusCallback(ctx, state);
+    const statusCallback = createStatusCallback(ctx, state, {
+      showToolStatus: false,
+    });
     await statusCallback("tool", "Error: command failed");
 
     expect(replyMock).toHaveBeenCalledTimes(1);
@@ -365,7 +367,6 @@ describe("tool status visibility", () => {
   });
 
   it("still detects spawn orchestration when tool status replies are hidden", async () => {
-    process.env.SHOW_TOOL_STATUS = "false";
     const state = new StreamingState();
     const replyMock = mock(async () => ({ message_id: 3 }));
     const ctx = {
@@ -373,7 +374,9 @@ describe("tool status visibility", () => {
       reply: replyMock,
     } as unknown as Context;
 
-    const statusCallback = createStatusCallback(ctx, state);
+    const statusCallback = createStatusCallback(ctx, state, {
+      showToolStatus: false,
+    });
     await statusCallback("tool", "▶️ <code>subturtle/ctl spawn worker-a</code>");
 
     expect(replyMock).not.toHaveBeenCalled();
