@@ -77,6 +77,38 @@ describe("loadJobs()", () => {
     ]);
   });
 
+  it("ignores legacy chat_id fields from old job files", () => {
+    writeFileSync(
+      fixtureJobsFile,
+      JSON.stringify([
+        {
+          id: "job-legacy-chat",
+          prompt: "hello from the past",
+          chat_id: 123456,
+          type: "one-shot",
+          fire_at: 1000,
+          created_at: "2026-02-01T00:00:00.000Z",
+        },
+      ])
+    );
+
+    const jobs = loadJobs();
+    expect(jobs).toEqual([
+      {
+        id: "job-legacy-chat",
+        prompt: "hello from the past",
+        type: "one-shot",
+        interval_ms: null,
+        silent: undefined,
+        job_kind: undefined,
+        worker_name: undefined,
+        supervision_mode: undefined,
+        fire_at: 1000,
+        created_at: "2026-02-01T00:00:00.000Z",
+      },
+    ]);
+  });
+
   it("preserves structured supervision metadata when present", () => {
     writeFileSync(
       fixtureJobsFile,
