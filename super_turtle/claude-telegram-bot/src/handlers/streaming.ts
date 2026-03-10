@@ -224,6 +224,84 @@ export async function checkPendingSendTurtleRequests(
 }
 
 /**
+ * Check for pending send-image requests and send photos to Telegram.
+ */
+export async function checkPendingSendImageRequests(
+  ctx: Context,
+  chatId: number
+): Promise<boolean> {
+  const glob = new Bun.Glob("send-image-*.json");
+  let imageSent = false;
+
+  for await (const filename of glob.scan({ cwd: IPC_DIR, absolute: false })) {
+    const filepath = `${IPC_DIR}/${filename}`;
+    try {
+      const file = Bun.file(filepath);
+      const text = await file.text();
+      const data = JSON.parse(text);
+
+      if (data.status !== "pending") continue;
+      const targetChatId = getRequestChatId(data);
+      if (!targetChatId) {
+        data.status = "error";
+        data.error = "Missing chat_id on pending send-image request";
+        await Bun.write(filepath, JSON.stringify(data, null, 2));
+        continue;
+      }
+      if (targetChatId !== String(chatId)) continue;
+      if (isPendingRequestStale(data)) {
+        data.status = "expired";
+        data.error = "Pending send-image request expired before delivery";
+        await Bun.write(filepath, JSON.stringify(data, null, 2));
+        continue;
+      }
+
+      const source: string = data.source || "";
+      const caption: string = data.caption || undefined;
+
+      if (source) {
+        try {
+          const isUrl = source.startsWith("http://") || source.startsWith("https://");
+
+          if (isUrl) {
+            // Send URL directly — Telegram can fetch it
+            await ctx.replyWithPhoto(source, { caption });
+          } else {
+            // Local file path — read and send as InputFile
+            const fileData = Bun.file(source);
+            if (!(await fileData.exists())) {
+              throw new Error(`File not found: ${source}`);
+            }
+            const buffer = Buffer.from(await fileData.arrayBuffer());
+            const fileName = source.split("/").pop() || "image.png";
+            const inputFile = new InputFile(buffer, fileName);
+            await ctx.replyWithPhoto(inputFile, { caption });
+          }
+          imageSent = true;
+        } catch (sendError) {
+          streamLog.warn(
+            { err: sendError, filepath, source, chatId },
+            "Failed to send image, falling back to link/path"
+          );
+          // Fallback: send as text
+          const fallback = source.startsWith("http") ? source : `📎 ${source}`;
+          await ctx.reply(`${fallback}${caption ? `\n${caption}` : ""}`);
+          imageSent = true;
+        }
+
+        data.status = "sent";
+        data.sent_at = new Date().toISOString();
+        await Bun.write(filepath, JSON.stringify(data));
+      }
+    } catch (error) {
+      streamLog.warn({ err: error, filepath, chatId }, "Failed to process send-image file");
+    }
+  }
+
+  return imageSent;
+}
+
+/**
  * Check for pending bot-control requests, execute the action, and write
  * the result back so the MCP server's polling loop can pick it up.
  *

@@ -30,6 +30,7 @@ import {
   checkPendingAskUserRequests,
   checkPendingBotControlRequests,
   checkPendingPinoLogsRequests,
+  checkPendingSendImageRequests,
   checkPendingSendTurtleRequests,
 } from "./handlers/streaming";
 import { checkCommandSafety, isPathAllowed } from "./security";
@@ -102,6 +103,7 @@ const CLAUDE_BOT_MCP_ALLOWED_TOOLS = [
   "mcp__send-turtle__send_turtle",
   "mcp__bot-control__bot_control",
   "mcp__bot-control__ask_user",
+  "mcp__bot-control__send_image",
   "mcp__bot-control__pino_logs",
 ] as const;
 
@@ -808,6 +810,9 @@ export class ClaudeSession {
               const isBotControlActionTool =
                 normalizedToolName === "mcp__bot_control" ||
                 normalizedToolName.endsWith("__bot_control");
+              const isSendImageTool =
+                normalizedToolName === "mcp__send_image" ||
+                normalizedToolName.endsWith("__send_image");
               const isPinoLogsTool =
                 normalizedToolName === "mcp__pino_logs" ||
                 normalizedToolName.endsWith("__pino_logs");
@@ -818,6 +823,7 @@ export class ClaudeSession {
               if (
                 !isAskUserTool &&
                 !isSendTurtleTool &&
+                !isSendImageTool &&
                 !isBotControlServerTool &&
                 !isPinoLogsTool
               ) {
@@ -865,6 +871,22 @@ export class ClaudeSession {
                     chatId
                   );
                   if (photoSent) break;
+                  if (attempt < 2) {
+                    await new Promise((resolve) => setTimeout(resolve, 100));
+                  }
+                }
+              }
+
+              // Check for pending send_image requests after send-image MCP tool
+              if (isSendImageTool && ctx && chatId) {
+                await new Promise((resolve) => setTimeout(resolve, 200));
+
+                for (let attempt = 0; attempt < 3; attempt++) {
+                  const sent = await checkPendingSendImageRequests(
+                    ctx,
+                    chatId
+                  );
+                  if (sent) break;
                   if (attempt < 2) {
                     await new Promise((resolve) => setTimeout(resolve, 100));
                   }
