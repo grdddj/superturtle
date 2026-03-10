@@ -78,7 +78,8 @@ export function makeDrainItemNotifier(
   };
 }
 
-const MAX_QUEUE_PER_CHAT = 10;
+const MAX_USER_MESSAGES_PER_CHAT = 10;
+const MAX_CRON_ITEMS_PER_CHAT = 10;
 const DEDUPE_WINDOW_MS = 5000;
 
 const queues = new Map<number, DeferredQueueItem[]>();
@@ -99,6 +100,26 @@ export function clearDeferredQueue(chatId: number): number {
   const count = queue?.length ?? 0;
   queues.delete(chatId);
   return count;
+}
+
+function countItemsByKind(
+  queue: ReadonlyArray<DeferredQueueItem>,
+  kind: DeferredQueueItem["kind"]
+): number {
+  return queue.reduce((count, item) => count + (item.kind === kind ? 1 : 0), 0);
+}
+
+function trimOldestItemOfKind(
+  queue: DeferredQueueItem[],
+  kind: DeferredQueueItem["kind"]
+): DeferredQueueItem | undefined {
+  const index = queue.findIndex((item) => item.kind === kind);
+  if (index === -1) {
+    return undefined;
+  }
+
+  const [trimmed] = queue.splice(index, 1);
+  return trimmed;
 }
 
 /**
@@ -138,8 +159,9 @@ export function enqueueDeferredMessage(item: DeferredMessageInput): number {
   }
 
   queue.push(normalized);
-  if (queue.length > MAX_QUEUE_PER_CHAT) {
-    queue.shift();
+  const trimmed = countItemsByKind(queue, "user_message") - MAX_USER_MESSAGES_PER_CHAT;
+  for (let i = 0; i < trimmed; i++) {
+    trimOldestItemOfKind(queue, "user_message");
   }
 
   queues.set(normalized.chatId, queue);
@@ -161,9 +183,48 @@ export function enqueueDeferredCronJob(
   const queue = queues.get(chatId) || [];
   const normalized = toDeferredCronJob(chatId, job);
 
+  if (normalized.jobType === "recurring") {
+    const existingIndex = queue.findIndex(
+      (item) =>
+        item.kind === "cron_job" &&
+        item.jobType === "recurring" &&
+        item.jobId === normalized.jobId
+    );
+    if (existingIndex !== -1) {
+      const existing = queue[existingIndex];
+      if (existing && isDeferredCronJob(existing)) {
+        queue[existingIndex] = {
+          ...existing,
+          ...normalized,
+          scheduledFor: Math.max(existing.scheduledFor, normalized.scheduledFor),
+        };
+        queues.set(chatId, queue);
+        eventLog.info({
+          event: "deferred_queue.cron_coalesced",
+          chatId,
+          cronJobId: normalized.jobId,
+          cronJobType: normalized.jobType,
+          queueSize: queue.length,
+          scheduledFor: queue[existingIndex]!.scheduledFor,
+        });
+        return false;
+      }
+    }
+  }
+
   queue.push(normalized);
-  if (queue.length > MAX_QUEUE_PER_CHAT) {
-    queue.shift();
+  const trimmed = countItemsByKind(queue, "cron_job") - MAX_CRON_ITEMS_PER_CHAT;
+  for (let i = 0; i < trimmed; i++) {
+    const dropped = trimOldestItemOfKind(queue, "cron_job");
+    if (dropped && isDeferredCronJob(dropped)) {
+      eventLog.info({
+        event: "deferred_queue.cron_dropped_oldest",
+        chatId,
+        cronJobId: dropped.jobId,
+        cronJobType: dropped.jobType,
+        queueSize: queue.length,
+      });
+    }
   }
 
   queues.set(chatId, queue);

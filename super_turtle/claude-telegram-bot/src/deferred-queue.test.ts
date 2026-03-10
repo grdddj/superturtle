@@ -93,6 +93,37 @@ describe("deferred queue", () => {
     expect(dequeueDeferredMessage(chatId)?.text).toBe("msg-2");
   });
 
+  it("keeps separate caps for user messages and cron jobs", () => {
+    const chatId = 991031;
+
+    for (let i = 0; i < 10; i++) {
+      enqueueDeferredMessage({
+        text: `msg-${i}`,
+        userId: 1,
+        username: "u",
+        chatId,
+        source: "text",
+        enqueuedAt: 1000 + i,
+      });
+    }
+
+    for (let i = 0; i < 10; i++) {
+      expect(enqueueDeferredCronJob(chatId, {
+        jobId: `cron-${i}`,
+        jobType: "one-shot",
+        prompt: `cron-${i}`,
+        silent: false,
+        scheduledFor: 2000 + i,
+        enqueuedAt: 3000 + i,
+      })).toBe(true);
+    }
+
+    expect(getDeferredQueueSize(chatId)).toBe(20);
+    expect(dequeueDeferredMessage(chatId)?.text).toBe("msg-0");
+    expect(isCronJobQueued(chatId, "cron-0")).toBe(true);
+    expect(isCronJobQueued(chatId, "cron-9")).toBe(true);
+  });
+
   it("tracks queued cron jobs by job id", () => {
     const chatId = 99104;
 
@@ -134,5 +165,61 @@ describe("deferred queue", () => {
 
     expect(dequeueDeferredMessage(chatId)?.text).toBe("message second");
     expect(isCronJobQueued(chatId, "cron-2")).toBe(true);
+  });
+
+  it("coalesces recurring cron jobs by job id and keeps the latest scheduled time", () => {
+    const chatId = 99106;
+
+    expect(enqueueDeferredCronJob(chatId, {
+      jobId: "cron-recurring",
+      jobType: "recurring",
+      prompt: "first prompt",
+      silent: false,
+      scheduledFor: 2000,
+      enqueuedAt: 1000,
+    })).toBe(true);
+
+    expect(enqueueDeferredCronJob(chatId, {
+      jobId: "cron-recurring",
+      jobType: "recurring",
+      prompt: "updated prompt",
+      silent: false,
+      scheduledFor: 5000,
+      enqueuedAt: 4000,
+    })).toBe(false);
+
+    const items = getAllDeferredQueues().get(chatId);
+    expect(items).toBeDefined();
+    expect(items).toHaveLength(1);
+    expect(items?.[0]).toEqual(
+      expect.objectContaining({
+        kind: "cron_job",
+        jobId: "cron-recurring",
+        prompt: "updated prompt",
+        scheduledFor: 5000,
+        enqueuedAt: 4000,
+      })
+    );
+  });
+
+  it("drops the oldest cron item when the cron queue exceeds its cap", () => {
+    const chatId = 99107;
+
+    for (let i = 0; i < 12; i++) {
+      expect(enqueueDeferredCronJob(chatId, {
+        jobId: `cron-cap-${i}`,
+        jobType: "one-shot",
+        prompt: `cron-cap-${i}`,
+        silent: false,
+        scheduledFor: 2000 + i,
+        enqueuedAt: 3000 + i,
+      })).toBe(true);
+    }
+
+    expect(getDeferredQueueSize(chatId)).toBe(10);
+    expect(isCronJobQueued(chatId, "cron-cap-0")).toBe(false);
+    expect(isCronJobQueued(chatId, "cron-cap-1")).toBe(false);
+    expect(isCronJobQueued(chatId, "cron-cap-2")).toBe(true);
+    expect(isCronJobQueued(chatId, "cron-cap-11")).toBe(true);
   });
 });
