@@ -229,6 +229,16 @@ describe("addJob() and removeJob()", () => {
     });
   });
 
+  it("does not persist legacy chat_id fields when writing new jobs", () => {
+    Date.now = () => 12_000;
+
+    addJob("run tests", "one-shot", 5000);
+
+    const persisted = JSON.parse(readFileSync(fixtureJobsFile, "utf-8")) as Array<Record<string, unknown>>;
+    expect(persisted).toHaveLength(1);
+    expect(persisted[0]).not.toHaveProperty("chat_id");
+  });
+
   it("stores optional structured metadata", () => {
     Date.now = () => 30_000;
 
