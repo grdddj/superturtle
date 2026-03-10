@@ -7,6 +7,8 @@ type DeferredQueueModule = typeof import("./deferred-queue");
 let isAnyDriverRunningMock: ReturnType<typeof mock>;
 let runMessageWithActiveDriverMock: ReturnType<typeof mock>;
 let executeNonSilentCronJobMock: ReturnType<typeof mock>;
+let advanceRecurringJobMock: ReturnType<typeof mock>;
+let removeJobMock: ReturnType<typeof mock>;
 let auditLogMock: ReturnType<typeof mock>;
 let startTypingIndicatorMock: ReturnType<typeof mock>;
 let createStatusCallbackMock: ReturnType<typeof mock>;
@@ -45,6 +47,8 @@ beforeEach(async () => {
   isAnyDriverRunningMock = mock(() => false);
   runMessageWithActiveDriverMock = mock(async () => "queued response");
   executeNonSilentCronJobMock = mock(async () => {});
+  advanceRecurringJobMock = mock(() => true);
+  removeJobMock = mock(() => true);
   auditLogMock = mock(async () => {});
   createStatusCallbackMock = mock(() => async () => {});
   startTypingIndicatorMock = mock(() => ({ stop: typingStopMock }));
@@ -75,6 +79,11 @@ beforeEach(async () => {
   mock.module("./cron-execution", () => ({
     executeNonSilentCronJob: (job: unknown, target: unknown) =>
       executeNonSilentCronJobMock(job, target),
+  }));
+
+  mock.module("./cron", () => ({
+    advanceRecurringJob: (jobId: string) => advanceRecurringJobMock(jobId),
+    removeJob: (jobId: string) => removeJobMock(jobId),
   }));
 });
 
@@ -393,6 +402,8 @@ describe("drainDeferredQueue", () => {
         userId: chatId,
       }
     );
+    expect(removeJobMock).toHaveBeenCalledWith("cron-queued");
+    expect(advanceRecurringJobMock).not.toHaveBeenCalled();
     expect(deferredQueue.getDeferredQueueSize(chatId)).toBe(0);
   });
 
@@ -424,6 +435,31 @@ describe("drainDeferredQueue", () => {
         userId: chatId,
       }
     );
+    expect(advanceRecurringJobMock).toHaveBeenCalledWith("cron-only");
+    expect(removeJobMock).not.toHaveBeenCalled();
+    expect(deferredQueue.getDeferredQueueSize(chatId)).toBe(0);
+  });
+
+  it("drops queued cron work when the backing cron record is already gone", async () => {
+    removeJobMock = mock(() => false);
+
+    const deferredQueue = await loadDeferredQueueModule();
+    const { ctx } = makeCtx();
+    const chatId = 31008;
+
+    deferredQueue.enqueueDeferredCronJob(chatId, {
+      jobId: "missing-cron",
+      jobType: "one-shot",
+      prompt: "should not run",
+      silent: false,
+      scheduledFor: 7000,
+      enqueuedAt: 4000,
+    });
+
+    await deferredQueue.drainDeferredQueue(ctx, chatId);
+
+    expect(removeJobMock).toHaveBeenCalledWith("missing-cron");
+    expect(executeNonSilentCronJobMock).not.toHaveBeenCalled();
     expect(deferredQueue.getDeferredQueueSize(chatId)).toBe(0);
   });
 });

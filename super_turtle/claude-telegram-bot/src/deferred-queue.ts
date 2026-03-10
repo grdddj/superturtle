@@ -1,5 +1,6 @@
 import type { Context } from "grammy";
 import type { CronJob, CronJobKind, CronSupervisionMode } from "./cron";
+import { advanceRecurringJob, removeJob } from "./cron";
 import { executeNonSilentCronJob } from "./cron-execution";
 import { session } from "./session";
 import { auditLog, generateRequestId, startTypingIndicator } from "./utils";
@@ -349,6 +350,20 @@ export async function drainDeferredQueue(
           cronJobType: next.jobType,
           queueRemaining: getDeferredQueueSize(chatId),
         });
+        const advancedOrRemoved =
+          next.jobType === "recurring"
+            ? advanceRecurringJob(next.jobId)
+            : removeJob(next.jobId);
+        if (!advancedOrRemoved) {
+          eventLog.warn({
+            event: "deferred_queue.cron_missing",
+            requestId,
+            chatId,
+            cronJobId: next.jobId,
+            cronJobType: next.jobType,
+          });
+          continue;
+        }
         await executeNonSilentCronJob(
           {
             id: next.jobId,

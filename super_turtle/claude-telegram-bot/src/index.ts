@@ -44,6 +44,8 @@ import {
 import { buildSessionOverviewLines } from "./handlers/commands";
 import { resetAllDriverSessions } from "./handlers/commands";
 import { handlePinologs } from "./handlers/commands";
+import { enqueueBusyDeferredCronJob, pruneQueuedDueCronJobIds } from "./cron-deferred-queue";
+import { isCronJobQueued } from "./deferred-queue";
 import { session } from "./session";
 import { codexSession } from "./codex-session";
 import { getDueJobs, getJobs, advanceRecurringJob, removeJob } from "./cron";
@@ -501,6 +503,7 @@ bot.catch((err) => {
 const startCronTimer = () => {
   const BOT_MESSAGE_ONLY_PREFIX = "BOT_MESSAGE_ONLY:";
   let cronTickInFlight = false;
+  const queuedDueCronJobIds = new Set<string>();
 
   setInterval(async () => {
     if (cronTickInFlight) {
@@ -512,6 +515,14 @@ const startCronTimer = () => {
       await runConductorMaintenancePass();
 
       const dueJobs = getDueJobs();
+      const resolvedChatId = ALLOWED_USERS[0];
+      if (resolvedChatId !== undefined) {
+        pruneQueuedDueCronJobIds(
+          resolvedChatId,
+          new Set(dueJobs.map((job) => job.id)),
+          queuedDueCronJobIds
+        );
+      }
       if (dueJobs.length === 0) {
         await drainPreparedSnapshotsWhenIdle();
         return;
@@ -519,18 +530,6 @@ const startCronTimer = () => {
 
       for (const job of dueJobs) {
         const supervisedWorkerName = resolveSilentSubturtleSupervisorWorker(job);
-
-        // Re-check session before each job — the previous job may have started it
-        if (isAnyDriverRunning() && !supervisedWorkerName) {
-          continue;
-        }
-
-        // Remove/advance the job BEFORE executing so a crash doesn't cause retries
-        if (job.type === "recurring") {
-          advanceRecurringJob(job.id);
-        } else {
-          removeJob(job.id);
-        }
 
         // Bail if no allowed users are configured — can't authenticate
         if (ALLOWED_USERS.length === 0) {
@@ -542,7 +541,6 @@ const startCronTimer = () => {
         const resolvedChatId: number = resolvedUserId;
 
         try {
-
           if (supervisedWorkerName) {
             const supervisionResult = await processSilentSubturtleSupervision({
               workerName: supervisedWorkerName,
@@ -590,6 +588,11 @@ const startCronTimer = () => {
           }
 
           if (job.prompt.startsWith(BOT_MESSAGE_ONLY_PREFIX)) {
+            if (job.type === "recurring") {
+              advanceRecurringJob(job.id);
+            } else {
+              removeJob(job.id);
+            }
             const message = job.prompt.slice(BOT_MESSAGE_ONLY_PREFIX.length);
             if (message.trim().length === 0) {
               cronLog.warn({ cronJobId: job.id }, `Cron job ${job.id} skipped: BOT_MESSAGE_ONLY payload is empty`);
@@ -597,6 +600,43 @@ const startCronTimer = () => {
             }
             await bot.api.sendMessage(resolvedChatId, message);
             continue;
+          }
+
+          if (job.silent) {
+            if (isAnyDriverRunning()) {
+              continue;
+            }
+          } else {
+            if (isCronJobQueued(resolvedChatId, job.id)) {
+              continue;
+            }
+
+            if (isAnyDriverRunning()) {
+              const queued = enqueueBusyDeferredCronJob(
+                resolvedChatId,
+                job,
+                queuedDueCronJobIds
+              );
+              if (queued) {
+                cronLog.info(
+                  {
+                    cronJobId: job.id,
+                    chatId: resolvedChatId,
+                    action: "cron_deferred_while_busy",
+                  },
+                  `[cron:${job.id}] queued non-silent cron job because a driver is active`
+                );
+              }
+              continue;
+            }
+
+            queuedDueCronJobIds.delete(job.id);
+          }
+
+          if (job.type === "recurring") {
+            advanceRecurringJob(job.id);
+          } else {
+            removeJob(job.id);
           }
 
           const createCronContext = (text: string): import("grammy").Context =>
