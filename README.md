@@ -17,6 +17,8 @@ SuperTurtle is an autonomous coding agent you control from Telegram. Send a voic
 
 <p align="center">
   <img src="assets/readme-screenshots/chat-example.jpg" width="360" alt="SuperTurtle Telegram chat example" />
+  &nbsp;&nbsp;
+  <img src="assets/readme-screenshots/chat-example-2.jpg" width="360" alt="SuperTurtle committing code and sending a GitHub screenshot" />
 </p>
 
 ## Install
