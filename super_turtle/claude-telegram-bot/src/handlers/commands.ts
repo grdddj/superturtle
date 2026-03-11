@@ -32,6 +32,7 @@ import { handleStop } from "./stop";
 import { clearPreparedSnapshots, getPreparedSnapshotCount } from "../cron-supervision-queue";
 import { getAllDeferredQueues } from "../deferred-queue";
 import { cmdLog } from "../logger";
+import type { BotCommand } from "grammy/types";
 
 // Canonical main-loop log written by live.sh (tmux + caffeinate + run-loop).
 export const MAIN_LOOP_LOG_PATH = `/tmp/claude-telegram-${TOKEN_PREFIX}-bot-ts.log`;
@@ -40,6 +41,23 @@ const LOOPLOGS_LINE_COUNT = 50;
 const RESUME_SESSIONS_LIMIT = 5;
 const CLAUDE_USAGE_RATE_LIMIT_MESSAGE =
   "Claude usage is temporarily unavailable due to Anthropic service limits. This comes from Anthropic's usage endpoint, not from Super Turtle.";
+
+export const TELEGRAM_COMMANDS: readonly BotCommand[] = [
+  { command: "new", description: "Start a fresh session" },
+  { command: "stop", description: "Stop current work" },
+  { command: "model", description: "Switch model or effort" },
+  { command: "switch", description: "Switch between Claude and Codex" },
+  { command: "usage", description: "Show subscription usage" },
+  { command: "context", description: "Show context usage" },
+  { command: "status", description: "Show detailed status" },
+  { command: "looplogs", description: "Show main loop logs" },
+  { command: "pinologs", description: "Show Pino logs" },
+  { command: "resume", description: "Resume a past session" },
+  { command: "sub", description: "Manage SubTurtles" },
+  { command: "cron", description: "Show scheduled jobs" },
+  { command: "debug", description: "Show debug state" },
+  { command: "restart", description: "Restart the bot" },
+] as const;
 
 /**
  * Shared command list for display in /new and /status, and new_session bot-control.

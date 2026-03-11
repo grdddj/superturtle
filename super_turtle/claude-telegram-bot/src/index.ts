@@ -45,6 +45,7 @@ import {
 import { buildSessionOverviewLines } from "./handlers/commands";
 import { resetAllDriverSessions } from "./handlers/commands";
 import { handlePinologs } from "./handlers/commands";
+import { TELEGRAM_COMMANDS } from "./handlers/commands";
 import { enqueueBusyDeferredCronJob, pruneQueuedDueCronJobIds } from "./cron-deferred-queue";
 import { drainDeferredQueue, isCronJobQueued } from "./deferred-queue";
 import { session } from "./session";
@@ -240,6 +241,16 @@ function refreshConductorHandoff(): void {
       },
       "Failed to refresh conductor handoff"
     );
+  }
+}
+
+async function syncTelegramCommands(): Promise<void> {
+  try {
+    await bot.api.deleteMyCommands();
+    await bot.api.setMyCommands([...TELEGRAM_COMMANDS]);
+    botLog.info({ count: TELEGRAM_COMMANDS.length }, "Registered Telegram slash commands");
+  } catch (error) {
+    botLog.warn({ err: error }, "Failed to register Telegram slash commands");
   }
 }
 
@@ -905,6 +916,7 @@ const releaseInstanceLock = acquireInstanceLockOrExit();
 // Get bot info first
 const botInfo = await bot.api.getMe();
 botLog.info({ username: botInfo.username }, `Bot started: @${botInfo.username}`);
+await syncTelegramCommands();
 
 if (process.env.TURTLE_GREETINGS !== "false" && ALLOWED_USERS.length > 0) {
   startTurtleGreetings(bot, ALLOWED_USERS[0]!);
