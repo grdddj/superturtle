@@ -380,6 +380,30 @@ describe("tool status visibility", () => {
     expect(shouldSendToolStatusMessage("▶️ <code>npm test</code>", false)).toBe(false);
   });
 
+  it("uses HIDE_TOOL_STATUS for the default visibility setting", async () => {
+    const originalHide = process.env.HIDE_TOOL_STATUS;
+    const originalShow = process.env.SHOW_TOOL_STATUS;
+    process.env.HIDE_TOOL_STATUS = "true";
+    delete process.env.SHOW_TOOL_STATUS;
+
+    try {
+      const freshStreaming = await loadFreshStreamingModule();
+      expect(freshStreaming.shouldSendToolStatusMessage("<code>git status</code>")).toBe(false);
+      expect(freshStreaming.shouldSendToolStatusMessage("Error: command failed")).toBe(true);
+    } finally {
+      if (originalHide === undefined) {
+        delete process.env.HIDE_TOOL_STATUS;
+      } else {
+        process.env.HIDE_TOOL_STATUS = originalHide;
+      }
+      if (originalShow === undefined) {
+        delete process.env.SHOW_TOOL_STATUS;
+      } else {
+        process.env.SHOW_TOOL_STATUS = originalShow;
+      }
+    }
+  });
+
   it("still shows failure-like tool statuses in quiet mode", () => {
     expect(shouldSendToolStatusMessage("Error: command failed", false)).toBe(true);
     expect(shouldSendToolStatusMessage("BLOCKED: rm target outside allowed paths", false)).toBe(true);

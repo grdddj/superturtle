@@ -20,6 +20,7 @@ import {
   CODEX_USER_ENABLED,
   RESTART_FILE,
   IPC_DIR,
+  SHOW_TOOL_STATUS,
 } from "../config";
 import { session, type ClaudeSession } from "../session";
 import { codexSession, type CodexSession } from "../codex-session";
@@ -885,9 +886,7 @@ function normalizeToolStatus(content: string): string {
 
 export function shouldSendToolStatusMessage(
   content: string,
-  showToolStatus: boolean = (
-    (process.env.SHOW_TOOL_STATUS || "false").toLowerCase() === "true"
-  )
+  showToolStatus: boolean = SHOW_TOOL_STATUS
 ): boolean {
   if (showToolStatus) {
     return true;

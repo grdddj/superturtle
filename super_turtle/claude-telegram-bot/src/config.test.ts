@@ -14,6 +14,7 @@ type ConfigProbeOverrides = {
   metaCodexNetworkAccess?: string | undefined;
   dashboardEnabled?: string | undefined;
   showToolStatus?: string | undefined;
+  hideToolStatus?: string | undefined;
   defaultClaudeModel?: string | undefined;
   defaultClaudeEffort?: string | undefined;
   defaultCodexModel?: string | undefined;
@@ -61,6 +62,7 @@ async function probeConfig(overrides: ConfigProbeOverrides): Promise<ConfigProbe
   applyOverride("META_CODEX_NETWORK_ACCESS", overrides.metaCodexNetworkAccess);
   applyOverride("DASHBOARD_ENABLED", overrides.dashboardEnabled);
   applyOverride("SHOW_TOOL_STATUS", overrides.showToolStatus);
+  applyOverride("HIDE_TOOL_STATUS", overrides.hideToolStatus);
   applyOverride("DEFAULT_CLAUDE_MODEL", overrides.defaultClaudeModel);
   applyOverride("DEFAULT_CLAUDE_EFFORT", overrides.defaultClaudeEffort);
   applyOverride("DEFAULT_CODEX_MODEL", overrides.defaultCodexModel);
@@ -173,6 +175,25 @@ describe("config overrides", () => {
   it("accepts explicit tool status visibility override", async () => {
     const result = await probeConfig({
       showToolStatus: "true",
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(extractMarker(result.stdout, MARKERS.showToolStatus)).toBe("true");
+  });
+
+  it("accepts HIDE_TOOL_STATUS as the inverse visibility alias", async () => {
+    const result = await probeConfig({
+      hideToolStatus: "true",
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(extractMarker(result.stdout, MARKERS.showToolStatus)).toBe("false");
+  });
+
+  it("prefers SHOW_TOOL_STATUS when both visibility flags are set", async () => {
+    const result = await probeConfig({
+      showToolStatus: "true",
+      hideToolStatus: "true",
     });
 
     expect(result.exitCode).toBe(0);
