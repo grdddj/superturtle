@@ -30,15 +30,6 @@ Then start:
 superturtle start
 ```
 
-Optional startup default:
-
-```bash
-# super_turtle/claude-telegram-bot/.env
-MAIN_PROVIDER=claude  # or codex
-```
-
-`MAIN_PROVIDER` is the startup default only. If the user switches provider in Telegram, that last-used choice is restored on restart.
-
 Operations:
 
 ```bash

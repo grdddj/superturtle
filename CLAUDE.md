@@ -161,6 +161,7 @@ We are redesigning the weak parts:
 - Claude and Codex inbox tests now also cover model changes while background worker events are pending, so the next interactive turn still injects and acknowledges those durable updates under the selected driver/model
 - The 15-path user-flow matrix now lives in `super_turtle/docs/long-run-state-tracking.md`; use it as the checklist for future conductor changes
 - Conductor storage retention is not implemented yet: workspaces already have `ctl gc`, but `.superturtle/state/` currently keeps historical worker records, wakeups, inbox items, and the append-only event log until we add explicit conductor gc/compaction
+- `MAIN_PROVIDER=claude|codex` is now supported as the startup default provider for the Telegram meta-agent; effective precedence is saved last-used provider > `MAIN_PROVIDER` > `claude`, so restarts preserve the user's last switch and `MAIN_PROVIDER=codex` still requires `CODEX_ENABLED=true` plus a working local Codex CLI
 - TOKEN_PREFIX lives in `src/token-prefix.ts` (standalone leaf module, no circular deps)
 - MCP IPC files are isolated in `/tmp/superturtle-{tokenPrefix}/`, passed to MCP servers via `SUPERTURTLE_IPC_DIR`
 - The bot is the meta agent; system prompt injection still lives in `super_turtle/claude-telegram-bot/src/config.ts`
