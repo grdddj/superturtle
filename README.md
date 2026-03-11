@@ -137,12 +137,10 @@ You should run Super Turtle in a sandboxed or dedicated environment (VM, contain
 ```bash
 git clone https://github.com/Rigos0/superturtle.git
 cd superturtle
-./super_turtle/setup          # installs deps, creates .env, prompts for tokens
-cd super_turtle/claude-telegram-bot
-bun run start
+cd super_turtle/claude-telegram-bot && bun install && cd ../..
+npx superturtle init          # creates .superturtle/ with .env, prompts for tokens
+npx superturtle start
 ```
-
-The setup script creates `super_turtle/claude-telegram-bot/.env` with the correct working directory and driver defaults. The `.superturtle/` state directory is created automatically on first bot startup.
 
 ## Star History
 

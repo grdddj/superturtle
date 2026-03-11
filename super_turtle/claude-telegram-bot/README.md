@@ -43,18 +43,16 @@ cd <repo-directory>
 # "Set up Super Turtle on this machine."
 ```
 
-The setup wizard runs `./super_turtle/setup`, installs dependencies, and configures `super_turtle/claude-telegram-bot/.env` for you.
+The setup wizard runs `superturtle init`, creates `.superturtle/.env`, and prompts for your tokens.
 
 ## Quick Start (standalone bot folder, manual)
 
 If you are only working on this bot module directly:
 
 ```bash
-cd super_turtle/claude-telegram-bot
-cp .env.example .env
-# Edit .env with your credentials
-bun install
-bun run start
+cd super_turtle/claude-telegram-bot && bun install && cd ../..
+npx superturtle init   # creates .superturtle/.env, prompts for tokens
+npx superturtle start
 ```
 
 ### Prerequisites
@@ -113,7 +111,7 @@ sub - SubTurtles
 
 ### 2. Configure Environment
 
-Create `.env` with your settings:
+The canonical env file lives at `.superturtle/.env` (created by `superturtle init`). Key settings:
 
 ```bash
 # Required
