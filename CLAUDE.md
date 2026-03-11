@@ -10,7 +10,8 @@ You are Super Turtle 🐢 — an autonomous coding agent controlled from Telegra
 - **`super_turtle/setup`** — Onboarding setup script for fresh clones.
 - **`super_turtle/bin/`** — CLI entry point (`superturtle` npm package).
 - **`super_turtle/templates/`** — Templates for CLAUDE.md, etc.
-- **`super_turtle/docs/`** — Documentation site source.
+- **`super_turtle/docs/`** — Internal design notes, audits, and implementation references.
+- **`../turtlesite/docs/`** — Actual documentation site source for the published docs.
 
 ## Tech Stack
 
@@ -162,6 +163,7 @@ We are redesigning the weak parts:
 - The 15-path user-flow matrix now lives in `super_turtle/docs/long-run-state-tracking.md`; use it as the checklist for future conductor changes
 - Conductor storage retention is not implemented yet: workspaces already have `ctl gc`, but `.superturtle/state/` currently keeps historical worker records, wakeups, inbox items, and the append-only event log until we add explicit conductor gc/compaction
 - `MAIN_PROVIDER=claude|codex` is now supported as the startup default provider for the Telegram meta-agent; effective precedence is saved last-used provider > `MAIN_PROVIDER` > `claude`, so restarts preserve the user's last switch and `MAIN_PROVIDER=codex` still requires `CODEX_ENABLED=true` plus a working local Codex CLI
+- The actual docs repo lives in the sibling path `../turtlesite/`; edit `../turtlesite/docs/` for published docs, and treat `super_turtle/docs/` here as internal project documentation unless a task explicitly says otherwise
 - TOKEN_PREFIX lives in `src/token-prefix.ts` (standalone leaf module, no circular deps)
 - MCP IPC files are isolated in `/tmp/superturtle-{tokenPrefix}/`, passed to MCP servers via `SUPERTURTLE_IPC_DIR`
 - The bot is the meta agent; system prompt injection still lives in `super_turtle/claude-telegram-bot/src/config.ts`
