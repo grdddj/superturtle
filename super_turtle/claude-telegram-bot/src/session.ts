@@ -15,6 +15,7 @@ import {
   CODEX_AVAILABLE,
   DEFAULT_CLAUDE_EFFORT,
   DEFAULT_CLAUDE_MODEL,
+  MAIN_PROVIDER,
   MCP_SERVERS,
   META_PROMPT,
   SESSION_FILE,
@@ -384,7 +385,7 @@ export class ClaudeSession {
     this._model = prefs.model || DEFAULT_CLAUDE_MODEL;
     this._effort = prefs.effort || DEFAULT_CLAUDE_EFFORT;
 
-    const preferredDriver = prefs.activeDriver || "claude";
+    const preferredDriver = prefs.activeDriver || MAIN_PROVIDER;
     let resolvedDriver: "claude" | "codex" = preferredDriver;
 
     if (resolvedDriver === "codex" && !CODEX_AVAILABLE) {

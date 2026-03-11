@@ -18,6 +18,7 @@ type ConfigProbeOverrides = {
   defaultClaudeEffort?: string | undefined;
   defaultCodexModel?: string | undefined;
   defaultCodexEffort?: string | undefined;
+  mainProvider?: string | undefined;
 };
 
 const configPath = resolve(import.meta.dir, "config.ts");
@@ -35,6 +36,7 @@ const MARKERS = {
   defaultClaudeEffort: "__DEFAULT_CLAUDE_EFFORT__=",
   defaultCodexModel: "__DEFAULT_CODEX_MODEL__=",
   defaultCodexEffort: "__DEFAULT_CODEX_EFFORT__=",
+  mainProvider: "__MAIN_PROVIDER__=",
 } as const;
 
 async function probeConfig(overrides: ConfigProbeOverrides): Promise<ConfigProbeResult> {
@@ -63,6 +65,7 @@ async function probeConfig(overrides: ConfigProbeOverrides): Promise<ConfigProbe
   applyOverride("DEFAULT_CLAUDE_EFFORT", overrides.defaultClaudeEffort);
   applyOverride("DEFAULT_CODEX_MODEL", overrides.defaultCodexModel);
   applyOverride("DEFAULT_CODEX_EFFORT", overrides.defaultCodexEffort);
+  applyOverride("MAIN_PROVIDER", overrides.mainProvider);
 
   const script = `
     const config = await import(${JSON.stringify(configPath)});
@@ -78,6 +81,7 @@ async function probeConfig(overrides: ConfigProbeOverrides): Promise<ConfigProbe
     console.log(${JSON.stringify(MARKERS.defaultClaudeEffort)} + String(config.DEFAULT_CLAUDE_EFFORT));
     console.log(${JSON.stringify(MARKERS.defaultCodexModel)} + String(config.DEFAULT_CODEX_MODEL));
     console.log(${JSON.stringify(MARKERS.defaultCodexEffort)} + String(config.DEFAULT_CODEX_EFFORT));
+    console.log(${JSON.stringify(MARKERS.mainProvider)} + String(config.MAIN_PROVIDER));
   `;
 
   const proc = Bun.spawn({
@@ -137,6 +141,7 @@ describe("config defaults", () => {
     expect(extractMarker(result.stdout, MARKERS.defaultClaudeEffort)).toBe("high");
     expect(extractMarker(result.stdout, MARKERS.defaultCodexModel)).toBe("gpt-5.3-codex");
     expect(extractMarker(result.stdout, MARKERS.defaultCodexEffort)).toBe("medium");
+    expect(extractMarker(result.stdout, MARKERS.mainProvider)).toBe("claude");
   });
 });
 
@@ -180,6 +185,7 @@ describe("config overrides", () => {
       defaultClaudeEffort: "medium",
       defaultCodexModel: "gpt-5.3-codex-spark",
       defaultCodexEffort: "low",
+      mainProvider: "codex",
     });
 
     expect(result.exitCode).toBe(0);
@@ -187,6 +193,7 @@ describe("config overrides", () => {
     expect(extractMarker(result.stdout, MARKERS.defaultClaudeEffort)).toBe("medium");
     expect(extractMarker(result.stdout, MARKERS.defaultCodexModel)).toBe("gpt-5.3-codex-spark");
     expect(extractMarker(result.stdout, MARKERS.defaultCodexEffort)).toBe("low");
+    expect(extractMarker(result.stdout, MARKERS.mainProvider)).toBe("codex");
   });
 
   it("falls back to safe defaults for invalid policy values", async () => {
@@ -208,6 +215,7 @@ describe("config overrides", () => {
       defaultClaudeEffort: "turbo",
       defaultCodexModel: "gpt-bad-codex",
       defaultCodexEffort: "ultra",
+      mainProvider: "gemini",
     });
 
     expect(result.exitCode).toBe(0);
@@ -215,5 +223,6 @@ describe("config overrides", () => {
     expect(extractMarker(result.stdout, MARKERS.defaultClaudeEffort)).toBe("high");
     expect(extractMarker(result.stdout, MARKERS.defaultCodexModel)).toBe("gpt-5.3-codex");
     expect(extractMarker(result.stdout, MARKERS.defaultCodexEffort)).toBe("medium");
+    expect(extractMarker(result.stdout, MARKERS.mainProvider)).toBe("claude");
   });
 });

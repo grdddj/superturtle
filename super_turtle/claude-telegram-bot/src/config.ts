@@ -75,6 +75,7 @@ export const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 
 export type ClaudeEffortLevel = "low" | "medium" | "high";
 export type CodexEffortLevel = "minimal" | "low" | "medium" | "high" | "xhigh";
+export type MainProvider = "claude" | "codex";
 
 const DEFAULT_CLAUDE_MODEL_FALLBACK = "claude-opus-4-6";
 const DEFAULT_CLAUDE_EFFORT_FALLBACK: ClaudeEffortLevel = "high";
@@ -143,6 +144,13 @@ export const DEFAULT_CODEX_EFFORT = parseDefaultEffort(
   DEFAULT_CODEX_EFFORT_FALLBACK,
   VALID_CODEX_EFFORTS
 );
+export const MAIN_PROVIDER: MainProvider = (() => {
+  const value = process.env.MAIN_PROVIDER?.trim().toLowerCase();
+  if (!value) return "claude";
+  if (value === "claude" || value === "codex") return value;
+  configLog.warn(`Invalid MAIN_PROVIDER="${value}". Falling back to "claude".`);
+  return "claude";
+})();
 
 // Derived paths — package code vs user runtime data
 export const CTL_PATH = `${SUPER_TURTLE_DIR}/subturtle/ctl`;

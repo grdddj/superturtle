@@ -123,11 +123,18 @@ TELEGRAM_ALLOWED_USERS=<telegram_user_id>               # Your Telegram user ID
 # Recommended
 CLAUDE_WORKING_DIR=/path/to/your/folder    # Where Claude runs (loads CLAUDE.md, skills, MCP)
 OPENAI_API_KEY=<optional_openai_api_key>   # For voice transcription
+MAIN_PROVIDER=claude                       # Startup default: claude or codex
 ```
 
 `.env` is gitignored. Keep real credentials only in local env files.
 
 **Finding your Telegram user ID:** Message [@userinfobot](https://t.me/userinfobot) on Telegram.
+
+Provider startup precedence:
+
+- Saved last-used Telegram provider wins across restarts.
+- `MAIN_PROVIDER` is used only when no saved provider exists yet.
+- If `MAIN_PROVIDER=codex`, you must also enable Codex and have the local `codex` CLI available, otherwise startup falls back to Claude.
 
 ### Codex Configuration (Optional)
 

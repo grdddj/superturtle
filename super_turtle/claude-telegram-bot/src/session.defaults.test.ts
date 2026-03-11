@@ -64,6 +64,7 @@ describe("ClaudeSession env defaults", () => {
     const result = await probeClaudeSession({
       DEFAULT_CLAUDE_MODEL: "claude-sonnet-4-6",
       DEFAULT_CLAUDE_EFFORT: "medium",
+      MAIN_PROVIDER: "codex",
       CLAUDE_PREFS_JSON: undefined,
     });
 
@@ -71,12 +72,14 @@ describe("ClaudeSession env defaults", () => {
     expect(result.payload?.model).toBe("claude-sonnet-4-6");
     expect(result.payload?.effort).toBe("medium");
     expect(result.payload?.effortDisplay.medium).toBe("Medium (default)");
+    expect(result.payload?.activeDriver).toBe("codex");
   });
 
   it("keeps saved Claude prefs authoritative over env defaults", async () => {
     const result = await probeClaudeSession({
       DEFAULT_CLAUDE_MODEL: "claude-sonnet-4-6",
       DEFAULT_CLAUDE_EFFORT: "low",
+      MAIN_PROVIDER: "codex",
       CLAUDE_PREFS_JSON: JSON.stringify({
         model: "claude-opus-4-6",
         effort: "high",
@@ -88,5 +91,6 @@ describe("ClaudeSession env defaults", () => {
     expect(result.payload?.model).toBe("claude-opus-4-6");
     expect(result.payload?.effort).toBe("high");
     expect(result.payload?.effortDisplay.low).toBe("Low (default)");
+    expect(result.payload?.activeDriver).toBe("claude");
   });
 });
