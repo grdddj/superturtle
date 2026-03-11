@@ -248,6 +248,26 @@ function parseBooleanEnv(envKey: string, fallback: boolean): boolean {
   return fallback;
 }
 
+function parseToolStatusVisibility(): boolean {
+  const explicitShow = parseOptionalBool(process.env.SHOW_TOOL_STATUS);
+  if (explicitShow !== null) {
+    return explicitShow;
+  }
+
+  const explicitHide = parseOptionalBool(process.env.HIDE_TOOL_STATUS);
+  if (explicitHide !== null) {
+    return !explicitHide;
+  }
+
+  if (process.env.HIDE_TOOL_STATUS !== undefined) {
+    configLog.warn(
+      `Invalid HIDE_TOOL_STATUS="${process.env.HIDE_TOOL_STATUS}". Falling back to "false".`
+    );
+  }
+
+  return false;
+}
+
 function parseCodexSandboxMode(raw: string | undefined): CodexSandboxMode {
   const value = (raw || "workspace-write").toLowerCase();
   if (value === "read-only" || value === "workspace-write" || value === "danger-full-access") {
@@ -514,7 +534,7 @@ export const DASHBOARD_PORT = defaultDashboardPort;
 export const DASHBOARD_BIND_ADDR = "127.0.0.1";
 export const DASHBOARD_AUTH_TOKEN = process.env.DASHBOARD_AUTH_TOKEN || "";
 export const DASHBOARD_PUBLIC_BASE_URL = `http://localhost:${DASHBOARD_PORT}`;
-export const SHOW_TOOL_STATUS = parseBooleanEnv("SHOW_TOOL_STATUS", false);
+export const SHOW_TOOL_STATUS = parseToolStatusVisibility();
 export const TURTLE_GREETINGS_ENABLED = parseBooleanEnv("TURTLE_GREETINGS", false);
 
 // ============== Audit Logging ==============
