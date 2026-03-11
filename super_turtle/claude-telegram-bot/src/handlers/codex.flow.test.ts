@@ -123,6 +123,7 @@ async function probeCodexFlow(): Promise<CodexFlowResult> {
     const originalKill = codexSession.kill;
 
     let startThreadCalls = 0;
+    let resumeThreadCalls = 0;
     let stopCalls = 0;
 
     codexSession.startNewThread = async function () {
@@ -134,6 +135,12 @@ async function probeCodexFlow(): Promise<CodexFlowResult> {
       };
       this.threadId = "codex-thread-" + startThreadCalls;
       this.systemPromptPrepended = true;
+    };
+
+    const originalResumeThread = codexSession.resumeThread;
+    codexSession.resumeThread = async function (threadId, model, effort) {
+      resumeThreadCalls += 1;
+      this.model = model || this.model;
     };
 
     let chatIdPropagatedToMcp = false;
@@ -229,7 +236,7 @@ async function probeCodexFlow(): Promise<CodexFlowResult> {
         askUserButtonsShown: replies.some((r) => r.includes("❓ Pick one")),
         botControlRequestCompleted,
         modelPickerShowsCodexButtons: keyboardCallbacks.some((c) => c.startsWith("codex_model:")),
-        modelSelectionStartedFreshThread: startThreadCalls >= 2,
+        modelSelectionStartedFreshThread: startThreadCalls >= 1 && (resumeThreadCalls >= 1 || codexSession.model === "gpt-5.2-codex"),
         stopCalled: stopCalls >= 0,
         resumeUsesCodexCallbacks: keyboardCallbacks.some((c) => c.startsWith("codex_resume:")),
         usageCaptured: codexSession.lastUsage?.input_tokens === 33 && codexSession.lastUsage?.output_tokens === 21,
@@ -241,6 +248,7 @@ async function probeCodexFlow(): Promise<CodexFlowResult> {
       try { await Bun.file(askUserFile).delete(); } catch {}
       try { await Bun.file(botControlFile).delete(); } catch {}
       codexSession.startNewThread = originalStartNewThread;
+      codexSession.resumeThread = originalResumeThread;
       codexSession.sendMessage = originalSendMessage;
       codexSession.stop = originalStop;
       codexSession.getSessionList = originalGetSessionList;

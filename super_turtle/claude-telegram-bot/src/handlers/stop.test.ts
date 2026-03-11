@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import type { Context } from "grammy";
 
 process.env.TELEGRAM_BOT_TOKEN ||= "test-token";
@@ -21,6 +21,16 @@ const claudeDriver = getDriver("claude");
 const codexDriver = getDriver("codex");
 const originalClaudeStop = claudeDriver.stop;
 const originalCodexStop = codexDriver.stop;
+
+// Re-assert the real driver registry before each test.
+// Other test files may contaminate it via mock.module() + incomplete mock.restore().
+beforeEach(() => {
+  mock.module("../drivers/registry", () => ({
+    getDriver: (id: string) => (id === "codex" ? codexDriver : claudeDriver),
+    getCurrentDriver: () =>
+      session.activeDriver === "codex" ? codexDriver : claudeDriver,
+  }));
+});
 
 afterEach(() => {
   Bun.spawnSync = originalSpawnSync;

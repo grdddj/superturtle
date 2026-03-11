@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import { codexSession } from "../codex-session";
 import { getDriver } from "../drivers/registry";
 import { session } from "../session";
@@ -9,12 +9,25 @@ async function loadDriverRoutingModule(): Promise<DriverRoutingModule> {
   return import(`./driver-routing.ts?driver-routing-test=${Date.now()}-${Math.random()}`);
 }
 
+const claudeDriver = getDriver("claude");
+const codexDriver = getDriver("codex");
 const originalSessionDriver = session.activeDriver;
+
+// Re-assert the real driver registry before each test.
+// Other test files may contaminate it via mock.module() + incomplete mock.restore().
+beforeEach(() => {
+  mock.module("../drivers/registry", () => ({
+    getDriver: (id: string) => (id === "codex" ? codexDriver : claudeDriver),
+    getCurrentDriver: () =>
+      session.activeDriver === "codex" ? codexDriver : claudeDriver,
+  }));
+});
 
 afterEach(() => {
   session.activeDriver = originalSessionDriver;
   (codexSession as unknown as { isQueryRunning: boolean }).isQueryRunning = false;
   (session as unknown as { _isProcessing: boolean })._isProcessing = false;
+  mock.restore();
 });
 
 describe("driver routing", () => {
