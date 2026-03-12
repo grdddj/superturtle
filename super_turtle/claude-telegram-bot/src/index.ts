@@ -640,6 +640,11 @@ const startCronTimer = () => {
 
         try {
           if (supervisedWorkerName) {
+            if (job.type === "recurring") {
+              advanceRecurringJob(job.id);
+            } else {
+              removeJob(job.id);
+            }
             const supervisionResult = await processSilentSubturtleSupervision({
               workerName: supervisedWorkerName,
               chatId: resolvedChatId,
