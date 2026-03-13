@@ -111,6 +111,10 @@ async function loadCommandsModuleWithCronJobs(jobs: Array<Record<string, unknown
   return import(`./commands.ts?commands-cron=${Date.now()}-${Math.random()}`);
 }
 
+async function loadFreshCommandsModule(tag: string) {
+  return import(`./commands.ts?${tag}=${Date.now()}-${Math.random()}`);
+}
+
 afterEach(() => {
   session.stopTyping = originalSessionStopTyping;
   session.kill = originalSessionKill;
@@ -758,6 +762,7 @@ describe("readMainLoopLogTail", () => {
 
 describe("handlers with mock Context", () => {
   it("handleNew replies with HTML command overview and resets driver sessions", async () => {
+    const { handleNew: freshHandleNew } = await loadFreshCommandsModule("handle-new");
     let stopTypingCalls = 0;
     let sessionKillCalls = 0;
     let codexKillCalls = 0;
@@ -778,7 +783,7 @@ describe("handlers with mock Context", () => {
 
     const { ctx, replies } = mockContext("/new");
     try {
-      await handleNew(ctx as any);
+      await freshHandleNew(ctx as any);
     } finally {
       globalThis.fetch = originalFetch;
       restoreSpawnSync();
@@ -797,6 +802,7 @@ describe("handlers with mock Context", () => {
   });
 
   it("handleStatus replies with HTML settings overview without resetting sessions", async () => {
+    const { handleStatus: freshHandleStatus } = await loadFreshCommandsModule("handle-status");
     let stopTypingCalls = 0;
     let sessionKillCalls = 0;
     let codexKillCalls = 0;
@@ -817,7 +823,7 @@ describe("handlers with mock Context", () => {
 
     const { ctx, replies } = mockContext("/status");
     try {
-      await handleStatus(ctx as any);
+      await freshHandleStatus(ctx as any);
     } finally {
       globalThis.fetch = originalFetch;
       restoreSpawnSync();
