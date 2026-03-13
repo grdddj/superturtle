@@ -6,6 +6,7 @@ import { clearDeferredQueue, suppressDrain } from "../deferred-queue";
 import { cleanupToolMessages, clearStreamingState, getStreamingState } from "./streaming";
 import { streamLog } from "../logger";
 const stopLog = streamLog.child({ handler: "stop" });
+const stopReplyHandledChats = new Set<number>();
 
 export interface StopSubturtlesResult {
   attempted: string[];
@@ -111,6 +112,14 @@ export async function stopForegroundWork(chatId?: number): Promise<StopAllRunnin
   return performStop(chatId, false);
 }
 
+export function consumeHandledStopReply(chatId: number | undefined): boolean {
+  if (chatId == null || !stopReplyHandledChats.has(chatId)) {
+    return false;
+  }
+  stopReplyHandledChats.delete(chatId);
+  return true;
+}
+
 /**
  * Unified user-facing stop handler for all stop entrypoints.
  * Stops the active foreground run and clears the queue, but leaves background
@@ -119,11 +128,12 @@ export async function stopForegroundWork(chatId?: number): Promise<StopAllRunnin
 export async function handleStop(ctx: Context, chatId: number): Promise<void> {
   const state = getStreamingState(chatId);
   const result = await stopForegroundWork(chatId);
+  const driverStopped = result.driverStopResult !== false;
   if (state) {
     await cleanupToolMessages(ctx, state);
 
     // Append an explicit stopped indicator to the last streamed text segment, if any.
-    const segmentIds = [...state.textMessages.keys()];
+    const segmentIds = driverStopped ? [...state.textMessages.keys()] : [];
     if (segmentIds.length > 0) {
       const lastSegmentId = Math.max(...segmentIds);
       const lastMsg = state.textMessages.get(lastSegmentId);
@@ -151,10 +161,18 @@ export async function handleStop(ctx: Context, chatId: number): Promise<void> {
   }
   clearStreamingState(chatId);
 
-  let message = "🛑 Stopped current work.";
-  if (result.queueCleared > 0) {
+  let message = "Nothing to stop.";
+  if (driverStopped) {
+    stopReplyHandledChats.add(chatId);
+    message = "🛑 Stopped current work.";
+    if (result.queueCleared > 0) {
+      message =
+        `🛑 Stopped current work. Cleared ${result.queueCleared} queued message` +
+        `${result.queueCleared === 1 ? "" : "s"}.`;
+    }
+  } else if (result.queueCleared > 0) {
     message =
-      `🛑 Stopped current work. Cleared ${result.queueCleared} queued message` +
+      `🛑 Cleared ${result.queueCleared} queued message` +
       `${result.queueCleared === 1 ? "" : "s"}.`;
   }
 

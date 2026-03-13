@@ -68,7 +68,6 @@ import { StreamingState, createSilentStatusCallback } from "./handlers/streaming
 import { getSilentNotificationText } from "./silent-notifications";
 import type { DriverId } from "./drivers/types";
 import type { CronJob } from "./cron";
-import { isStopIntent } from "./utils";
 import {
   dequeuePreparedSnapshot,
   getPreparedSnapshotCount,
@@ -85,6 +84,7 @@ import {
   buildPreparedSnapshotPrompt,
 } from "./conductor-snapshot";
 import { botLog, cronLog, eventLog } from "./logger";
+import { getSequentializationKey } from "./update-sequencing";
 
 // Re-export for any existing consumers
 export { bot };
@@ -457,32 +457,16 @@ bot.use(async (ctx, next) => {
 // Commands bypass sequentialization so they work immediately
 bot.use(
   sequentialize((ctx) => {
-    // Commands are not sequentialized - they work immediately
-    if (ctx.message?.text?.startsWith("/")) {
-      return undefined;
-    }
-    // Bare-word commands bypass queue too (e.g. "status", "Stop")
-    if (ctx.message?.text && matchBareCommand(ctx.message.text)) {
-      return undefined;
-    }
-    // Messages with ! prefix bypass queue (interrupt)
-    if (ctx.message?.text?.startsWith("!")) {
-      return undefined;
-    }
-    // Stop intents bypass queue so they can cancel work immediately
-    if (ctx.message?.text && isStopIntent(ctx.message.text)) {
-      return undefined;
-    }
-    // Voice notes bypass queue so they can transcribe/interrupt while a turn is running
-    if (ctx.message?.voice) {
-      return undefined;
-    }
-    // Callback queries (button clicks) are not sequentialized
-    if (ctx.callbackQuery) {
-      return undefined;
-    }
-    // Other messages are sequentialized per chat
-    return ctx.chat?.id.toString();
+    return getSequentializationKey({
+      text: ctx.message?.text,
+      hasVoice: Boolean(ctx.message?.voice),
+      hasCallbackQuery: Boolean(ctx.callbackQuery),
+      chatId: ctx.chat?.id,
+      // If a turn is already active, bypass runner-level sequencing so the
+      // handler can immediately show the queued acknowledgement.
+      isBusy: isAnyDriverRunning() || isBackgroundRunActive(),
+      isBareCommand: (text) => matchBareCommand(text) !== null,
+    });
   })
 );
 

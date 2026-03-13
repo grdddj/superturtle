@@ -23,7 +23,7 @@ import {
   makeDrainItemNotifier,
   unsuppressDrain,
 } from "../deferred-queue";
-import { handleStop } from "./stop";
+import { consumeHandledStopReply, handleStop } from "./stop";
 import {
   StreamingState,
   createSilentStatusCallback,
@@ -217,7 +217,8 @@ export async function handleText(
 
     if (driver.isCancellationError(error)) {
       const wasInterrupt = session.consumeInterruptFlag();
-      if (!silent && !wasInterrupt) {
+      const stopAlreadyHandled = consumeHandledStopReply(chatId);
+      if (!silent && !wasInterrupt && !stopAlreadyHandled) {
         await ctx.reply("🛑 Query stopped.");
       }
     } else if (!silent) {

@@ -22,6 +22,7 @@ import {
 import { getDriverAuditType, isActiveDriverSessionActive, runMessageWithActiveDriver } from "./driver-routing";
 import { StreamingState, createStatusCallback } from "./streaming";
 import { eventLog, streamLog } from "../logger";
+import { consumeHandledStopReply } from "./stop";
 
 const audioLog = streamLog.child({ handler: "audio" });
 
@@ -148,7 +149,8 @@ export async function processAudioFile(
 
     if (String(error).includes("abort") || String(error).includes("cancel")) {
       const wasInterrupt = session.consumeInterruptFlag();
-      if (!wasInterrupt) {
+      const stopAlreadyHandled = consumeHandledStopReply(chatId);
+      if (!wasInterrupt && !stopAlreadyHandled) {
         await ctx.reply("🛑 Query stopped.");
       }
     } else {

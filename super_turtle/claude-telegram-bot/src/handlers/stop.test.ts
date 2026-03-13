@@ -382,7 +382,7 @@ describe("stop handlers", () => {
     }
   });
 
-  it("handleStop reports foreground-only stop without stopping SubTurtles", async () => {
+  it("handleStop reports foreground-only stop when driver work was active", async () => {
     const actualImportSuffix = `${Date.now()}-${Math.random()}`;
     const actualStreaming = await import(`./streaming.ts?stop-foreground=${actualImportSuffix}`);
     const deferredQueue = await import(`../deferred-queue.ts?stop-foreground=${actualImportSuffix}`);
@@ -399,7 +399,7 @@ describe("stop handlers", () => {
     mock.module("../deferred-queue", () => ({ ...deferredQueue }));
     mock.module("./driver-routing", () => ({
       ...actualDriverRouting,
-      stopActiveDriverQuery: async () => false,
+      stopActiveDriverQuery: async () => "stopped" as const,
     }));
 
     let replies: string[] = [];
@@ -429,6 +429,56 @@ describe("stop handlers", () => {
     } finally {
       deferredQueue.clearDeferredQueue(41003);
       deferredQueue.unsuppressDrain(41003);
+    }
+  });
+
+  it("handleStop says nothing to stop when there is no foreground work or queued messages", async () => {
+    const actualImportSuffix = `${Date.now()}-${Math.random()}`;
+    const actualStreaming = await import(`./streaming.ts?stop-nothing=${actualImportSuffix}`);
+    const deferredQueue = await import(`../deferred-queue.ts?stop-nothing=${actualImportSuffix}`);
+    const actualDriverRouting = await import(
+      `./driver-routing.ts?stop-nothing=${actualImportSuffix}`
+    );
+
+    mock.module("./streaming", () => ({
+      ...actualStreaming,
+      getStreamingState: () => undefined,
+      clearStreamingState: () => {},
+      cleanupToolMessages: async () => {},
+    }));
+    mock.module("../deferred-queue", () => ({ ...deferredQueue }));
+    mock.module("./driver-routing", () => ({
+      ...actualDriverRouting,
+      stopActiveDriverQuery: async () => false,
+    }));
+
+    let replies: string[] = [];
+    Bun.spawnSync = ((cmd: unknown, _opts?: unknown) => {
+      if (!Array.isArray(cmd)) {
+        return originalSpawnSync(cmd as Parameters<typeof Bun.spawnSync>[0]);
+      }
+      throw new Error(`handleStop should not call ctl for foreground-only stop: ${cmd.join(" ")}`);
+    }) as typeof Bun.spawnSync;
+
+    const { handleStop } = await import(`./stop.ts?stop-nothing=${actualImportSuffix}`);
+    const ctx = {
+      chat: { id: 41004 },
+      api: {
+        editMessageText: async () => {},
+        deleteMessage: async () => {},
+      },
+      reply: async (text: string) => {
+        replies.push(text);
+        return {} as any;
+      },
+    } as unknown as Context;
+
+    try {
+      await handleStop(ctx, 41004);
+      expect(replies).toEqual(["Nothing to stop."]);
+    } finally {
+      deferredQueue.clearDeferredQueue(41004);
+      deferredQueue.unsuppressDrain(41004);
     }
   });
 

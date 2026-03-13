@@ -14,6 +14,7 @@ import { auditLogRateLimit } from "../utils";
 import { session } from "../session";
 import { isAskUserPromptMessage } from "./streaming";
 import { streamLog } from "../logger";
+import { consumeHandledStopReply } from "./stop";
 
 const mediaGroupLog = streamLog.child({ handler: "media-group" });
 
@@ -230,7 +231,8 @@ export async function handleProcessingError(
   if (errorStr.includes("abort") || errorStr.includes("cancel")) {
     // Only show "Query stopped" if it was an explicit stop, not an interrupt from a new message
     const wasInterrupt = session.consumeInterruptFlag();
-    if (!wasInterrupt) {
+    const stopAlreadyHandled = consumeHandledStopReply(ctx.chat?.id);
+    if (!wasInterrupt && !stopAlreadyHandled) {
       await ctx.reply("🛑 Query stopped.");
     }
   } else {

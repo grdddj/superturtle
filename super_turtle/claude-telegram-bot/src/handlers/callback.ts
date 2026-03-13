@@ -45,6 +45,7 @@ import {
   formatBacklogSummary,
 } from "./commands";
 import { eventLog, streamLog } from "../logger";
+import { consumeHandledStopReply } from "./stop";
 
 const SAFE_CALLBACK_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const SAFE_CALLBACK_OPTION_INDEX = /^\d+$/;
@@ -492,7 +493,8 @@ export async function handleCallback(ctx: Context): Promise<void> {
     if (String(error).includes("abort") || String(error).includes("cancel")) {
       // Only show "Query stopped" if it was an explicit stop, not an interrupt from a new message
       const wasInterrupt = session.consumeInterruptFlag();
-      if (!wasInterrupt) {
+      const stopAlreadyHandled = consumeHandledStopReply(chatId);
+      if (!wasInterrupt && !stopAlreadyHandled) {
         await ctx.reply("🛑 Query stopped.");
       }
     } else {

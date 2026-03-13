@@ -32,7 +32,7 @@ import {
   makeDrainItemNotifier,
   unsuppressDrain,
 } from "../deferred-queue";
-import { handleStop } from "./stop";
+import { consumeHandledStopReply, handleStop } from "./stop";
 import { eventLog, streamLog } from "../logger";
 
 const voiceLog = streamLog.child({ handler: "voice" });
@@ -222,7 +222,8 @@ export async function handleVoice(ctx: Context): Promise<void> {
     if (String(error).includes("abort") || String(error).includes("cancel")) {
       // Only show "Query stopped" if it was an explicit stop, not an interrupt from a new message
       const wasInterrupt = session.consumeInterruptFlag();
-      if (!wasInterrupt) {
+      const stopAlreadyHandled = consumeHandledStopReply(chatId);
+      if (!wasInterrupt && !stopAlreadyHandled) {
         await ctx.reply("🛑 Query stopped.");
       }
     } else {
