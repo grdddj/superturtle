@@ -11,6 +11,12 @@ It intentionally does not store:
 
 Use it as a reference when rebuilding a sensible VM-backed managed teleport on `dev`.
 
+Current `dev` direction:
+
+- VM-backed teleport remains the preferred runtime direction
+- transfer scope is now repo-bound, not machine-bound
+- see `super_turtle/docs/REPO_BOUND_TELEPORT_SPEC.md` for the active transfer contract
+
 ## What This Branch Already Proved
 
 - Manual local -> remote Linux VM teleport works via `super_turtle/scripts/teleport-manual.sh`
@@ -104,7 +110,7 @@ const { readSession, fetchTeleportTarget } = require("./super_turtle/bin/cloud.j
 NODE
 ```
 
-That prints the live SSH target and project root locally without storing them in the repo.
+That prints the live SSH target and remote repo root locally without storing them in the repo.
 
 If the current Azure VM is still only represented in local SSH config, use your local `~/.ssh/config` alias or your local operator notes instead of putting the host in git.
 
@@ -157,6 +163,22 @@ What mattered:
 - local bot had to be idle
 - remote Linux host needed `git`, `rsync`, `tmux`, `python3`, `bun`, and the active driver CLI
 - Claude/Codex auth had to exist on the destination or be seeded intentionally
+- the effective transfer scope was the repo being teleported, not the whole machine
+
+## How To Interpret This On `dev`
+
+This reference branch predates the stricter repo-bound transfer contract now chosen for `dev`.
+
+When reusing ideas from this branch:
+
+- treat `<remote_root>` as the remote clone path for the bound Git repo
+- do not infer sync scope from an arbitrary shell working directory
+- do not sync anything outside the bound repo
+- keep runtime continuity in the explicit handoff bundle, not in generic folder mirroring
+
+The active contract for `dev` is documented in:
+
+- `super_turtle/docs/REPO_BOUND_TELEPORT_SPEC.md`
 
 Full operator details are in:
 
@@ -190,9 +212,11 @@ When rebuilding VM teleport on `dev`, keep these pieces:
 - `super_turtle/state/teleport_handoff.py` as the continuity primitive
 - hosted login/session flow in `super_turtle/bin/cloud.js`
 - hosted runtime lease semantics already built into `superturtle start`
+- the VM operator model of "one remote repo path per bot/project"
 
 Treat these as reference only, not final architecture:
 
 - E2B-specific transport helpers
 - sandbox lifecycle assumptions
 - any wake/resume logic that depends on sandbox-native traffic behavior
+- any interpretation of teleport as machine-wide sync instead of repo-bound sync
