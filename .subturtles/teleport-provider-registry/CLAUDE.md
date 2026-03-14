@@ -1,6 +1,6 @@
 # Current task
-- Add an Azure adapter stub under `src/features/cloud/providers/` that implements the shared provider contract.
-- Registry scaffolding now exists in `src/features/cloud/providers/registry.ts` and `index.ts`; the next step is to plug the first non-GCP adapter into that contract without changing higher-level controller behavior yet.
+- Add an AWS adapter stub under `src/features/cloud/providers/` that implements the shared provider contract.
+- The Azure adapter stub now exists under `src/features/cloud/providers/azure.ts`; the next step is to mirror that contract for AWS before refactoring controller/provider resolution.
 
 # End goal with specs
 - The hosted control plane in `../superturtle-web` has a provider-neutral registry under `src/features/cloud/providers/`.
@@ -24,7 +24,7 @@
 - [x] Capture the requested scope and worker boundary for the hosted control-plane abstraction step.
 - [x] Inspect `../superturtle-web` cloud provider files and identify the current contract plus direct provider assumptions.
 - [x] Add the provider registry module under `src/features/cloud/providers/` with provider-neutral lookup helpers.
-- [ ] Add Azure adapter stub implementing the shared provider contract. <- current
-- [ ] Add AWS adapter stub implementing the shared provider contract.
+- [x] Add Azure adapter stub implementing the shared provider contract.
+- [ ] Add AWS adapter stub implementing the shared provider contract. <- current
 - [ ] Refactor the control-plane cloud entrypoint to consume the provider registry instead of direct provider assumptions.
 - [ ] Add or update tests covering registry resolution and both provider adapters.
