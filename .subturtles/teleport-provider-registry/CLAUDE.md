@@ -1,6 +1,6 @@
 # Current task
-- Add or update tests covering registry resolution and both provider adapters.
-- The `gcp` managed-instance contract now routes through a registry-backed bridge adapter, so the next step is to lock in registry selection plus Azure/AWS adapter behavior with targeted validation.
+- Backlog complete for the provider registry abstraction step.
+- This iteration added targeted registry and Azure/AWS adapter tests, so the next state transition is to stop the loop after commit.
 
 # End goal with specs
 - The hosted control plane in `../superturtle-web` has a provider-neutral registry under `src/features/cloud/providers/`.
@@ -28,4 +28,7 @@
 - [x] Add AWS adapter stub implementing the shared provider contract.
 - [x] Refactor the control-plane cloud entrypoint to consume the provider registry for registered providers instead of constructing teleport targets directly in the controller.
 - [x] Reconcile the persisted `managed_instance_provider` contract (`gcp` today) with the registry so the control-plane can remove its temporary legacy fallback and rely exclusively on registry-backed providers.
-- [ ] Add or update tests covering registry resolution and both provider adapters. <- current
+- [x] Add or update tests covering registry resolution and both provider adapters.
+
+## Loop Control
+STOP
