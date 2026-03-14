@@ -1,6 +1,6 @@
 # Current task
-- Refactor the control-plane cloud entrypoint to consume the provider registry instead of direct provider assumptions.
-- The provider registry and both Azure/AWS adapter stubs now exist; the next step is to route controller logic through that shared lookup layer.
+- Unblock full registry-only control-plane routing by reconciling the persisted `gcp` managed-instance provider with the new Azure/AWS-only provider registry.
+- `managed-runtime.ts` now routes teleport target lookup through the registry for registered providers, but it still needs either a GCP bridge adapter or a provider-schema migration before the legacy fallback can be removed.
 
 # End goal with specs
 - The hosted control plane in `../superturtle-web` has a provider-neutral registry under `src/features/cloud/providers/`.
@@ -26,5 +26,6 @@
 - [x] Add the provider registry module under `src/features/cloud/providers/` with provider-neutral lookup helpers.
 - [x] Add Azure adapter stub implementing the shared provider contract.
 - [x] Add AWS adapter stub implementing the shared provider contract.
-- [ ] Refactor the control-plane cloud entrypoint to consume the provider registry instead of direct provider assumptions. <- current
+- [x] Refactor the control-plane cloud entrypoint to consume the provider registry for registered providers instead of constructing teleport targets directly in the controller.
+- [ ] Reconcile the persisted `managed_instance_provider` contract (`gcp` today) with the registry so the control-plane can remove its temporary legacy fallback and rely exclusively on registry-backed providers. <- current
 - [ ] Add or update tests covering registry resolution and both provider adapters.
