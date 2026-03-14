@@ -15,11 +15,39 @@
 const { execSync, spawnSync } = require("child_process");
 const { resolve, dirname, basename } = require("path");
 const fs = require("fs");
+const os = require("os");
 const readline = require("readline");
+const {
+  clearSession,
+  claimRuntimeLease,
+  createStripeCheckoutSession,
+  createStripeCustomerPortalSession,
+  fetchCloudStatus,
+  fetchClaudeAuthStatus,
+  fetchWhoAmI,
+  getControlPlaneBaseUrl,
+  hasCachedSnapshot,
+  heartbeatRuntimeLease,
+  isRetryableCloudError,
+  getSessionControlPlaneBaseUrl,
+  getSessionPath,
+  mergeSessionSnapshot,
+  openBrowser,
+  pollLogin,
+  persistSessionIfChanged,
+  readSession,
+  releaseRuntimeLease,
+  revokeClaudeAuth,
+  resumeManagedInstance,
+  setupClaudeAuth,
+  startLogin,
+  writeSession,
+} = require("./cloud");
 
 const PACKAGE_ROOT = resolve(__dirname, "..");
 const BOT_DIR = resolve(PACKAGE_ROOT, "claude-telegram-bot");
 const TEMPLATES_DIR = resolve(PACKAGE_ROOT, "templates");
+const RUNTIME_OWNERSHIP_AGENT_PATH = resolve(PACKAGE_ROOT, "bin", "runtime-ownership-agent.js");
 
 function loadProjectEnv(cwd) {
   const envPath = resolve(cwd, ".superturtle", ".env");
@@ -81,12 +109,83 @@ function getLogPaths(cwd, env) {
   };
 }
 
+function getCloudLeaseStatePath(cwd) {
+  return resolve(cwd, ".superturtle", "cloud-runtime-lease.json");
+}
+
+function readCloudLeaseState(cwd) {
+  const path = getCloudLeaseStatePath(cwd);
+  if (!fs.existsSync(path)) {
+    return null;
+  }
+  try {
+    return JSON.parse(fs.readFileSync(path, "utf-8"));
+  } catch {
+    return null;
+  }
+}
+
+function writeCloudLeaseState(cwd, leaseState) {
+  const path = getCloudLeaseStatePath(cwd);
+  fs.mkdirSync(dirname(path), { recursive: true });
+  fs.writeFileSync(path, `${JSON.stringify(leaseState, null, 2)}\n`, "utf-8");
+  return path;
+}
+
+function clearCloudLeaseState(cwd) {
+  const path = getCloudLeaseStatePath(cwd);
+  try {
+    fs.unlinkSync(path);
+  } catch {}
+  return path;
+}
+
+function buildRuntimeId(kind = "local") {
+  const host = sanitizeName(os.hostname(), "host");
+  return `${kind}-${host}-${Date.now().toString(36)}-${process.pid}`;
+}
+
+function formatLeaseOwner(lease) {
+  if (!lease) {
+    return "unknown runtime";
+  }
+  const runtimeId = lease.runtime_id || "unknown-runtime";
+  const ownerType = lease.owner_type || "unknown";
+  const host = lease.owner_hostname ? ` on ${lease.owner_hostname}` : "";
+  const pid = Number.isInteger(lease.owner_pid) ? ` pid=${lease.owner_pid}` : "";
+  const expires = lease.expires_at ? ` until ${lease.expires_at}` : "";
+  return `${ownerType} runtime ${runtimeId}${host}${pid}${expires}`;
+}
+
 function formatBytes(bytes) {
   if (!Number.isFinite(bytes) || bytes < 0) return "0 B";
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
   if (bytes < 1024 ** 3) return `${(bytes / (1024 ** 2)).toFixed(1)} MB`;
   return `${(bytes / (1024 ** 3)).toFixed(1)} GB`;
+}
+
+function printManagedInstanceSummary(instance) {
+  if (!instance) {
+    return;
+  }
+
+  if (instance.id) console.log(`Instance: ${instance.id}`);
+  if (instance.provider) console.log(`Provider: ${instance.provider}`);
+  if (instance.provider === "e2b") {
+    if (instance.sandbox_id) console.log(`Sandbox: ${instance.sandbox_id}`);
+    if (instance.template_id) console.log(`Template: ${instance.template_id}`);
+  } else if (instance.vm_name) {
+    console.log(`VM: ${instance.vm_name}`);
+  }
+  if (instance.state) console.log(`State: ${instance.state}`);
+  if (instance.health_status) console.log(`Health: ${instance.health_status}`);
+  if (instance.health_checked_at) console.log(`Health checked: ${instance.health_checked_at}`);
+  if (instance.registered_at) console.log(`Registered: ${instance.registered_at}`);
+  if (instance.last_seen_at) console.log(`Last seen: ${instance.last_seen_at}`);
+  if (instance.region) console.log(`Region: ${instance.region}`);
+  if (instance.hostname) console.log(`Hostname: ${instance.hostname}`);
+  if (instance.resume_requested_at) console.log(`Resume requested: ${instance.resume_requested_at}`);
 }
 
 function describeFile(path) {
@@ -479,7 +578,7 @@ async function init() {
   blank();
 }
 
-function start() {
+async function start() {
   checkBun();
   checkTmux();
 
@@ -510,6 +609,84 @@ function start() {
     return;
   }
 
+  const staleLeaseState = readCloudLeaseState(cwd);
+  if (staleLeaseState) {
+    clearCloudLeaseState(cwd);
+  }
+
+  let leaseClaim = null;
+  let currentSession = null;
+
+  try {
+    currentSession = readSession();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
+
+  if (currentSession?.access_token) {
+    const runtimeId = buildRuntimeId("local");
+    try {
+      const claimResult = await claimRuntimeLease(
+        currentSession,
+        {
+          runtime_id: runtimeId,
+          owner_type: "local",
+          owner_hostname: os.hostname(),
+          owner_pid: process.pid,
+          ttl_seconds: 45,
+          metadata: {
+            project: basename(cwd),
+            tmux_session: tmuxSession,
+          },
+        },
+        env
+      );
+
+      currentSession = persistSessionIfChanged(currentSession, claimResult.session, env);
+      leaseClaim = {
+        runtimeId,
+        lease: claimResult.data.lease,
+        controlPlane: getSessionControlPlaneBaseUrl(claimResult.session),
+      };
+      writeCloudLeaseState(cwd, {
+        claimed_at: new Date().toISOString(),
+        control_plane: leaseClaim.controlPlane,
+        lease: leaseClaim.lease,
+        runtime_id: runtimeId,
+        tmux_session: tmuxSession,
+      });
+    } catch (error) {
+      if (error && typeof error === "object" && error.session) {
+        currentSession = persistSessionIfChanged(currentSession, error.session, env);
+      }
+
+      const status = error && typeof error === "object" ? error.status : undefined;
+      const payload = error && typeof error === "object" ? error.payload : null;
+      if (status === 409 && payload && typeof payload === "object" && payload.lease) {
+        console.error(
+          `Refusing to start: another linked runtime currently owns this bot identity (${formatLeaseOwner(payload.lease)}).`
+        );
+        process.exit(1);
+      }
+
+      if (isRetryableCloudError(error)) {
+        console.error(
+          `Warning: control plane could not verify runtime ownership. Starting locally anyway because ownership could not be checked (${error.message || String(error)}).`
+        );
+      } else {
+        console.error(
+          `Failed to claim hosted runtime ownership: ${error instanceof Error ? error.message : String(error)}`
+        );
+        process.exit(1);
+      }
+    }
+  }
+
+  const ownershipAgentCmd = leaseClaim
+    ? `node "${RUNTIME_OWNERSHIP_AGENT_PATH}" --tmux-session "${tmuxSession}" --runtime-id "${leaseClaim.runtimeId}" --lease-id "${leaseClaim.lease.lease_id}" --lease-epoch "${leaseClaim.lease.lease_epoch}" --lease-file "${getCloudLeaseStatePath(cwd)}" &`
+    : "";
+
   // Start bot in a new tmux session
   const cmd =
     `cd "${BOT_DIR}"` +
@@ -518,6 +695,7 @@ function start() {
     ` && export SUPERTURTLE_RUN_LOOP=1` +
     ` && export SUPERTURTLE_LOOP_LOG_PATH="${logPaths.loop}"` +
     ` && export SUPERTURTLE_TMUX_SESSION="${tmuxSession}"` +
+    (ownershipAgentCmd ? ` && ${ownershipAgentCmd}` : "") +
     ` && ./run-loop.sh 2>&1 | tee -a "${logPaths.loop}"`;
 
   console.log("Starting Super Turtle bot...");
@@ -558,6 +736,20 @@ function start() {
   spawnSync("sleep", ["0.3"], { stdio: "pipe" });
   const aliveCheck = spawnSync("tmux", ["has-session", "-t", tmuxSession], { stdio: "pipe" });
   if (aliveCheck.status !== 0) {
+    if (leaseClaim && currentSession?.access_token) {
+      try {
+        await releaseRuntimeLease(
+          currentSession,
+          {
+            lease_id: leaseClaim.lease.lease_id,
+            lease_epoch: leaseClaim.lease.lease_epoch,
+            runtime_id: leaseClaim.runtimeId,
+          },
+          env
+        );
+      } catch {}
+      clearCloudLeaseState(cwd);
+    }
     console.error(`Bot session '${tmuxSession}' exited immediately.`);
     if (fs.existsSync(logPaths.loop)) {
       console.error(`Last log lines from ${logPaths.loop}:`);
@@ -575,13 +767,17 @@ function start() {
   console.log(`Bot started in tmux session '${tmuxSession}'.`);
   console.log(`Attach: tmux attach -t ${tmuxSession}`);
   console.log(`Loop log: ${logPaths.loop}`);
+  if (leaseClaim) {
+    console.log(`Hosted runtime ownership: ${leaseClaim.lease.lease_id} epoch ${leaseClaim.lease.lease_epoch}`);
+  }
   console.log("Now message your bot in Telegram!");
 }
 
-function stop() {
+async function stop() {
   const cwd = process.cwd();
   const projectEnv = loadProjectEnv(cwd) || {};
   const tmuxSession = resolveTmuxSession(cwd, { ...process.env, ...projectEnv });
+  const leaseState = readCloudLeaseState(cwd);
 
   // Kill tmux session
   const tmuxCheck = spawnSync("tmux", ["has-session", "-t", tmuxSession], { stdio: "pipe" });
@@ -590,6 +786,31 @@ function stop() {
     console.log("Bot stopped.");
   } else {
     console.log("Bot is not running.");
+  }
+
+  if (leaseState?.lease?.lease_id && leaseState?.runtime_id) {
+    try {
+      const session = readSession();
+      if (session?.access_token) {
+        await releaseRuntimeLease(
+          session,
+          {
+            lease_id: leaseState.lease.lease_id,
+            lease_epoch: leaseState.lease.lease_epoch,
+            runtime_id: leaseState.runtime_id,
+          },
+          process.env
+        );
+      }
+    } catch (error) {
+      if (!isRetryableCloudError(error)) {
+        console.error(
+          `Warning: failed to release hosted runtime ownership: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    } finally {
+      clearCloudLeaseState(cwd);
+    }
   }
 
   // Stop SubTurtles
@@ -793,6 +1014,451 @@ function logs() {
   exitFromSpawn(proc, "tail");
 }
 
+function parseCloudArgs(args, parseOptions = {}) {
+  const options = {
+    openBrowser: true,
+    plan: "managed",
+  };
+  const allowPlan = Boolean(parseOptions.allowPlan);
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--no-browser") {
+      options.openBrowser = false;
+      continue;
+    }
+    if (arg === "--browser") {
+      options.openBrowser = true;
+      continue;
+    }
+    if (arg === "--plan" && allowPlan) {
+      const value = args[i + 1];
+      if (!value || value.startsWith("--")) {
+        throw new Error("Missing value for --plan");
+      }
+      options.plan = value;
+      i += 1;
+      continue;
+    }
+    throw new Error(`Unknown cloud argument: ${arg}`);
+  }
+
+  return options;
+}
+
+function extractTokenFromCredentialPayload(raw) {
+  const trimmed = String(raw || "").trim();
+  if (!trimmed) return null;
+
+  const candidates = [];
+  try {
+    const parsed = JSON.parse(trimmed);
+    const visit = (value) => {
+      if (!value || typeof value !== "object") return;
+      if (Array.isArray(value)) {
+        for (const item of value) visit(item);
+        return;
+      }
+      for (const [key, child] of Object.entries(value)) {
+        if (
+          typeof child === "string" &&
+          ["accessToken", "access_token", "oauthAccessToken", "token"].includes(key)
+        ) {
+          candidates.push(child.trim());
+        } else {
+          visit(child);
+        }
+      }
+    };
+    visit(parsed);
+  } catch {
+    candidates.push(trimmed);
+  }
+
+  return candidates.find((candidate) => candidate.length > 0) || null;
+}
+
+function readClaudeAccessTokenFromFile(path) {
+  try {
+    if (!fs.existsSync(path)) return null;
+    return extractTokenFromCredentialPayload(fs.readFileSync(path, "utf-8"));
+  } catch {
+    return null;
+  }
+}
+
+function discoverClaudeAccessToken() {
+  const envCandidates = [
+    process.env.SUPERTURTLE_CLAUDE_ACCESS_TOKEN,
+    process.env.CLAUDE_CODE_OAUTH_TOKEN,
+  ];
+  for (const candidate of envCandidates) {
+    const token = extractTokenFromCredentialPayload(candidate);
+    if (token) return token;
+  }
+
+  const user = process.env.USER || "unknown";
+  if (process.platform === "darwin") {
+    const attempts = [
+      ["security", ["find-generic-password", "-s", "Claude Code-credentials", "-a", user, "-w"]],
+      ["security", ["find-generic-password", "-s", "Claude Code-credentials", "-w"]],
+    ];
+    for (const [command, args] of attempts) {
+      const result = spawnSync(command, args, { stdio: "pipe" });
+      if (result.status === 0) {
+        const token = extractTokenFromCredentialPayload(result.stdout.toString("utf-8"));
+        if (token) return token;
+      }
+    }
+  }
+
+  if (process.platform === "linux" && spawnSync("sh", ["-c", "command -v secret-tool"], { stdio: "ignore" }).status === 0) {
+    const attempts = [
+      ["secret-tool", ["lookup", "service", "Claude Code-credentials", "username", user]],
+      ["secret-tool", ["lookup", "service", "Claude Code-credentials"]],
+    ];
+    for (const [command, args] of attempts) {
+      const result = spawnSync(command, args, { stdio: "pipe" });
+      if (result.status === 0) {
+        const token = extractTokenFromCredentialPayload(result.stdout.toString("utf-8"));
+        if (token) return token;
+      }
+    }
+  }
+
+  const home = process.env.HOME || "";
+  const fileCandidates = [
+    resolve(home, ".config", "claude-code", "credentials.json"),
+    resolve(home, ".claude", "credentials.json"),
+  ];
+  for (const path of fileCandidates) {
+    const token = readClaudeAccessTokenFromFile(path);
+    if (token) return token;
+  }
+
+  return null;
+}
+
+function parseClaudeSetupArgs(args) {
+  const options = {
+    tokenEnv: null,
+    tokenFile: null,
+  };
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--token-env") {
+      const value = args[index + 1];
+      if (!value || value.startsWith("--")) {
+        throw new Error("Missing value for --token-env");
+      }
+      options.tokenEnv = value;
+      index += 1;
+      continue;
+    }
+    if (arg === "--token-file") {
+      const value = args[index + 1];
+      if (!value || value.startsWith("--")) {
+        throw new Error("Missing value for --token-file");
+      }
+      options.tokenFile = value;
+      index += 1;
+      continue;
+    }
+    throw new Error(`Unknown cloud Claude setup argument: ${arg}`);
+  }
+
+  return options;
+}
+
+function resolveClaudeSetupToken(options) {
+  if (options.tokenEnv) {
+    return extractTokenFromCredentialPayload(process.env[options.tokenEnv] || "");
+  }
+  if (options.tokenFile) {
+    return readClaudeAccessTokenFromFile(resolve(options.tokenFile));
+  }
+  return discoverClaudeAccessToken();
+}
+
+async function login() {
+  let options;
+  try {
+    options = parseCloudArgs(process.argv.slice(3));
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    console.error("Usage: superturtle login [--browser|--no-browser]");
+    process.exit(1);
+  }
+
+  const started = await startLogin();
+  const verificationUrl = started.verification_uri_complete || started.verification_uri;
+  if (!verificationUrl || !started.device_code) {
+    throw new Error("Control plane login response is missing verification URL or device code.");
+  }
+
+  console.log(`Control plane: ${getControlPlaneBaseUrl()}`);
+  console.log(`Session file: ${getSessionPath()}`);
+  console.log(`Open this URL to sign in: ${verificationUrl}`);
+  if (started.user_code) {
+    console.log(`Verification code: ${started.user_code}`);
+  }
+
+  if (options.openBrowser) {
+    const opened = openBrowser(verificationUrl, process.env);
+    console.log(opened ? "Browser opened." : "Browser open failed; continue in any browser.");
+  }
+
+  console.log("Waiting for login completion...");
+  const completed = await pollLogin(started);
+  const createdAt = new Date().toISOString();
+  const session = {
+    access_token: completed.access_token,
+    refresh_token: completed.refresh_token || null,
+    expires_at: completed.expires_at || null,
+    user: completed.user || null,
+    workspace: completed.workspace || null,
+    entitlement: completed.entitlement || null,
+    instance: completed.instance || null,
+    provisioning_job: completed.provisioning_job || null,
+    control_plane: getControlPlaneBaseUrl(),
+    created_at: createdAt,
+    identity_sync_at:
+      completed.user || completed.workspace || completed.entitlement ? createdAt : null,
+    cloud_status_sync_at: completed.instance || completed.provisioning_job ? createdAt : null,
+    last_sync_at: createdAt,
+  };
+  const path = writeSession(session);
+  console.log(`Logged in. Session saved to ${path}`);
+  if (session.user?.email) {
+    console.log(`Signed in as ${session.user.email}`);
+  }
+}
+
+async function whoami() {
+  let session = readSession();
+  if (!session?.access_token) {
+    console.error(`Not logged in. Run 'superturtle login'. Expected session file at ${getSessionPath()}`);
+    process.exit(1);
+  }
+
+  let identity = null;
+  try {
+    const result = await fetchWhoAmI(session);
+    identity = result.data;
+    const mergedSession = mergeSessionSnapshot(
+      result.session,
+      identity,
+      getSessionControlPlaneBaseUrl(result.session)
+    );
+    session = persistSessionIfChanged(session, mergedSession);
+  } catch (error) {
+    if (error && typeof error === "object" && error.session) {
+      session = persistSessionIfChanged(session, error.session);
+    }
+    if (!isRetryableCloudError(error) || !hasCachedSnapshot(session, ["user", "workspace", "entitlement"])) {
+      throw error;
+    }
+    identity = {
+      user: session.user || null,
+      workspace: session.workspace || null,
+      entitlement: session.entitlement || null,
+    };
+    console.error(
+      `Control plane unreachable; using cached identity snapshot from ${session.identity_sync_at || session.last_sync_at || session.created_at || "unknown time"}.`
+    );
+  }
+
+  console.log(`Control plane: ${getSessionControlPlaneBaseUrl(session)}`);
+  if (identity.user?.email) console.log(`User: ${identity.user.email}`);
+  if (identity.user?.id) console.log(`User ID: ${identity.user.id}`);
+  if (identity.workspace?.slug) console.log(`Workspace: ${identity.workspace.slug}`);
+  if (identity.entitlement?.plan) console.log(`Plan: ${identity.entitlement.plan}`);
+  if (identity.entitlement?.state) console.log(`Entitlement: ${identity.entitlement.state}`);
+}
+
+async function cloudStatus() {
+  let session = readSession();
+  if (!session?.access_token) {
+    console.error(`Not logged in. Run 'superturtle login'. Expected session file at ${getSessionPath()}`);
+    process.exit(1);
+  }
+
+  let status = null;
+  try {
+    const result = await fetchCloudStatus(session);
+    status = result.data;
+    const mergedSession = mergeSessionSnapshot(
+      result.session,
+      status,
+      getSessionControlPlaneBaseUrl(result.session)
+    );
+    session = persistSessionIfChanged(session, mergedSession);
+  } catch (error) {
+    if (error && typeof error === "object" && error.session) {
+      session = persistSessionIfChanged(session, error.session);
+    }
+    if (!isRetryableCloudError(error) || !hasCachedSnapshot(session, ["instance", "provisioning_job"])) {
+      throw error;
+    }
+    status = {
+      instance: session.instance || null,
+      provisioning_job: session.provisioning_job || null,
+    };
+    console.error(
+      `Control plane unreachable; using cached cloud status snapshot from ${session.cloud_status_sync_at || session.last_sync_at || session.created_at || "unknown time"}.`
+    );
+  }
+
+  console.log(`Control plane: ${getSessionControlPlaneBaseUrl(session)}`);
+  printManagedInstanceSummary(status.instance);
+  if (status.provisioning_job?.state) console.log(`Provisioning: ${status.provisioning_job.state}`);
+  if (status.provisioning_job?.updated_at) console.log(`Provisioning updated: ${status.provisioning_job.updated_at}`);
+}
+
+async function cloudResume() {
+  let session = readSession();
+  if (!session?.access_token) {
+    console.error(`Not logged in. Run 'superturtle login'. Expected session file at ${getSessionPath()}`);
+    process.exit(1);
+  }
+
+  const result = await resumeManagedInstance(session);
+  const mergedSession = mergeSessionSnapshot(
+    result.session,
+    result.data,
+    getSessionControlPlaneBaseUrl(result.session)
+  );
+  session = persistSessionIfChanged(session, mergedSession);
+
+  console.log(`Control plane: ${getSessionControlPlaneBaseUrl(session)}`);
+  printManagedInstanceSummary(result.data.instance);
+  if (result.data.provisioning_job?.state) console.log(`Provisioning: ${result.data.provisioning_job.state}`);
+  if (result.data.provisioning_job?.updated_at) {
+    console.log(`Provisioning updated: ${result.data.provisioning_job.updated_at}`);
+  }
+}
+
+async function cloudCheckout() {
+  let options;
+  try {
+    options = parseCloudArgs(process.argv.slice(4), { allowPlan: true });
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    console.error("Usage: superturtle cloud checkout [--plan <plan>]");
+    process.exit(1);
+  }
+
+  let session = readSession();
+  if (!session?.access_token) {
+    console.error(`Not logged in. Run 'superturtle login'. Expected session file at ${getSessionPath()}`);
+    process.exit(1);
+  }
+
+  const result = await createStripeCheckoutSession(session, { plan: options.plan });
+  session = persistSessionIfChanged(session, result.session);
+
+  console.log(`Control plane: ${getSessionControlPlaneBaseUrl(session)}`);
+  if (result.data.plan) console.log(`Plan: ${result.data.plan}`);
+  if (result.data.customer_id) console.log(`Customer: ${result.data.customer_id}`);
+  if (result.data.subscription_id) console.log(`Subscription: ${result.data.subscription_id}`);
+  console.log(`Checkout URL: ${result.data.checkout_url}`);
+}
+
+async function cloudPortal() {
+  let session = readSession();
+  if (!session?.access_token) {
+    console.error(`Not logged in. Run 'superturtle login'. Expected session file at ${getSessionPath()}`);
+    process.exit(1);
+  }
+
+  const result = await createStripeCustomerPortalSession(session);
+  session = persistSessionIfChanged(session, result.session);
+
+  console.log(`Control plane: ${getSessionControlPlaneBaseUrl(session)}`);
+  if (result.data.customer_id) console.log(`Customer: ${result.data.customer_id}`);
+  if (result.data.portal_session_id) console.log(`Portal session: ${result.data.portal_session_id}`);
+  console.log(`Portal URL: ${result.data.portal_url}`);
+}
+
+async function cloudClaudeStatus() {
+  const session = readSession();
+  if (!session?.access_token) {
+    console.error(`Not logged in. Run 'superturtle login'. Expected session file at ${getSessionPath()}`);
+    process.exit(1);
+  }
+
+  const result = await fetchClaudeAuthStatus(session);
+  console.log(`Control plane: ${getSessionControlPlaneBaseUrl(result.session)}`);
+  console.log(`Provider: ${result.data.provider}`);
+  console.log(`Configured: ${result.data.configured ? "yes" : "no"}`);
+  if (result.data.credential?.state) console.log(`State: ${result.data.credential.state}`);
+  if (result.data.credential?.account_email) {
+    console.log(`Claude account: ${result.data.credential.account_email}`);
+  }
+  if (result.data.credential?.last_validated_at) {
+    console.log(`Last validated: ${result.data.credential.last_validated_at}`);
+  }
+}
+
+async function cloudClaudeSetup() {
+  let options;
+  try {
+    options = parseClaudeSetupArgs(process.argv.slice(5));
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    console.error("Usage: superturtle cloud claude setup [--token-env <env-var>|--token-file <path>]");
+    process.exit(1);
+  }
+
+  const session = readSession();
+  if (!session?.access_token) {
+    console.error(`Not logged in. Run 'superturtle login'. Expected session file at ${getSessionPath()}`);
+    process.exit(1);
+  }
+
+  const claudeAccessToken = resolveClaudeSetupToken(options);
+  if (!claudeAccessToken) {
+    throw new Error(
+      "No local Claude access token was found. Run Claude login locally or pass --token-env/--token-file."
+    );
+  }
+
+  const result = await setupClaudeAuth(session, claudeAccessToken);
+  console.log(`Control plane: ${getSessionControlPlaneBaseUrl(result.session)}`);
+  console.log(`Provider: ${result.data.provider}`);
+  console.log(`Configured: ${result.data.configured ? "yes" : "no"}`);
+  if (result.data.credential?.state) console.log(`State: ${result.data.credential.state}`);
+  if (result.data.credential?.account_email) {
+    console.log(`Claude account: ${result.data.credential.account_email}`);
+  }
+  if (result.data.credential?.last_validated_at) {
+    console.log(`Last validated: ${result.data.credential.last_validated_at}`);
+  }
+}
+
+async function cloudClaudeRevoke() {
+  const session = readSession();
+  if (!session?.access_token) {
+    console.error(`Not logged in. Run 'superturtle login'. Expected session file at ${getSessionPath()}`);
+    process.exit(1);
+  }
+
+  const result = await revokeClaudeAuth(session);
+  console.log(`Control plane: ${getSessionControlPlaneBaseUrl(result.session)}`);
+  console.log(`Provider: ${result.data.provider}`);
+  console.log(`Configured: ${result.data.configured ? "yes" : "no"}`);
+  if (result.data.credential?.state) console.log(`State: ${result.data.credential.state}`);
+  if (result.data.credential?.account_email) {
+    console.log(`Claude account: ${result.data.credential.account_email}`);
+  }
+}
+
+function logout() {
+  const path = clearSession();
+  console.log(`Removed local cloud session at ${path}`);
+}
+
 // Dispatch command
 const command = process.argv[2];
 
@@ -801,10 +1467,10 @@ switch (command) {
     init().catch((err) => { console.error(err); process.exit(1); });
     break;
   case "start":
-    start();
+    start().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
     break;
   case "stop":
-    stop();
+    stop().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
     break;
   case "status":
     status();
@@ -814,6 +1480,57 @@ switch (command) {
     break;
   case "logs":
     logs();
+    break;
+  case "login":
+    login().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
+    break;
+  case "whoami":
+    whoami().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
+    break;
+  case "cloud":
+    if (process.argv[3] === "claude") {
+      if (process.argv[4] === "status") {
+        cloudClaudeStatus().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
+        break;
+      }
+      if (process.argv[4] === "setup") {
+        cloudClaudeSetup().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
+        break;
+      }
+      if (process.argv[4] === "revoke") {
+        cloudClaudeRevoke().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
+        break;
+      }
+      console.error("Usage: superturtle cloud claude <status|setup|revoke>");
+      process.exit(1);
+      break;
+    }
+    if (process.argv[3] === "status") {
+      cloudStatus().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
+      break;
+    }
+    if (process.argv[3] === "checkout") {
+      cloudCheckout().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
+      break;
+    }
+    if (process.argv[3] === "portal") {
+      cloudPortal().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
+      break;
+    }
+    if (process.argv[3] === "resume") {
+      cloudResume().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
+      break;
+    }
+    console.error("Usage: superturtle cloud <status|resume|checkout|portal|claude>");
+    process.exit(1);
+    break;
+  case "logout":
+    try {
+      logout();
+    } catch (err) {
+      console.error(err instanceof Error ? err.message : err);
+      process.exit(1);
+    }
     break;
   case "--version":
   case "-v":
@@ -831,6 +1548,10 @@ Usage: superturtle <command>
 
 Commands:
   init      Set up superturtle in the current project
+  login     Sign in to the hosted SuperTurtle control plane
+  whoami    Show the current hosted account identity
+  cloud     Hosted cloud commands (status, resume, checkout, portal, claude)
+  logout    Remove the local hosted account session
   start     Launch the bot
   stop      Stop the bot and all SubTurtles
   status    Show bot and SubTurtle status
@@ -848,7 +1569,18 @@ Options:
 Logs:
   superturtle logs loop
   superturtle logs pino --pretty
-  superturtle logs audit --no-follow -n 200`);
+  superturtle logs audit --no-follow -n 200
+
+Cloud:
+  superturtle login
+  superturtle whoami
+  superturtle cloud status
+  superturtle cloud resume
+  superturtle cloud checkout
+  superturtle cloud portal
+  superturtle cloud claude status
+  superturtle cloud claude setup
+  superturtle cloud claude revoke`);
     if (command && command !== "help" && command !== "--help" && command !== "-h") {
       process.exit(1);
     }
