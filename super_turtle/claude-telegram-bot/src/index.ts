@@ -1076,7 +1076,7 @@ const transportConfig: TelegramTransportConfig | undefined =
           standbyOnConflict: async () => {
             await reconcileTeleportOwnershipForCurrentProject();
             const state = loadTeleportStateForCurrentProject();
-            if (state?.ownerMode !== "remote") {
+            if (!state?.webhookUrl) {
               return null;
             }
             return buildLocalStandbyConfig();
