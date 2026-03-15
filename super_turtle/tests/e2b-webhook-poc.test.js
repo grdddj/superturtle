@@ -8,6 +8,7 @@ const {
   buildRemoteAuthFinalizeCommand,
   buildRemoteBootstrapCommand,
   buildRemoteEnv,
+  buildManagedRuntimeManifest,
   buildReadyUrl,
   buildRemoteStartCommand,
   buildStateRecord,
@@ -17,7 +18,9 @@ const {
   hasLocalCodexAuth,
   isMissingSandboxError,
   parseDotEnv,
+  persistManagedRuntimeManifest,
   serializeDotEnv,
+  shouldRunFullBootstrap,
 } = require("../bin/e2b-webhook-poc-lib.js");
 
 (() => {
@@ -133,6 +136,50 @@ CLAUDE_WORKING_DIR='/tmp/project'
   assert.match(authFinalizeCommand, /npm install -g --prefix "\$HOME\/\.local" @openai\/codex/);
   assert.match(authFinalizeCommand, /codex login status/);
 
+  const manifest = buildManagedRuntimeManifest({
+    runtimeVersion: "0.2.5",
+    templateId: "template_123",
+    templateVersion: "v0.2.5",
+    remoteMode: "agent",
+    remoteDriver: "codex",
+  });
+  assert.strictEqual(manifest.runtime_version, "0.2.5");
+  assert.strictEqual(manifest.remote_mode, "agent");
+  assert.strictEqual(manifest.remote_driver, "codex");
+  assert.strictEqual(
+    shouldRunFullBootstrap(
+      {
+        runtimeVersion: "0.2.5",
+        remoteMode: "agent",
+        remoteDriver: "codex",
+      },
+      manifest
+    ),
+    false
+  );
+  assert.strictEqual(
+    shouldRunFullBootstrap(
+      {
+        runtimeVersion: "0.2.5",
+        remoteMode: "control",
+        remoteDriver: null,
+      },
+      manifest
+    ),
+    true
+  );
+  assert.strictEqual(
+    shouldRunFullBootstrap(
+      {
+        runtimeVersion: "0.2.6",
+        remoteMode: "agent",
+        remoteDriver: "codex",
+      },
+      manifest
+    ),
+    true
+  );
+
   const startCommand = buildRemoteStartCommand({
     remoteRoot: "/home/user/project",
     remoteBotDir: "/home/user/project/super_turtle/claude-telegram-bot",
@@ -167,6 +214,34 @@ CLAUDE_WORKING_DIR='/tmp/project'
     isMissingSandboxError(new Error("some other failure")),
     false
   );
+})();
+
+(async () => {
+  let persistedPath = null;
+  let persistedContent = null;
+  const fakeSandbox = {
+    files: {
+      async write(filePath, content) {
+        persistedPath = filePath;
+        persistedContent = content;
+      },
+    },
+  };
+
+  await persistManagedRuntimeManifest(fakeSandbox, {
+    remoteRoot: "/home/user/project",
+    runtimeVersion: "0.2.5",
+    templateId: "template_123",
+    templateVersion: "v0.2.5",
+    remoteMode: "agent",
+    remoteDriver: "codex",
+  });
+
+  assert.strictEqual(persistedPath, "/home/user/project/.superturtle/managed-runtime.json");
+  const parsed = JSON.parse(String(persistedContent).trim());
+  assert.strictEqual(parsed.runtime_version, "0.2.5");
+  assert.strictEqual(parsed.remote_mode, "agent");
+  assert.strictEqual(parsed.remote_driver, "codex");
 })();
 
 (() => {

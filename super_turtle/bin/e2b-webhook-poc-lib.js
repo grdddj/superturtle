@@ -624,7 +624,7 @@ function buildRemoteStartCommand(config) {
 
 async function importSandbox() {
   try {
-    return await import("@e2b/code-interpreter");
+    return await import("e2b");
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(
@@ -644,6 +644,8 @@ function buildManagedRuntimeManifest(config) {
     runtime_version: config.runtimeVersion || null,
     template_id: config.templateId || null,
     template_version: config.templateVersion || null,
+    remote_mode: config.remoteMode || DEFAULT_REMOTE_MODE,
+    remote_driver: config.remoteDriver || null,
     updated_at: new Date().toISOString(),
   };
 }
@@ -683,7 +685,22 @@ function shouldRunFullBootstrap(config, remoteManifest) {
     typeof remoteManifest.runtime_version === "string"
       ? remoteManifest.runtime_version.trim()
       : "";
-  return runtimeVersion !== String(config.runtimeVersion || "");
+  const remoteMode =
+    typeof remoteManifest.remote_mode === "string"
+      ? remoteManifest.remote_mode.trim()
+      : "";
+  const remoteDriver =
+    typeof remoteManifest.remote_driver === "string"
+      ? remoteManifest.remote_driver.trim()
+      : remoteManifest.remote_driver == null
+        ? ""
+        : String(remoteManifest.remote_driver).trim();
+
+  return (
+    runtimeVersion !== String(config.runtimeVersion || "") ||
+    remoteMode !== String(config.remoteMode || DEFAULT_REMOTE_MODE) ||
+    remoteDriver !== String(config.remoteDriver || "")
+  );
 }
 
 async function bootstrapRemoteDriverAuth(sandbox, config, remoteEnv, authBootstrap = {}) {
@@ -866,7 +883,6 @@ async function launchTeleportRuntime(projectRoot, options = {}) {
   const projectEnv = loadProjectEnv(projectRoot);
   const existingState = loadPocState(projectRoot);
   const config = buildPocConfig(projectRoot, options, existingState);
-  const archiveBuffer = createArchiveBuffer(projectRoot);
   const authBootstrap = buildLocalAuthBootstrap(projectEnv);
   const { Sandbox } = await importSandbox();
 
@@ -908,6 +924,19 @@ async function launchTeleportRuntime(projectRoot, options = {}) {
     authBootstrap
   );
 
+  const remoteManifest = sandbox ? await readRemoteManagedRuntimeManifest(sandbox, config) : null;
+  if (sandbox && !shouldRunFullBootstrap(config, remoteManifest)) {
+    try {
+      await waitForReady(readyUrl, 5 * 1000);
+      const state = buildStateRecord(projectRoot, sandbox.sandboxId, host, config, DEFAULT_OWNER_MODE);
+      savePocState(projectRoot, state);
+      return state;
+    } catch {
+      // Fall through to a full resync/restart when the existing runtime is not ready.
+    }
+  }
+
+  const archiveBuffer = createArchiveBuffer(projectRoot);
   await sandbox.files.write(config.archivePath, archiveBuffer);
   await sandbox.commands.run(buildRemoteBootstrapCommand(config), {
     envs: remoteEnv,
@@ -921,6 +950,7 @@ async function launchTeleportRuntime(projectRoot, options = {}) {
     timeoutMs: 10 * 60 * 1000,
   });
   await waitForReady(readyUrl, 90 * 1000);
+  await persistManagedRuntimeManifest(sandbox, config);
 
   const state = buildStateRecord(projectRoot, sandbox.sandboxId, host, config, DEFAULT_OWNER_MODE);
   savePocState(projectRoot, state);
@@ -1055,6 +1085,7 @@ module.exports = {
   buildLocalAuthBootstrap,
   bootstrapRemoteDriverAuth,
   buildHealthUrl,
+  buildManagedRuntimeManifest,
   buildReadyUrl,
   buildRemoteAuthFinalizeCommand,
   buildRemoteBootstrapCommand,
@@ -1084,8 +1115,10 @@ module.exports = {
   lookupSandboxInfo,
   isMissingSandboxError,
   parseDotEnv,
+  persistManagedRuntimeManifest,
   persistRemoteProjectEnv,
   serializeDotEnv,
+  shouldRunFullBootstrap,
   pauseTeleportSandbox,
   reconcileTeleportOwnership,
   resumeTeleportSandbox,

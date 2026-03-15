@@ -122,7 +122,7 @@ describe("teleport commands", () => {
     ]);
   });
 
-  it("treats a just-finished remote return as already completed on local /home", async () => {
+  it("silently ignores a duplicate local /home right after remote return", async () => {
     const { handleHome } = await loadCommandsModuleForRole("local", {
       recentlyReturnedHome: () => true,
       loadTeleportStateForCurrentProject: () => ({
@@ -134,8 +134,6 @@ describe("teleport commands", () => {
 
     await handleHome(ctx as never);
 
-    expect(replies).toEqual([
-      { text: "✅ Telegram ownership already returned to the local polling turtle." },
-    ]);
+    expect(replies).toEqual([]);
   });
 });

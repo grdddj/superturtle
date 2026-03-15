@@ -576,7 +576,6 @@ export async function handleHome(ctx: Context): Promise<void> {
 
   if (SUPERTURTLE_RUNTIME_ROLE !== "teleport-remote") {
     if (recentlyReturnedHome(loadTeleportStateForCurrentProject())) {
-      await ctx.reply("✅ Telegram ownership already returned to the local polling turtle.");
       return;
     }
     await ctx.reply("ℹ️ This turtle is already local. Use /teleport to move Telegram ownership to E2B.");
