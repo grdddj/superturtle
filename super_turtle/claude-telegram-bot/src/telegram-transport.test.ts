@@ -1,0 +1,197 @@
+import { describe, expect, it } from "bun:test";
+import {
+  handleTelegramWebhookRequest,
+  resolveTelegramTransportConfig,
+  startTelegramTransport,
+  type TelegramTransportConfig,
+} from "./telegram-transport";
+
+describe("resolveTelegramTransportConfig", () => {
+  it("defaults to polling transport", () => {
+    expect(resolveTelegramTransportConfig({})).toEqual({ mode: "polling" });
+  });
+
+  it("requires a webhook URL in webhook mode", () => {
+    expect(() =>
+      resolveTelegramTransportConfig({ TELEGRAM_TRANSPORT: "webhook" })
+    ).toThrow("TELEGRAM_WEBHOOK_URL is required");
+  });
+
+  it("parses webhook config from env", () => {
+    expect(
+      resolveTelegramTransportConfig({
+        TELEGRAM_TRANSPORT: "webhook",
+        TELEGRAM_WEBHOOK_URL: "https://example.test/telegram/webhook",
+        TELEGRAM_WEBHOOK_SECRET: "secret-token",
+        PORT: "8787",
+      })
+    ).toEqual({
+      mode: "webhook",
+      publicUrl: "https://example.test/telegram/webhook",
+      path: "/telegram/webhook",
+      host: "0.0.0.0",
+      port: 8787,
+      secretToken: "secret-token",
+      healthPath: "/healthz",
+    });
+  });
+});
+
+describe("startTelegramTransport", () => {
+  it("starts polling mode by clearing any webhook and starting the runner", async () => {
+    const deleteWebhookCalls: Array<{ drop_pending_updates: boolean }> = [];
+    let runnerStopped = false;
+
+    const transport = await startTelegramTransport(
+      {
+        api: {
+          async deleteWebhook(options) {
+            deleteWebhookCalls.push(options);
+          },
+          async setWebhook() {
+            throw new Error("setWebhook should not be called in polling mode");
+          },
+        },
+        async handleUpdate() {},
+      },
+      { mode: "polling" },
+      {
+        startPollingRunner() {
+          return {
+            isRunning() {
+              return true;
+            },
+            stop() {
+              runnerStopped = true;
+            },
+          };
+        },
+      }
+    );
+
+    expect(transport.mode).toBe("polling");
+    expect(deleteWebhookCalls).toEqual([{ drop_pending_updates: true }]);
+    await transport.stop();
+    expect(runnerStopped).toBe(true);
+  });
+
+  it("starts webhook mode and serves updates through Bun HTTP", async () => {
+    const handledUpdates: unknown[] = [];
+    const served: Array<{ hostname: string; port: number }> = [];
+    let setWebhookCall:
+      | { url: string; options?: { secret_token?: string } }
+      | null = null;
+    let serverFetch: ((request: Request) => Response | Promise<Response>) | null = null;
+    let serverStopped = false;
+
+    const config: TelegramTransportConfig = {
+      mode: "webhook",
+      publicUrl: "https://example.test/telegram/webhook",
+      path: "/telegram/webhook",
+      host: "0.0.0.0",
+      port: 8787,
+      secretToken: "secret-token",
+      healthPath: "/healthz",
+    };
+
+    const transport = await startTelegramTransport(
+      {
+        api: {
+          async deleteWebhook() {
+            throw new Error("deleteWebhook should not be called in webhook mode");
+          },
+          async setWebhook(url, options) {
+            setWebhookCall = { url, options };
+          },
+        },
+        async handleUpdate(update) {
+          handledUpdates.push(update);
+        },
+      },
+      config,
+      {
+        serve({ hostname, port, fetch }) {
+          served.push({ hostname, port });
+          serverFetch = fetch;
+          return {
+            stop() {
+              serverStopped = true;
+            },
+          };
+        },
+      }
+    );
+
+    expect(transport.mode).toBe("webhook");
+    expect(setWebhookCall).not.toBeNull();
+    expect(setWebhookCall!).toEqual({
+      url: "https://example.test/telegram/webhook",
+      options: { secret_token: "secret-token" },
+    });
+    expect(served).toEqual([{ hostname: "0.0.0.0", port: 8787 }]);
+    expect(serverFetch).not.toBeNull();
+
+    const healthResponse = await serverFetch!(
+      new Request("http://127.0.0.1:8787/healthz", { method: "GET" })
+    );
+    expect(healthResponse.status).toBe(200);
+    expect(await healthResponse.text()).toBe("ok");
+
+    const unauthorizedResponse = await serverFetch!(
+      new Request("http://127.0.0.1:8787/telegram/webhook", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ update_id: 1 }),
+      })
+    );
+    expect(unauthorizedResponse.status).toBe(401);
+
+    const okResponse = await serverFetch!(
+      new Request("http://127.0.0.1:8787/telegram/webhook", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-telegram-bot-api-secret-token": "secret-token",
+        },
+        body: JSON.stringify({ update_id: 2 }),
+      })
+    );
+    expect(okResponse.status).toBe(200);
+    expect(handledUpdates).toEqual([{ update_id: 2 }]);
+
+    await transport.stop();
+    expect(serverStopped).toBe(true);
+  });
+});
+
+describe("handleTelegramWebhookRequest", () => {
+  it("rejects invalid JSON payloads", async () => {
+    const response = await handleTelegramWebhookRequest(
+      new Request("http://127.0.0.1:8787/telegram/webhook", {
+        method: "POST",
+        headers: {
+          "x-telegram-bot-api-secret-token": "secret-token",
+        },
+        body: "not-json",
+      }),
+      {
+        api: {
+          async deleteWebhook() {},
+          async setWebhook() {},
+        },
+        async handleUpdate() {},
+      },
+      {
+        mode: "webhook",
+        publicUrl: "https://example.test/telegram/webhook",
+        path: "/telegram/webhook",
+        host: "0.0.0.0",
+        port: 8787,
+        secretToken: "secret-token",
+        healthPath: "/healthz",
+      }
+    );
+
+    expect(response.status).toBe(400);
+  });
+});

@@ -1,0 +1,216 @@
+import { run } from "@grammyjs/runner";
+import { logger } from "./logger";
+
+const transportLog = logger.child({ module: "telegram-transport" });
+
+export type TelegramTransportMode = "polling" | "webhook";
+
+export type TelegramTransportConfig =
+  | {
+      mode: "polling";
+    }
+  | {
+      mode: "webhook";
+      publicUrl: string;
+      path: string;
+      host: string;
+      port: number;
+      secretToken: string | null;
+      healthPath: string;
+    };
+
+type TelegramBotLike = {
+  api: {
+    deleteWebhook(options: { drop_pending_updates: boolean }): Promise<unknown>;
+    setWebhook(
+      url: string,
+      options?: { secret_token?: string }
+    ): Promise<unknown>;
+  };
+  handleUpdate(update: unknown): Promise<unknown>;
+};
+
+type PollingRunnerLike = {
+  isRunning(): boolean;
+  stop(): void;
+};
+
+type WebhookServerLike = {
+  stop(closeActiveConnections?: boolean): void | Promise<void>;
+};
+
+type ServeOptions = {
+  port: number;
+  hostname: string;
+  fetch(request: Request): Response | Promise<Response>;
+};
+
+type StartTelegramTransportDependencies = {
+  startPollingRunner?: (bot: TelegramBotLike) => PollingRunnerLike;
+  serve?: (options: ServeOptions) => WebhookServerLike;
+};
+
+export type TelegramTransportHandle = {
+  mode: TelegramTransportMode;
+  stop(): void | Promise<void>;
+};
+
+function parsePort(rawPort: string | undefined): number {
+  if (!rawPort || rawPort.trim() === "") {
+    return 3000;
+  }
+
+  const port = Number.parseInt(rawPort, 10);
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+    throw new Error(`Invalid webhook port "${rawPort}".`);
+  }
+  return port;
+}
+
+export function resolveTelegramTransportConfig(
+  env: Record<string, string | undefined> = process.env
+): TelegramTransportConfig {
+  const rawMode = env.TELEGRAM_TRANSPORT?.trim().toLowerCase() || "polling";
+  if (rawMode === "polling") {
+    return { mode: "polling" };
+  }
+
+  if (rawMode !== "webhook") {
+    throw new Error(
+      `Invalid TELEGRAM_TRANSPORT="${env.TELEGRAM_TRANSPORT}". Expected "polling" or "webhook".`
+    );
+  }
+
+  const webhookUrl = env.TELEGRAM_WEBHOOK_URL?.trim();
+  if (!webhookUrl) {
+    throw new Error(
+      "TELEGRAM_WEBHOOK_URL is required when TELEGRAM_TRANSPORT=webhook."
+    );
+  }
+
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(webhookUrl);
+  } catch {
+    throw new Error(`Invalid TELEGRAM_WEBHOOK_URL="${webhookUrl}".`);
+  }
+
+  return {
+    mode: "webhook",
+    publicUrl: parsedUrl.toString(),
+    path: parsedUrl.pathname || "/",
+    host: env.TELEGRAM_WEBHOOK_HOST?.trim() || "0.0.0.0",
+    port: parsePort(env.PORT || env.TELEGRAM_WEBHOOK_PORT),
+    secretToken: env.TELEGRAM_WEBHOOK_SECRET?.trim() || null,
+    healthPath: env.TELEGRAM_WEBHOOK_HEALTH_PATH?.trim() || "/healthz",
+  };
+}
+
+export async function handleTelegramWebhookRequest(
+  request: Request,
+  bot: TelegramBotLike,
+  config: Extract<TelegramTransportConfig, { mode: "webhook" }>
+): Promise<Response> {
+  const pathname = new URL(request.url).pathname;
+
+  if (request.method === "GET" && pathname === config.healthPath) {
+    return new Response("ok", { status: 200 });
+  }
+
+  if (pathname !== config.path) {
+    return new Response("Not Found", { status: 404 });
+  }
+
+  if (request.method !== "POST") {
+    return new Response("Method Not Allowed", {
+      status: 405,
+      headers: { allow: "POST" },
+    });
+  }
+
+  if (config.secretToken) {
+    const providedSecret = request.headers.get("x-telegram-bot-api-secret-token");
+    if (providedSecret !== config.secretToken) {
+      return new Response("Unauthorized", { status: 401 });
+    }
+  }
+
+  let update: unknown;
+  try {
+    update = await request.json();
+  } catch {
+    return new Response("Bad Request", { status: 400 });
+  }
+
+  try {
+    await bot.handleUpdate(update);
+    return new Response("OK", { status: 200 });
+  } catch (error) {
+    transportLog.error({ err: error }, "Failed to process Telegram webhook update");
+    return new Response("Internal Server Error", { status: 500 });
+  }
+}
+
+function defaultStartPollingRunner(bot: TelegramBotLike): PollingRunnerLike {
+  return run(bot as never, {
+    runner: {
+      maxRetryTime: Infinity,
+      retryInterval: "exponential",
+    },
+  });
+}
+
+function defaultServe(options: ServeOptions): WebhookServerLike {
+  return Bun.serve(options);
+}
+
+export async function startTelegramTransport(
+  bot: TelegramBotLike,
+  config: TelegramTransportConfig = resolveTelegramTransportConfig(),
+  dependencies: StartTelegramTransportDependencies = {}
+): Promise<TelegramTransportHandle> {
+  if (config.mode === "polling") {
+    transportLog.info("Starting Telegram polling transport");
+    await bot.api.deleteWebhook({ drop_pending_updates: true });
+
+    const runner = (dependencies.startPollingRunner || defaultStartPollingRunner)(bot);
+    return {
+      mode: "polling",
+      stop() {
+        if (runner.isRunning()) {
+          runner.stop();
+        }
+      },
+    };
+  }
+
+  transportLog.info(
+    {
+      publicUrl: config.publicUrl,
+      host: config.host,
+      port: config.port,
+      path: config.path,
+    },
+    "Starting Telegram webhook transport"
+  );
+
+  const webhookOptions = config.secretToken
+    ? { secret_token: config.secretToken }
+    : undefined;
+  await bot.api.setWebhook(config.publicUrl, webhookOptions);
+
+  const server = (dependencies.serve || defaultServe)({
+    port: config.port,
+    hostname: config.host,
+    fetch(request) {
+      return handleTelegramWebhookRequest(request, bot, config);
+    },
+  });
+
+  return {
+    mode: "webhook",
+    stop() {
+      return server.stop(true);
+    },
+  };
+}

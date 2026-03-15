@@ -5,7 +5,7 @@
  */
 
 import type { Context } from "grammy";
-import { run, sequentialize } from "@grammyjs/runner";
+import { sequentialize } from "@grammyjs/runner";
 import {
   WORKING_DIR,
   CTL_PATH,
@@ -85,6 +85,7 @@ import {
 } from "./conductor-snapshot";
 import { botLog, cronLog, eventLog } from "./logger";
 import { getSequentializationKey } from "./update-sequencing";
+import { startTelegramTransport } from "./telegram-transport";
 
 // Re-export for any existing consumers
 export { bot };
@@ -913,9 +914,6 @@ if (process.env.TURTLE_GREETINGS !== "false" && ALLOWED_USERS.length > 0) {
 }
 startDashboardServer();
 
-// Drop any messages that arrived while the bot was offline
-await bot.api.deleteWebhook({ drop_pending_updates: true });
-
 // Check for pending restart message to update
 if (existsSync(RESTART_FILE)) {
   try {
@@ -989,14 +987,7 @@ await runConductorMaintenancePass({ recoverInFlightWakeups: true });
 // Start cron timer after boot-time recovery so recurring ticks never race startup maintenance.
 startCronTimer();
 
-// Start with concurrent runner (commands work immediately)
-// Retry forever on getUpdates failures (e.g. network drop during sleep)
-const runner = run(bot, {
-  runner: {
-    maxRetryTime: Infinity,
-    retryInterval: "exponential",
-  },
-});
+const transport = await startTelegramTransport(bot);
 
 // Graceful shutdown
 let shutdownInitiated = false;
@@ -1004,10 +995,10 @@ let shutdownInitiated = false;
 const stopRunner = () => {
   if (shutdownInitiated) return;
   shutdownInitiated = true;
-  if (runner.isRunning()) {
-    botLog.info("Stopping bot...");
-    runner.stop();
-  }
+  botLog.info({ mode: transport.mode }, "Stopping bot transport...");
+  Promise.resolve(transport.stop()).catch((error) => {
+    botLog.warn({ err: error }, "Failed to stop Telegram transport cleanly");
+  });
   releaseInstanceLock();
 };
 
