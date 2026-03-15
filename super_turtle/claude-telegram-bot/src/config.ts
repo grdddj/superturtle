@@ -226,6 +226,10 @@ export const META_CODEX_APPROVAL_POLICY = parseCodexApprovalPolicy(
 export const META_CODEX_NETWORK_ACCESS = parseMetaCodexNetworkAccess(
   process.env.META_CODEX_NETWORK_ACCESS
 );
+export const TELEGRAM_WEBHOOK_POC_MODE = parseBooleanEnv(
+  "TELEGRAM_WEBHOOK_POC_MODE",
+  false
+);
 
 // ============== Claude CLI Path ==============
 
