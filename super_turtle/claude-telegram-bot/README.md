@@ -120,9 +120,10 @@ TELEGRAM_ALLOWED_USERS=<telegram_user_id>               # Your Telegram user ID
 # Recommended
 CLAUDE_WORKING_DIR=/path/to/your/folder    # Where Claude runs (loads CLAUDE.md, skills, MCP)
 OPENAI_API_KEY=<optional_openai_api_key>   # For voice transcription
+E2B_API_KEY=<optional_e2b_api_key>         # Required for BYO-E2B /teleport
 ```
 
-`.env` is gitignored. Keep real credentials only in local env files.
+`.superturtle/.env` is gitignored. The starter template lives at `templates/.env.example` in the package. Keep real credentials only in local env files.
 
 **Finding your Telegram user ID:** Message [@userinfobot](https://t.me/userinfobot) on Telegram.
 
