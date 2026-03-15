@@ -184,6 +184,47 @@ Important property:
 - repo identity is logical, not path-equal
 - sync is always repo-root to repo-root
 
+## VM Provisioning Abstraction
+
+VM-backed teleport should not bind the product to one cloud provider's API shape.
+
+The portability boundary should be:
+
+- teleport/runtime code consumes a provider-neutral managed-VM contract
+- provider-specific code lives behind a provisioning adapter
+- the control plane persists logical managed-instance state separately from provider-native identifiers
+
+Recommended provider-neutral lifecycle:
+
+- provision
+- resume or start
+- stop or suspend
+- reprovision
+- delete
+- resolve teleport target
+- report health and readiness
+
+Recommended provider-neutral managed instance fields:
+
+- `provider`
+- `provider_instance_id`
+- `region`
+- `state`
+- `ssh_target`
+- `remote_root`
+- opaque provider metadata for provider-only internals
+
+Rules:
+
+1. Teleport must never call Azure, GCP, AWS, etc. APIs directly.
+2. Teleport should only consume the resolved managed target plus health/readiness state from the control plane.
+3. Provider adapters may differ internally, but they must produce the same control-plane contract for teleport.
+4. V1 may ship with a single provider adapter first, but the interface must be stable enough to add a second provider without rewriting teleport semantics.
+
+Current code contract:
+
+- `../superturtle-web/src/features/cloud/providers/contracts.ts`
+
 ## Ownership And Safety
 
 Repo sync alone is not teleport.
@@ -222,14 +263,16 @@ This spec implies:
 2. `start`, `status`, and `teleport` should resolve through the bound repo, not through the current shell directory alone.
 3. Teleport should be refused for unsafe repo roots.
 4. VM teleport should operate on repo content plus the explicit handoff bundle.
-5. Any future background sync layer should be repo-scoped.
+5. VM provisioning should sit behind a provider-neutral adapter owned by the control plane.
+6. Any future background sync layer should be repo-scoped.
 
 ## Recommended Next Implementation Steps
 
 1. Add a persisted "bound repo" config for the installation.
 2. Define the repo safety validator.
 3. Define the first version of `.superturtle/teleport-manifest.json`.
-4. Split transfer logic into:
+4. Define the provider-neutral VM provisioning contract and adapter boundary.
+5. Split transfer logic into:
    - repo sync
    - runtime handoff bundle
-5. Make VM teleport use this repo-bound contract end to end.
+6. Make VM teleport use this repo-bound contract end to end.

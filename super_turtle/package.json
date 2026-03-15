@@ -4,7 +4,8 @@
   "description": "Code from anywhere with your voice. Autonomous coding system controlled from Telegram.",
   "scripts": {
     "test:pack": "bash tests/npm-package-smoke.sh",
-    "test:init-safe": "bash tests/init-non-destructive.sh"
+    "test:init-safe": "bash tests/init-non-destructive.sh",
+    "test:init-git-binding": "bash tests/init-git-binding.sh"
   },
   "dependencies": {
     "@grammyjs/runner": "^2.0.3",

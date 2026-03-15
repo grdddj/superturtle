@@ -4,7 +4,7 @@
  * Super Turtle CLI — thin Node wrapper that delegates to Bun for the actual bot.
  *
  * Commands:
- *   superturtle init    — scaffold .superturtle/ config in current project
+ *   superturtle init    — scaffold .superturtle/ config in the bound project repo
  *   superturtle start   — launch the bot (requires Bun + tmux)
  *   superturtle stop    — stop bot + all SubTurtles
  *   superturtle status  — show bot and SubTurtle status
@@ -13,7 +13,7 @@
  */
 
 const { execSync, spawnSync } = require("child_process");
-const { resolve, dirname, basename } = require("path");
+const { resolve, dirname, basename, join } = require("path");
 const fs = require("fs");
 const os = require("os");
 const readline = require("readline");
@@ -48,6 +48,100 @@ const PACKAGE_ROOT = resolve(__dirname, "..");
 const BOT_DIR = resolve(PACKAGE_ROOT, "claude-telegram-bot");
 const TEMPLATES_DIR = resolve(PACKAGE_ROOT, "templates");
 const RUNTIME_OWNERSHIP_AGENT_PATH = resolve(PACKAGE_ROOT, "bin", "runtime-ownership-agent.js");
+const PROJECT_CONFIG_RELATIVE_PATH = join(".superturtle", "project.json");
+const PROJECT_ENV_RELATIVE_PATH = join(".superturtle", ".env");
+
+function normalizeExistingPath(path) {
+  try {
+    return fs.realpathSync(path);
+  } catch {
+    return resolve(path);
+  }
+}
+
+function pathsEqual(left, right) {
+  return normalizeExistingPath(left) === normalizeExistingPath(right);
+}
+
+function findUpwards(startDir, relativePath) {
+  let current = normalizeExistingPath(startDir);
+  while (true) {
+    const candidate = resolve(current, relativePath);
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+    const parent = dirname(current);
+    if (parent === current) {
+      return null;
+    }
+    current = parent;
+  }
+}
+
+function findGitRoot(startDir) {
+  let current = normalizeExistingPath(startDir);
+  while (true) {
+    const gitPath = resolve(current, ".git");
+    if (fs.existsSync(gitPath)) {
+      return current;
+    }
+    const parent = dirname(current);
+    if (parent === current) {
+      return null;
+    }
+    current = parent;
+  }
+}
+
+function getBoundProjectRoot(startDir) {
+  const configPath = findUpwards(startDir, PROJECT_CONFIG_RELATIVE_PATH);
+  if (configPath) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+      if (parsed && typeof parsed.repo_root === "string" && parsed.repo_root.trim()) {
+        return normalizeExistingPath(parsed.repo_root.trim());
+      }
+    } catch {}
+    return dirname(dirname(configPath));
+  }
+
+  const envPath = findUpwards(startDir, PROJECT_ENV_RELATIVE_PATH);
+  if (envPath) {
+    return dirname(dirname(envPath));
+  }
+
+  return normalizeExistingPath(startDir);
+}
+
+function isUnsafeRepoRoot(repoRoot) {
+  const normalized = normalizeExistingPath(repoRoot);
+  const home = process.env.HOME ? normalizeExistingPath(process.env.HOME) : null;
+  return normalized === "/" || (home && normalized === home);
+}
+
+function ensureSafeRepoRoot(repoRoot) {
+  if (!isUnsafeRepoRoot(repoRoot)) {
+    return;
+  }
+  throw new Error(
+    `Refusing to bind SuperTurtle to unsafe repo root ${repoRoot}. Use a dedicated project repo instead of / or your home directory.`
+  );
+}
+
+function writeProjectBinding(projectRoot, initCwd, options = {}) {
+  const dataDir = resolve(projectRoot, ".superturtle");
+  const configPath = resolve(dataDir, "project.json");
+  fs.mkdirSync(dataDir, { recursive: true });
+  const payload = {
+    schema_version: 1,
+    repo_root: normalizeExistingPath(projectRoot),
+    init_cwd: normalizeExistingPath(initCwd),
+    git_created: Boolean(options.gitCreated),
+    initialized_at: new Date().toISOString(),
+  };
+  fs.writeFileSync(configPath, `${JSON.stringify(payload, null, 2)}\n`, "utf-8");
+  return configPath;
+}
 
 function loadProjectEnv(cwd) {
   const envPath = resolve(cwd, ".superturtle", ".env");
@@ -385,7 +479,7 @@ function ask(question) {
 }
 
 function parseInitFlags() {
-  const flags = { token: null, user: null, openaiKey: null };
+  const flags = { token: null, user: null, openaiKey: null, createGit: false };
   const args = process.argv.slice(3); // skip node, script, "init"
   for (let i = 0; i < args.length; i++) {
     switch (args[i]) {
@@ -397,6 +491,9 @@ function parseInitFlags() {
         break;
       case "--openai-key":
         flags.openaiKey = args[++i] || null;
+        break;
+      case "--create-git":
+        flags.createGit = true;
         break;
     }
   }
@@ -435,9 +532,31 @@ function copyDirFiltered(sourceDir, targetDir) {
 }
 
 async function init() {
-  const cwd = process.cwd();
-  const dataDir = resolve(cwd, ".superturtle");
+  const cwd = normalizeExistingPath(process.cwd());
   const flags = parseInitFlags();
+  let projectRoot = findGitRoot(cwd);
+  let gitCreated = false;
+
+  if (!projectRoot) {
+    if (!flags.createGit) {
+      throw new Error(
+        `No Git repository found for ${cwd}. Run 'git init' yourself first, or rerun 'superturtle init --create-git' to create a repo explicitly.`
+      );
+    }
+    const gitInit = spawnSync("git", ["init"], { cwd, stdio: "pipe" });
+    if (gitInit.error) {
+      throw new Error(`Failed to run git init: ${gitInit.error.message}`);
+    }
+    if (gitInit.status !== 0) {
+      const stderr = gitInit.stderr?.toString().trim();
+      throw new Error(stderr || "git init failed.");
+    }
+    projectRoot = cwd;
+    gitCreated = true;
+  }
+
+  ensureSafeRepoRoot(projectRoot);
+  const dataDir = resolve(projectRoot, ".superturtle");
 
   blank();
   console.log(`  \u{1F422} ${c.bold("superturtle")} ${c.dim("v" + getVersion())}`);
@@ -449,6 +568,21 @@ async function init() {
   checkClaude();
   blank();
 
+  if (gitCreated) {
+    ok(`.git ${c.dim("(created via --create-git)")}`);
+  } else {
+    ok(`.git ${c.dim(`(bound to ${projectRoot})`)}`);
+  }
+  if (!pathsEqual(cwd, projectRoot)) {
+    warn(`Init was run from subfolder ${cwd}`);
+    info(`Bound repo root: ${projectRoot}`);
+    info(`Teleport and sync scope will be the full repo rooted at ${projectRoot}.`);
+    blank();
+  } else {
+    info(`Bound repo root: ${projectRoot}`);
+    blank();
+  }
+
   // --- .superturtle/ directory ---
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
@@ -458,6 +592,8 @@ async function init() {
     fs.writeFileSync(gitignorePath, "*\n");
   }
   ok(".superturtle/");
+  writeProjectBinding(projectRoot, cwd, { gitCreated });
+  ok(".superturtle/project.json");
 
   // --- .env config ---
   const envPath = resolve(dataDir, ".env");
@@ -474,7 +610,7 @@ async function init() {
         if (!token) fail("  --token <TELEGRAM_BOT_TOKEN>");
         if (!userId) fail("  --user <TELEGRAM_USER_ID>");
         blank();
-        info("Usage: superturtle init --token <token> --user <id> [--openai-key <key>]");
+        info("Usage: superturtle init [--create-git] --token <token> --user <id> [--openai-key <key>]");
         blank();
         process.exit(1);
       }
@@ -509,7 +645,7 @@ async function init() {
 
     let envContent = `TELEGRAM_BOT_TOKEN=${token}\n`;
     envContent += `TELEGRAM_ALLOWED_USERS=${userId}\n`;
-    envContent += `CLAUDE_WORKING_DIR=${cwd}\n`;
+    envContent += `CLAUDE_WORKING_DIR=${projectRoot}\n`;
     if (openaiKey) {
       envContent += `OPENAI_API_KEY=${openaiKey}\n`;
     }
@@ -521,7 +657,7 @@ async function init() {
   }
 
   // --- CLAUDE.md ---
-  const claudeMdPath = resolve(cwd, "CLAUDE.md");
+  const claudeMdPath = resolve(projectRoot, "CLAUDE.md");
   const templatePath = resolve(TEMPLATES_DIR, "CLAUDE.md.template");
   if (!fs.existsSync(claudeMdPath) && fs.existsSync(templatePath)) {
     fs.copyFileSync(templatePath, claudeMdPath);
@@ -531,7 +667,7 @@ async function init() {
   }
 
   // --- AGENTS.md symlink ---
-  const agentsPath = resolve(cwd, "AGENTS.md");
+  const agentsPath = resolve(projectRoot, "AGENTS.md");
   if (!fs.existsSync(agentsPath)) {
     try {
       fs.symlinkSync("CLAUDE.md", agentsPath);
@@ -544,16 +680,16 @@ async function init() {
   // --- .claude templates ---
   const claudeTemplateDir = resolve(TEMPLATES_DIR, ".claude");
   if (fs.existsSync(claudeTemplateDir)) {
-    let targetClaudeDir = resolve(cwd, ".claude");
+    let targetClaudeDir = resolve(projectRoot, ".claude");
     if (fs.existsSync(targetClaudeDir)) {
-      targetClaudeDir = pickAvailablePath(resolve(cwd, ".superturtle-claude"));
+      targetClaudeDir = pickAvailablePath(resolve(projectRoot, ".superturtle-claude"));
     }
     copyDirFiltered(claudeTemplateDir, targetClaudeDir);
-    ok(targetClaudeDir.replace(cwd + "/", ""));
+    ok(targetClaudeDir.replace(projectRoot + "/", ""));
   }
 
   // --- .gitignore ---
-  const projectGitignore = resolve(cwd, ".gitignore");
+  const projectGitignore = resolve(projectRoot, ".gitignore");
   if (fs.existsSync(projectGitignore)) {
     const content = fs.readFileSync(projectGitignore, "utf-8");
     const additions = [];
@@ -574,6 +710,7 @@ async function init() {
 
   // --- Done ---
   blank();
+  console.log(`  ${c.green("Ready!")} Bound repo: ${c.bold(projectRoot)}`);
   console.log(`  ${c.green("Ready!")} Run: ${c.bold("superturtle start")}`);
   blank();
 }
@@ -582,7 +719,7 @@ async function start() {
   checkBun();
   checkTmux();
 
-  const cwd = process.cwd();
+  const cwd = getBoundProjectRoot(process.cwd());
   const projectEnv = loadProjectEnv(cwd);
 
   if (!projectEnv) {
@@ -774,7 +911,7 @@ async function start() {
 }
 
 async function stop() {
-  const cwd = process.cwd();
+  const cwd = getBoundProjectRoot(process.cwd());
   const projectEnv = loadProjectEnv(cwd) || {};
   const tmuxSession = resolveTmuxSession(cwd, { ...process.env, ...projectEnv });
   const leaseState = readCloudLeaseState(cwd);
@@ -818,7 +955,8 @@ async function stop() {
   if (fs.existsSync(ctlPath)) {
     const proc = spawnSync(ctlPath, ["stopall"], {
       cwd: process.cwd(),
-      env: { ...process.env, SUPER_TURTLE_PROJECT_DIR: process.cwd() },
+      cwd,
+      env: { ...process.env, SUPER_TURTLE_PROJECT_DIR: cwd },
       stdio: "pipe",
     });
     exitFromSpawn(proc, "subturtle ctl stopall");
@@ -829,7 +967,7 @@ async function stop() {
 }
 
 function status() {
-  const cwd = process.cwd();
+  const cwd = getBoundProjectRoot(process.cwd());
   const projectEnv = loadProjectEnv(cwd) || {};
   const env = { ...process.env, ...projectEnv };
   const tmuxSession = resolveTmuxSession(cwd, env);
@@ -867,7 +1005,7 @@ function status() {
 
 function doctor() {
   checkTmux();
-  const cwd = process.cwd();
+  const cwd = getBoundProjectRoot(process.cwd());
   const projectEnv = loadProjectEnv(cwd) || {};
   const env = { ...process.env, ...projectEnv };
   const tmuxSession = resolveTmuxSession(cwd, env);
@@ -962,7 +1100,7 @@ function parseLogsArgs(args) {
 }
 
 function logs() {
-  const cwd = process.cwd();
+  const cwd = getBoundProjectRoot(process.cwd());
   const projectEnv = loadProjectEnv(cwd) || {};
   const env = { ...process.env, ...projectEnv };
   const logPaths = getLogPaths(cwd, env);
@@ -1547,7 +1685,7 @@ switch (command) {
 Usage: superturtle <command>
 
 Commands:
-  init      Set up superturtle in the current project
+  init      Set up superturtle in the bound project repo
   login     Sign in to the hosted SuperTurtle control plane
   whoami    Show the current hosted account identity
   cloud     Hosted cloud commands (status, resume, checkout, portal, claude)
@@ -1562,6 +1700,7 @@ Init flags (for non-interactive / agent use):
   --token <token>       Telegram bot token
   --user <id>           Telegram user ID
   --openai-key <key>    OpenAI API key (optional)
+  --create-git          Explicitly run git init if no repo exists
 
 Options:
   -v, --version  Show version

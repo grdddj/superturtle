@@ -11,9 +11,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
-PROJECT_DIR="${TMP_DIR}/project"
+PROJECT_DIR_RAW="${TMP_DIR}/project"
 STUB_DIR="${TMP_DIR}/stubs"
-mkdir -p "${PROJECT_DIR}/.claude" "${STUB_DIR}"
+mkdir -p "${PROJECT_DIR_RAW}/.claude" "${STUB_DIR}"
+git init -q "${PROJECT_DIR_RAW}"
+PROJECT_DIR="$(cd "${PROJECT_DIR_RAW}" && pwd -P)"
 
 cat > "${STUB_DIR}/bun" <<'EOF'
 #!/usr/bin/env bash
@@ -99,6 +101,11 @@ if [[ ! -f "${PROJECT_DIR}/.superturtle/.env" ]]; then
   exit 1
 fi
 
+if [[ ! -f "${PROJECT_DIR}/.superturtle/project.json" ]]; then
+  echo "Expected .superturtle/project.json to be created." >&2
+  exit 1
+fi
+
 if ! grep -q '^TELEGRAM_BOT_TOKEN=123456:token$' "${PROJECT_DIR}/.superturtle/.env"; then
   echo "Expected TELEGRAM_BOT_TOKEN in .superturtle/.env." >&2
   exit 1
@@ -106,6 +113,11 @@ fi
 
 if ! grep -q '^TELEGRAM_ALLOWED_USERS=424242$' "${PROJECT_DIR}/.superturtle/.env"; then
   echo "Expected TELEGRAM_ALLOWED_USERS in .superturtle/.env." >&2
+  exit 1
+fi
+
+if ! grep -q "^CLAUDE_WORKING_DIR=${PROJECT_DIR}$" "${PROJECT_DIR}/.superturtle/.env"; then
+  echo "Expected CLAUDE_WORKING_DIR to point at the repo root." >&2
   exit 1
 fi
 

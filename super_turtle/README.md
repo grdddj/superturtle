@@ -24,6 +24,12 @@ npm install -g superturtle
 superturtle init
 ```
 
+`superturtle init` binds the installation to the nearest Git repo root. If no repo exists yet, create one yourself with `git init`, or opt in explicitly:
+
+```bash
+superturtle init --create-git
+```
+
 Then start:
 
 ```bash
@@ -42,7 +48,7 @@ superturtle logs pino --pretty
 For agents and CI, init runs non-interactively with flags:
 
 ```bash
-superturtle init --token <BOT_TOKEN> --user <TELEGRAM_USER_ID> --openai-key <KEY>
+superturtle init [--create-git] --token <BOT_TOKEN> --user <TELEGRAM_USER_ID> --openai-key <KEY>
 ```
 
 ### Prerequisites

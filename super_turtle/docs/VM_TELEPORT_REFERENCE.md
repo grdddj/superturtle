@@ -15,6 +15,7 @@ Current `dev` direction:
 
 - VM-backed teleport remains the preferred runtime direction
 - transfer scope is now repo-bound, not machine-bound
+- VM provisioning should be abstracted behind a provider-neutral control-plane contract so cloud providers are swappable
 - see `super_turtle/docs/REPO_BOUND_TELEPORT_SPEC.md` for the active transfer contract
 
 ## What This Branch Already Proved
@@ -82,7 +83,7 @@ Do not commit `~/.codex/auth.json`.
 
 ## How To Discover The Current Managed VM Target
 
-Do not hardcode the Azure VM hostname in git.
+Do not hardcode a provider-specific VM hostname in git.
 
 Instead, resolve it locally from the linked control-plane session:
 
@@ -112,7 +113,7 @@ NODE
 
 That prints the live SSH target and remote repo root locally without storing them in the repo.
 
-If the current Azure VM is still only represented in local SSH config, use your local `~/.ssh/config` alias or your local operator notes instead of putting the host in git.
+If the current VM is still only represented in local SSH config, use your local `~/.ssh/config` alias or your local operator notes instead of putting the host in git.
 
 ## How To Connect To The VM
 
@@ -186,7 +187,7 @@ Full operator details are in:
 
 ## Safe Local-Only Notes
 
-If you need to remember the exact live Azure hostname, SSH alias, remote root, or key path, store that in a local ignored file such as:
+If you need to remember the exact live VM hostname, SSH alias, remote root, provider, or key path, store that in a local ignored file such as:
 
 ```text
 .superturtle/local-vm-teleport-notes.md
@@ -197,6 +198,7 @@ That path stays outside git because `.superturtle/` is ignored.
 Recommended contents for that local-only file:
 
 - current SSH alias
+- current provider
 - current `ssh_target`
 - current `remote_root`
 - which key or SSH config stanza to use
@@ -213,6 +215,13 @@ When rebuilding VM teleport on `dev`, keep these pieces:
 - hosted login/session flow in `super_turtle/bin/cloud.js`
 - hosted runtime lease semantics already built into `superturtle start`
 - the VM operator model of "one remote repo path per bot/project"
+
+Add this abstraction requirement while rebuilding:
+
+- keep VM provisioning behind a provider-neutral adapter owned by the control plane
+- keep provider-native details opaque to teleport/runtime code
+- make teleport consume only a resolved managed target plus readiness state
+- use `../superturtle-web/src/features/cloud/providers/contracts.ts` as the canonical interface file
 
 Treat these as reference only, not final architecture:
 

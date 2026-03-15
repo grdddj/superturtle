@@ -49,123 +49,29 @@ git checkout dev && git merge main
 
 ---
 
-## Current task
-Dashboard redesign: surface conductor state (worker lifecycle, wakeups, inbox) in the dashboard, fix layout issues, and make it a proper operational tool aligned with the new durable state model.
+## Current planning references
 
-## SubTurtle orchestration redesign scope
+The old dashboard/conductor task block in this file was stale and has been removed.
 
-We are keeping the good parts:
-- SubTurtle execution loops are good
-- Self-stopping via `## Loop Control` + `STOP` is good
-- Workspace isolation, watchdogs, logs, and token-prefixed runtime isolation are good
+Current planning for teleport on `dev` now lives in:
 
-We are redesigning the weak parts:
-- handoff state and long-run memory
-- silent check-ins and wake-up semantics
-- completion/stuck/error reporting back to the meta agent
-- supervisor ownership of orchestration decisions
-- restart/recovery behavior when the bot or meta session dies mid-run
+- `super_turtle/docs/REPO_BOUND_TELEPORT_SPEC.md`
+- `super_turtle/docs/VM_TELEPORT_REFERENCE.md`
 
-## Current system baseline
+Current direction:
 
-### Shipped
-- Telegram bot runtime, Claude/Codex drivers, MCP tools, queueing, and session management
-- SubTurtle spawn/stop/status/logs/list, yolo + slow loops, watchdog timeout handling, and self-stop support
-- Cron-based silent supervision
-- Token-prefixed runtime isolation for logs, temp dirs, IPC dirs, and tmux sessions
-- `/status`, `/debug`, `/looplogs`, `/pinologs`, `superturtle doctor`, and `superturtle logs`
+- VM-backed teleport is the preferred runtime direction for `dev`
+- teleport transfer scope is repo-bound, not machine-bound
+- reuse the existing manual VM teleport behavior and runtime handoff primitives
+- do not treat E2B sandbox code as the target architecture for v1
 
-### Known gaps
-- Core conductor correctness is now much stronger, but the automated coverage needs to stay organized around real user pathways instead of scattered unit-level behaviors
-- We still need explicit matrix coverage for some cross-surface paths, especially real switch-command/manual Telegram validation while multiple workers are already running
-- `handoff.md` and `runs.jsonl` still exist for compatibility, so they must stay strictly derived from canonical conductor state
-- `subturtle.meta` still carries some spawn/runtime metadata; worker lifecycle truth now lives in the conductor store and those paths need continued convergence
-- Historical archived worker records from pre-fix runs may still carry stale fields until manually repaired
+Current implementation focus from the spec:
 
-## End goal with specs
-- Every SubTurtle has explicit durable lifecycle state that can be reconstructed after any bot restart
-- Every important worker transition is persisted exactly once in a machine-readable event log
-- The supervisor can reconcile all workers from disk without depending on chat history, silent cron text, or model memory
-- The meta agent can be busy, restarted, or switched between Claude/Codex while worker events continue to land safely
-- Notifications to the human are derived from persisted state transitions, not inferred ad hoc from silent-check prompts
-- Self-stop remains first-class: workers still decide when they are done, but completion is consumed by a deterministic conductor flow
-- Multi-instance isolation remains intact: token/project-scoped runtime resources must not interfere across dev/prod or separate projects
+1. Add a persisted bound-repo config for the installation.
+2. Define the repo safety validator.
+3. Define the first version of `.superturtle/teleport-manifest.json`.
+4. Define the provider-neutral VM provisioning contract and adapter boundary.
+5. Split transfer logic into repo sync plus runtime handoff bundle.
+6. Make VM teleport use this repo-bound contract end to end.
 
-## Roadmap (Completed)
-- ✅ Core bot: Telegram integration, Claude driver, streaming responses, voice transcription
-- ✅ SubTurtle system: spawn/stop/status/logs, yolo + slow loops, watchdog, cron supervision
-- ✅ Meta agent: META_SHARED.md prompt, decomposition, silent-first supervision
-- ✅ MCP tools: send-turtle stickers, bot-control (usage/model/sessions), ask-user buttons
-- ✅ Codex driver: optional Codex CLI integration, driver switching, quota-aware routing
-- ✅ Package refactor: decoupled paths, CLI subprocess (replaced Agent SDK), npm package structure
-- ✅ Auth & security: user allowlist, rate limiting, audit logging
-- ✅ Deferred queue: voice message queuing when driver is busy, dedup, drain-on-complete
-- ✅ Tunnel support: cloudflared helper for frontend preview links
-- ✅ Screenshot support: Playwright-based browser screenshots for visual QA
-- ✅ Stop behavior: unified stop across text/voice/button, deferred queue clearing, `/stop` command
-- ✅ Multi-instance isolation: TOKEN_PREFIX namespacing for all `/tmp` files, MCP IPC directory, logs, tmux sessions
-- ✅ Current worker execution model: isolated workspaces, `CLAUDE.md` state files, commit-per-iteration yolo/slow loops, and self-stop directives
-
-## Roadmap (Upcoming)
-- Dashboard redesign: conductor state visibility, layout fixes, operational polish
-- Build out and maintain the core 15-path conductor contract across single-worker, multi-worker, and cross-driver/model user flows
-- Add the remaining restart/manual validation coverage after the core live-user paths are locked down
-
-## Backlog
-- [x] Define orchestration v2 ownership boundaries, lifecycle states, event types, and invariants
-- [x] Design the minimal durable data model: worker state file, global event log, and derived/rendered views
-- [x] Implement structured worker lifecycle persistence in `subturtle/ctl` and the Python loop
-- [x] Emit deterministic worker-side facts for checkpoints, completion requests, timeouts, stops, archives, and fatal-error handoff
-- [x] Emit reconciled `worker.completed`, `worker.failed`, cleanup, and delivery transitions from supervisor logic
-- [x] Expand the supervisor reconciliation path so silent cron milestone/stuck checks consume structured state instead of prompt inference
-- [x] Design and implement meta-agent wake-up/inbox semantics for background worker events during active user conversations
-- [x] Rework silent cron jobs to become reconciliation/notification triggers instead of the primary source of orchestration truth
-- [x] Re-render `handoff.md`, dashboard state, and operator summaries from structured state
-- [x] Replace prompt-mediated silent milestone/stuck judgment with deterministic supervisor policy
-- [x] Reset worker state cleanly when a reused SubTurtle name starts a new run
-- [x] Persist `worker.cron_removed` and clear `cron_job_id` on the stop path, not only in supervisor reconciliation
-- [x] Render archived completed/failed workers in `handoff.md` recent updates using canonical terminal outcome
-- [x] Add end-to-end tests for restart recovery, stale cron cleanup, mid-chat completion delivery, reused worker names, and multi-worker orchestration
-- [ ] Fix dashboard favicon, title, and layout (Cron+Jobs side by side, Queue below) <- done by meta agent
-- [ ] Add `/api/conductor` endpoint for worker states, wakeups, inbox <- current (SubTurtle: dashboard-v2)
-- [ ] Add conductor types to `dashboard-types.ts`
-- [ ] Enhance race lanes with conductor lifecycle state badges
-- [ ] Add Conductor panel to main dashboard grid
-- [ ] Add conductor header badge and auto-hide empty Queue panel
-- [ ] Add event timeline to SubTurtle detail page
-- [ ] Typecheck and commit
-- [ ] Lock the conductor behind a 15-path core-flow matrix that matches real user behavior
-- [ ] Fill any remaining matrix gaps, especially true switch-command/manual Telegram validation with multiple live SubTurtles
-- [ ] Add conductor state retention/gc so `.superturtle/state/` does not grow forever: prune old sent wakeups, acknowledged inbox items, stale archived worker records, and rotate/archive `events.jsonl`
-
-## Notes
-- Multi-instance audit: `docs/audits/multi-instance-isolation.md`
-- Conductor v2 design reference: `super_turtle/docs/long-run-state-tracking.md`
-- Structured conductor state is now live under `.superturtle/state/events.jsonl`, `.superturtle/state/workers/`, `.superturtle/state/wakeups/`, and `.superturtle/state/inbox/`
-- Current runtime producers: `subturtle/ctl` emits start/stop/archive/timeout lifecycle facts, and the Python loop emits checkpoint facts plus `completion_pending` / `failure_pending` handoff facts
-- Current runtime consumer: the bot timer now drains pending conductor wakeups directly, emits reconciliation events, removes stale cron jobs, and sends Telegram notifications without routing those lifecycle updates through the meta-agent conversation thread
-- Legacy completion cron handoff has been removed from the SubTurtle self-stop path; completion delivery now rides the canonical wakeup queue
-- Silent SubTurtle supervision now runs deterministic supervisor policy over canonical worker state, backlog completion, and checkpoint signatures; milestone/stuck wakeups flow through the same inbox and Telegram delivery path as lifecycle wakeups without terminal cleanup side effects
-- The bot timer now recreates missing `completion_requested` / `fatal_error` / `timeout` wakeups from canonical worker state before delivery, and stale recurring SubTurtle cron cleanup is persisted as a conductor event instead of existing only as an inline warning
-- The bot now runs the same conductor maintenance pass on startup and on each timer tick, so recovered wakeups and stale recurring-cron cleanup no longer wait for the first scheduled interval after a reboot
-- Startup conductor maintenance now also requeues wakeups stranded in `processing`, so an interrupted completion/failure/milestone notification is replayable after a bot restart instead of being lost indefinitely
-- The bot cron timer is now single-flight and only starts after boot-time maintenance finishes, so recovery work runs before recurring ticks and a slow maintenance/delivery pass cannot overlap the next 10-second conductor cycle
-- `ctl spawn` now registers structured supervision cron jobs with `job_kind=subturtle_supervision`, `worker_name`, and `supervision_mode`, and the bot prefers those fields over prompt regex parsing
-- `handoff.md` is now refreshed from canonical worker state plus pending wakeups, and dashboard lanes prefer conductor worker fields for live SubTurtles
-- Reconciled lifecycle wakeups now also create durable meta-agent inbox items; the next successful interactive Claude/Codex turn injects them as non-chat background context and acknowledges them after the turn completes
-- `handoff.md` now surfaces both `pending` and `processing` wakeups so in-flight recovery state stays visible to the operator instead of disappearing from the rendered summary
-- Current conductor coverage now includes recreated pending-wakeup recovery, `processing` wakeup replay on startup, stale recurring-cron cleanup, startup maintenance idempotency, multi-worker inbox recovery, and driver-level interactive acknowledgment tests for both Claude and Codex session paths
-- Live `book-writer` validation confirmed the end-to-end completion path works, but also surfaced three follow-ups: stale supervisor metadata survives reused worker names, stop-path cron removal is not always persisted canonically, and archived completions are missing from `handoff.md` recent updates
-- `put-worker` now resets checkpoint/metadata/terminal residue when a reused worker name starts a new `run_id`, `ctl stop` now persists `worker.cron_removed` and clears stale cron metadata, and `handoff.md` recent updates now render archived completed/failed workers by canonical resolved terminal outcome
-- Wakeup recovery, stale-cron gating, and pending delivery are now `run_id`-aware, so an old completion/failure wakeup from a previous run with the same worker name no longer mutates or blocks the current run
-- `conductor-core-flow.test.ts` now covers the happy path end-to-end (`baseline -> milestone -> completion -> inbox ack`), a parallel three-worker path (`milestone + completion + failure`), and the timeout terminal path
-- Claude and Codex inbox tests now also cover model changes while background worker events are pending, so the next interactive turn still injects and acknowledges those durable updates under the selected driver/model
-- The 15-path user-flow matrix now lives in `super_turtle/docs/long-run-state-tracking.md`; use it as the checklist for future conductor changes
-- Conductor storage retention is not implemented yet: workspaces already have `ctl gc`, but `.superturtle/state/` currently keeps historical worker records, wakeups, inbox items, and the append-only event log until we add explicit conductor gc/compaction
-- `MAIN_PROVIDER=claude|codex` is now supported as the startup default provider for the Telegram meta-agent; effective precedence is saved last-used provider > `MAIN_PROVIDER` > `claude`, so restarts preserve the user's last switch and `MAIN_PROVIDER=codex` still requires `CODEX_ENABLED=true` plus a working local Codex CLI
-- The actual docs repo lives in the sibling path `../turtlesite/`; edit `../turtlesite/docs/` for published docs, and treat `super_turtle/docs/` here as internal project documentation unless a task explicitly says otherwise
-- TOKEN_PREFIX lives in `src/token-prefix.ts` (standalone leaf module, no circular deps)
-- MCP IPC files are isolated in `/tmp/superturtle-{tokenPrefix}/`, passed to MCP servers via `SUPERTURTLE_IPC_DIR`
-- The bot is the meta agent; system prompt injection still lives in `super_turtle/claude-telegram-bot/src/config.ts`
-- The redesign should preserve the existing good operator ergonomics: `ctl list`, `ctl status`, worker logs, `/debug`, `/status`, dashboard views, and preview URLs
-- Dashboard layout fixes (favicon, title, Cron+Jobs side by side) applied directly by meta agent; conductor state integration delegated to SubTurtle `dashboard-v2` (yolo-codex)
+Keep any future task updates in the dedicated docs above rather than growing another large stale task block here.
