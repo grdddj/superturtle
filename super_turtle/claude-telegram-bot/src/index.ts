@@ -18,7 +18,6 @@ import {
   TOKEN_PREFIX,
   IPC_DIR,
   SUPERTURTLE_DATA_DIR,
-  TELEGRAM_WEBHOOK_POC_MODE,
 } from "./config";
 import { unlinkSync, readFileSync, existsSync, writeFileSync, openSync, closeSync, mkdirSync } from "fs";
 import {
@@ -894,17 +893,11 @@ botLog.info(
 );
 botLog.info("Starting bot...");
 
-if (!CLAUDE_CLI_AVAILABLE && !TELEGRAM_WEBHOOK_POC_MODE) {
+if (!CLAUDE_CLI_AVAILABLE) {
   botLog.error(
     "Claude CLI is required for the meta-agent runtime. Install Claude Code or set CLAUDE_CLI_PATH."
   );
   process.exit(1);
-}
-
-if (!CLAUDE_CLI_AVAILABLE && TELEGRAM_WEBHOOK_POC_MODE) {
-  botLog.warn(
-    "Starting in Telegram webhook POC mode without Claude CLI. Text messages will use the minimal wake-test reply."
-  );
 }
 
 mkdirSync(IPC_DIR, { recursive: true });

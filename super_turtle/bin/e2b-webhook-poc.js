@@ -200,7 +200,6 @@ Common options:
   --remote-root <path>        Remote project root (default: /home/user/<repo>)
   --webhook-path <path>       Telegram webhook path inside the sandbox
   --webhook-secret <secret>   Telegram webhook secret token
-  --set-webhook               After launch, set Telegram webhook automatically
   --drop-pending-updates      Apply Telegram drop_pending_updates when changing webhook
   --lines <n>                 Number of log lines for logs (default: 50)
 `);
@@ -258,13 +257,6 @@ async function launch(options) {
 
   const state = buildStateRecord(projectRoot, sandbox.sandboxId, host, config);
   savePocState(projectRoot, state);
-
-  if (options["set-webhook"] === "true") {
-    const botToken = projectEnv.TELEGRAM_BOT_TOKEN;
-    await setTelegramWebhook(botToken, state.webhookUrl, state.webhookSecret, {
-      dropPendingUpdates: options["drop-pending-updates"] === "true",
-    });
-  }
 
   console.log(formatStateSummary(state));
   console.log(`Health check passed: ${healthUrl}`);

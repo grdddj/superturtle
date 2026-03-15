@@ -8,7 +8,7 @@ Goal:
 - point Telegram directly at that sandbox URL
 - pause the sandbox
 - send a Telegram message
-- verify the same sandbox wakes and replies
+- verify the same sandbox wakes and receives the webhook request
 
 ## Prerequisites
 
@@ -33,7 +33,7 @@ The helper uses the `@e2b/code-interpreter` JavaScript SDK locally. The remote s
 From the repo root:
 
 ```bash
-E2B_API_KEY=... node super_turtle/bin/e2b-webhook-poc.js launch --set-webhook
+E2B_API_KEY=... node super_turtle/bin/e2b-webhook-poc.js launch
 ```
 
 What this does:
@@ -41,12 +41,15 @@ What this does:
 - creates or reuses one E2B sandbox with `onTimeout=pause` and `autoResume=true`
 - uploads the current repo working tree, excluding local runtime state
 - starts the existing Telegram bot in webhook mode inside the sandbox
-- enables a narrow webhook POC mode so the bot can boot without Claude CLI in E2B and reply to plain text
 - waits for `GET /healthz`
-- registers Telegram webhook to the sandbox URL when `--set-webhook` is present
 - saves local state to `.superturtle/e2b-webhook-poc.json`
 
-Use a plain text message like `wake test` for the proof message.
+The bot registers its own webhook on startup. The local `set-webhook` command is only for manual repair.
+
+Important:
+
+- this helper does not install or authenticate Claude Code inside the sandbox
+- the remote runtime still needs the normal bot prerequisites if you want full message handling, not just transport/wake verification
 
 ## Pause and wake
 
@@ -56,13 +59,13 @@ Pause the sandbox:
 E2B_API_KEY=... node super_turtle/bin/e2b-webhook-poc.js pause
 ```
 
-Then send `wake test` to the bot in Telegram.
+Then send a Telegram message to the bot.
 
 Expected result:
 
 - the same sandbox resumes
 - Telegram reaches the webhook
-- the bot replies `Webhook wake POC OK.` with the echoed message
+- if the remote runtime is fully provisioned, the bot handles the message normally
 
 ## Inspect state
 
@@ -90,6 +93,12 @@ Delete the Telegram webhook:
 
 ```bash
 E2B_API_KEY=... node super_turtle/bin/e2b-webhook-poc.js delete-webhook
+```
+
+Manually set the Telegram webhook to the saved sandbox URL if needed:
+
+```bash
+E2B_API_KEY=... node super_turtle/bin/e2b-webhook-poc.js set-webhook
 ```
 
 The helper intentionally does not kill the sandbox automatically. This keeps the same sandbox ID available for repeated pause/resume tests.

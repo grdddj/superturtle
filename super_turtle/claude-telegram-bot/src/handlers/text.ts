@@ -4,7 +4,7 @@
 
 import type { Context, NextFunction } from "grammy";
 import { session } from "../session";
-import { ALLOWED_USERS, CLAUDE_CLI_AVAILABLE, TELEGRAM_WEBHOOK_POC_MODE } from "../config";
+import { ALLOWED_USERS } from "../config";
 import { getCurrentDriver } from "../drivers/registry";
 import { isAuthorized, rateLimiter } from "../security";
 import {
@@ -56,12 +56,6 @@ function summarizeErrorMessage(error: unknown, maxLength = 240): string {
     : compact;
 }
 
-function buildWebhookPocReply(message: string): string {
-  const compact = message.replace(/\s+/g, " ").trim();
-  const echoed = compact.length > 120 ? `${compact.slice(0, 117)}...` : compact;
-  return `Webhook wake POC OK.\nReceived: ${echoed}`;
-}
-
 /**
  * Handle incoming text messages.
  */
@@ -109,13 +103,6 @@ export async function handleText(
         : message,
     messageTruncated: message.length > 500,
   });
-
-  if (TELEGRAM_WEBHOOK_POC_MODE && !CLAUDE_CLI_AVAILABLE) {
-    if (!silent) {
-      await ctx.reply(buildWebhookPocReply(message));
-    }
-    return;
-  }
 
   // 1.5. Bare "stop" — interrupt the foreground run/queue only.
   if (isStopIntent(message)) {
