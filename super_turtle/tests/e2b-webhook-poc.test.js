@@ -22,8 +22,36 @@ const {
   serializeDotEnv,
   shouldRunFullBootstrap,
 } = require("../bin/e2b-webhook-poc-lib.js");
+const { loadDotEnvFileIntoProcess } = require("../bin/e2b-webhook-poc.js");
 
 (() => {
+  const envFile = resolve(os.tmpdir(), `superturtle-dotenv-${Date.now()}-${Math.random().toString(16).slice(2)}.env`);
+  const originalE2BApiKey = process.env.E2B_API_KEY;
+  const originalTelegramToken = process.env.TELEGRAM_BOT_TOKEN;
+  process.env.E2B_API_KEY = "ambient-key";
+  process.env.TELEGRAM_BOT_TOKEN = "ambient-token";
+  fs.writeFileSync(
+    envFile,
+    "E2B_API_KEY=project-key\nTELEGRAM_BOT_TOKEN=project-token\nNEW_ONLY=from-file\n",
+    "utf-8"
+  );
+  loadDotEnvFileIntoProcess(envFile);
+  assert.strictEqual(process.env.E2B_API_KEY, "project-key");
+  assert.strictEqual(process.env.TELEGRAM_BOT_TOKEN, "project-token");
+  assert.strictEqual(process.env.NEW_ONLY, "from-file");
+  fs.unlinkSync(envFile);
+  if (originalE2BApiKey === undefined) {
+    delete process.env.E2B_API_KEY;
+  } else {
+    process.env.E2B_API_KEY = originalE2BApiKey;
+  }
+  if (originalTelegramToken === undefined) {
+    delete process.env.TELEGRAM_BOT_TOKEN;
+  } else {
+    process.env.TELEGRAM_BOT_TOKEN = originalTelegramToken;
+  }
+  delete process.env.NEW_ONLY;
+
   const parsed = parseDotEnv(`
 # comment
 TELEGRAM_BOT_TOKEN=123:abc

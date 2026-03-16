@@ -6,6 +6,7 @@ type ReplyRecord = {
 
 function makeCtx(messageText: string) {
   const replies: ReplyRecord[] = [];
+  const edits: ReplyRecord[] = [];
   const setMyCommandsCalls: Array<Array<{ command: string; description: string }>> = [];
   return {
     ctx: {
@@ -14,6 +15,9 @@ function makeCtx(messageText: string) {
       message: { text: messageText },
       api: {
         async deleteMessage() {},
+        async editMessageText(_chatId: number, _messageId: number, text: string) {
+          edits.push({ text });
+        },
         async setMyCommands(commands: Array<{ command: string; description: string }>) {
           setMyCommandsCalls.push(commands);
         },
@@ -27,6 +31,7 @@ function makeCtx(messageText: string) {
       },
     },
     replies,
+    edits,
     setMyCommandsCalls,
   };
 }
@@ -56,23 +61,42 @@ async function loadCommandsModuleForRole(
     loadTeleportStateForCurrentProject: () => null,
     recentlyReturnedHome: () => false,
     reconcileTeleportOwnershipForCurrentProject: async () => null,
-    launchTeleportRuntimeForCurrentProject: async () => ({
-      sandboxId: "sbx_123",
-      webhookUrl: "https://example.test/telegram/webhook/demo",
-    }),
-    activateTeleportOwnershipForCurrentProject: async () => ({
-      state: {
+    launchTeleportRuntimeForCurrentProject: async (options: { onProgress?: (event: { stage: string }) => unknown }) => {
+      await options.onProgress?.({ stage: "connecting_sandbox" });
+      await options.onProgress?.({ stage: "packing_project" });
+      await options.onProgress?.({ stage: "uploading_project" });
+      await options.onProgress?.({ stage: "unpacking_project" });
+      await options.onProgress?.({ stage: "waiting_ready" });
+      return {
         sandboxId: "sbx_123",
         webhookUrl: "https://example.test/telegram/webhook/demo",
-      },
-    }),
-    releaseTeleportOwnershipForCurrentProject: async () => ({
-      state: null,
-    }),
-    pauseTeleportSandboxForCurrentProject: async () => ({
-      sandboxId: "sbx_123",
-      webhookUrl: "https://example.test/telegram/webhook/demo",
-    }),
+      };
+    },
+    activateTeleportOwnershipForCurrentProject: async (options: { onProgress?: (event: { stage: string }) => unknown }) => {
+      await options.onProgress?.({ stage: "switching_telegram" });
+      await options.onProgress?.({ stage: "verifying_cutover" });
+      return {
+        state: {
+          sandboxId: "sbx_123",
+          webhookUrl: "https://example.test/telegram/webhook/demo",
+        },
+      };
+    },
+    releaseTeleportOwnershipForCurrentProject: async (options: { onProgress?: (event: { stage: string }) => unknown }) => {
+      await options.onProgress?.({ stage: "releasing_telegram" });
+      await options.onProgress?.({ stage: "verifying_release" });
+      return {
+        state: null,
+      };
+    },
+    pauseTeleportSandboxForCurrentProject: async (options: { onProgress?: (event: { stage: string }) => unknown }) => {
+      await options.onProgress?.({ stage: "pausing_remote" });
+      await options.onProgress?.({ stage: "done" });
+      return {
+        sandboxId: "sbx_123",
+        webhookUrl: "https://example.test/telegram/webhook/demo",
+      };
+    },
     ...teleportOverrides,
   }));
 
@@ -84,13 +108,24 @@ afterEach(() => {
 });
 
 describe("teleport commands", () => {
-  it("launches remote ownership from the local runtime", async () => {
+  it("launches remote ownership from the local runtime with a single live status card", async () => {
     const { handleTeleport } = await loadCommandsModuleForRole("local", {});
-    const { ctx, replies, setMyCommandsCalls } = makeCtx("/teleport");
+    const { ctx, replies, edits, setMyCommandsCalls } = makeCtx("/teleport");
 
     await handleTeleport(ctx as never);
 
-    expect(replies.some((reply) => reply.text.includes("✅ Teleported to E2B."))).toBe(true);
+    expect(replies).toEqual([
+      { text: "🌀 Teleporting to E2B\n• Preparing teleport" },
+    ]);
+    expect(edits.some((reply) => reply.text.includes("Connecting to your E2B sandbox"))).toBe(true);
+    expect(edits.some((reply) => reply.text.includes("Packing local project files"))).toBe(true);
+    expect(edits.some((reply) => reply.text.includes("Uploading project files to E2B"))).toBe(true);
+    expect(edits.some((reply) => reply.text.includes("Unpacking project files in E2B"))).toBe(true);
+    expect(edits.some((reply) => reply.text.includes("Switching Telegram to the remote turtle"))).toBe(true);
+    expect(edits.at(-1)?.text).toBe(
+      "✅ Teleported to E2B.\nTelegram is now routed to the remote turtle."
+    );
+    expect(edits.at(-1)?.text.includes("Webhook:")).toBe(false);
     expect(setMyCommandsCalls.at(-1)?.map((entry) => entry.command)).toContain("home");
   });
 
@@ -105,23 +140,30 @@ describe("teleport commands", () => {
     ]);
   });
 
-  it("releases webhook ownership from the remote runtime", async () => {
+  it("releases webhook ownership from the remote runtime with a single live status card", async () => {
     const pauseCalls: string[] = [];
     const { handleHome } = await loadCommandsModuleForRole("teleport-remote", {
-      pauseTeleportSandboxForCurrentProject: async () => {
+      pauseTeleportSandboxForCurrentProject: async (options: { onProgress?: (event: { stage: string }) => unknown }) => {
         pauseCalls.push("pause");
+        await options.onProgress?.({ stage: "pausing_remote" });
+        await options.onProgress?.({ stage: "done" });
         return {
           sandboxId: "sbx_123",
           webhookUrl: "https://example.test/telegram/webhook/demo",
         };
       },
     });
-    const { ctx, replies, setMyCommandsCalls } = makeCtx("/home");
+    const { ctx, replies, edits, setMyCommandsCalls } = makeCtx("/home");
 
     await handleHome(ctx as never);
 
-    expect(replies.some((reply) => reply.text.includes("✅ Telegram ownership returned"))).toBe(true);
-    expect(replies.some((reply) => reply.text.includes("pausing now"))).toBe(true);
+    expect(replies).toEqual([
+      { text: "🏠 Returning home\n• Releasing Telegram ownership" },
+    ]);
+    expect(edits.some((reply) => reply.text.includes("Pausing the remote sandbox"))).toBe(true);
+    expect(edits.at(-1)?.text).toBe(
+      "✅ Back on your PC.\nTelegram is now routed to the local turtle."
+    );
     expect(setMyCommandsCalls.at(-1)?.map((entry) => entry.command)).toContain("teleport");
     expect(pauseCalls).toEqual(["pause"]);
   });

@@ -9,6 +9,31 @@ const teleportLib = require("../../bin/e2b-webhook-poc-lib.js");
 export type TeleportOwnerMode = "local" | "remote";
 export type RuntimeRole = "local" | "teleport-remote";
 export type RemoteMode = "control" | "agent";
+export type TeleportProgressStage =
+  | "preparing"
+  | "connecting_sandbox"
+  | "creating_sandbox"
+  | "syncing_project"
+  | "packing_project"
+  | "uploading_project"
+  | "unpacking_project"
+  | "syncing_auth"
+  | "starting_remote"
+  | "waiting_ready"
+  | "switching_telegram"
+  | "verifying_cutover"
+  | "releasing_telegram"
+  | "verifying_release"
+  | "pausing_remote"
+  | "done";
+
+export type TeleportProgressEvent = {
+  stage: TeleportProgressStage;
+  sandboxId?: string;
+  remoteMode?: RemoteMode;
+};
+
+type TeleportProgressHandler = (event: TeleportProgressEvent) => void | Promise<void>;
 
 export type TeleportState = {
   version: number;
@@ -79,27 +104,37 @@ export function getTeleportRemoteUnsupportedMessage(): string {
 }
 
 export async function launchTeleportRuntimeForCurrentProject(
-  options: { remoteMode?: RemoteMode; remoteDriver?: "codex" } = {}
+  options: {
+    remoteMode?: RemoteMode;
+    remoteDriver?: "codex";
+    onProgress?: TeleportProgressHandler;
+  } = {}
 ): Promise<TeleportState> {
   return teleportLib.launchTeleportRuntime(WORKING_DIR, options);
 }
 
-export async function activateTeleportOwnershipForCurrentProject(): Promise<{
+export async function activateTeleportOwnershipForCurrentProject(
+  options: { onProgress?: TeleportProgressHandler } = {}
+): Promise<{
   state: TeleportState;
   webhookInfo: { result?: { url?: string } };
 }> {
-  return teleportLib.setRemoteWebhook(WORKING_DIR);
+  return teleportLib.setRemoteWebhook(WORKING_DIR, options);
 }
 
-export async function releaseTeleportOwnershipForCurrentProject(): Promise<{
+export async function releaseTeleportOwnershipForCurrentProject(
+  options: { onProgress?: TeleportProgressHandler } = {}
+): Promise<{
   state: TeleportState | null;
   webhookInfo: { result?: { url?: string } };
 }> {
-  return teleportLib.clearRemoteWebhook(WORKING_DIR);
+  return teleportLib.clearRemoteWebhook(WORKING_DIR, options);
 }
 
-export async function pauseTeleportSandboxForCurrentProject(): Promise<TeleportState> {
-  return teleportLib.pauseTeleportSandbox(WORKING_DIR);
+export async function pauseTeleportSandboxForCurrentProject(
+  options: { onProgress?: TeleportProgressHandler } = {}
+): Promise<TeleportState> {
+  return teleportLib.pauseTeleportSandbox(WORKING_DIR, options);
 }
 
 export async function reconcileTeleportOwnershipForCurrentProject(): Promise<TeleportState | null> {

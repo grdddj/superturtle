@@ -47,7 +47,8 @@ function requireEnv(name) {
   return value.trim();
 }
 
-function loadDotEnvFileIntoProcess(filePath) {
+function loadDotEnvFileIntoProcess(filePath, options = {}) {
+  const overrideExisting = options.overrideExisting !== false;
   if (!fs.existsSync(filePath)) {
     return;
   }
@@ -63,7 +64,7 @@ function loadDotEnvFileIntoProcess(filePath) {
       continue;
     }
     const key = trimmed.slice(0, equalsIndex).trim();
-    if (!key || process.env[key]) {
+    if (!key || (!overrideExisting && process.env[key])) {
       continue;
     }
     let value = trimmed.slice(equalsIndex + 1).trim();
@@ -230,7 +231,16 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.stack || error.message : String(error));
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.stack || error.message : String(error));
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  loadDotEnvFileIntoProcess,
+  parseArgs,
+  projectRootFromOptions,
+  requireEnv,
+};

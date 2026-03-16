@@ -44,6 +44,13 @@ const DEFAULT_CLAUDE_CREDENTIAL_PATHS = [
   join(".claude", "credentials.json"),
 ];
 
+async function emitProgress(options, stage, extra = {}) {
+  if (!options || typeof options.onProgress !== "function") {
+    return;
+  }
+  await options.onProgress({ stage, ...extra });
+}
+
 function normalizeExistingPath(path) {
   try {
     return fs.realpathSync(path);
@@ -895,7 +902,11 @@ async function waitForReady(url, timeoutMs) {
   return waitForHttpReady(url, timeoutMs, "readiness");
 }
 
-async function ensureTeleportTargetReady(projectRoot, state) {
+async function ensureTeleportTargetReady(projectRoot, state, options = {}) {
+  await emitProgress(options, "connecting_sandbox", {
+    sandboxId: state.sandboxId,
+    remoteMode: state.remoteMode || DEFAULT_REMOTE_MODE,
+  });
   const { Sandbox } = await importSandbox();
   const sandbox = await Sandbox.connect(state.sandboxId, {
     timeoutMs: state.timeoutMs || DEFAULT_TIMEOUT_MS,
@@ -954,6 +965,7 @@ function saveStateWithOwner(projectRoot, state, ownerMode) {
 }
 
 async function launchTeleportRuntime(projectRoot, options = {}) {
+  await emitProgress(options, "preparing");
   const projectEnv = loadProjectEnv(projectRoot);
   const existingState = loadPocState(projectRoot);
   const config = buildPocConfig(projectRoot, options, existingState);
@@ -973,6 +985,10 @@ async function launchTeleportRuntime(projectRoot, options = {}) {
   let sandbox = null;
   if (sandboxId) {
     try {
+      await emitProgress(options, "connecting_sandbox", {
+        sandboxId,
+        remoteMode: config.remoteMode,
+      });
       sandbox = await Sandbox.connect(sandboxId, { timeoutMs: config.timeoutMs });
     } catch (error) {
       if (!isMissingSandboxError(error)) {
@@ -981,6 +997,9 @@ async function launchTeleportRuntime(projectRoot, options = {}) {
     }
   }
   if (!sandbox) {
+    await emitProgress(options, "creating_sandbox", {
+      remoteMode: config.remoteMode,
+    });
     sandbox = await Sandbox.create(config.templateId, {
       timeoutMs: config.timeoutMs,
       lifecycle: {
@@ -1010,9 +1029,17 @@ async function launchTeleportRuntime(projectRoot, options = {}) {
   const remoteManifest = sandbox ? await readRemoteManagedRuntimeManifest(sandbox, config) : null;
   if (sandbox && !shouldRunFullBootstrap(config, remoteManifest)) {
     try {
+      await emitProgress(options, "waiting_ready", {
+        sandboxId: sandbox.sandboxId,
+        remoteMode: config.remoteMode,
+      });
       await waitForReady(readyUrl, 5 * 1000);
       const state = buildStateRecord(projectRoot, sandbox.sandboxId, host, config, DEFAULT_OWNER_MODE);
       savePocState(projectRoot, state);
+      await emitProgress(options, "done", {
+        sandboxId: sandbox.sandboxId,
+        remoteMode: config.remoteMode,
+      });
       return state;
     } catch {
       // Fall through to a full resync/restart when the existing runtime is not ready.
@@ -1025,24 +1052,56 @@ async function launchTeleportRuntime(projectRoot, options = {}) {
       options.archivePath ||
       `/tmp/superturtle-e2b-project-${randomToken(6)}.tgz`,
   };
+  await emitProgress(options, "syncing_project", {
+    sandboxId: sandbox.sandboxId,
+    remoteMode: config.remoteMode,
+  });
+  await emitProgress(options, "packing_project", {
+    sandboxId: sandbox.sandboxId,
+    remoteMode: config.remoteMode,
+  });
   const archiveBuffer = createArchiveBuffer(projectRoot);
+  await emitProgress(options, "uploading_project", {
+    sandboxId: sandbox.sandboxId,
+    remoteMode: config.remoteMode,
+  });
   await sandbox.files.write(bootstrapConfig.archivePath, archiveBuffer);
+  await emitProgress(options, "unpacking_project", {
+    sandboxId: sandbox.sandboxId,
+    remoteMode: config.remoteMode,
+  });
   await sandbox.commands.run(buildRemoteBootstrapCommand(bootstrapConfig), {
     envs: remoteEnv,
     timeoutMs: 10 * 60 * 1000,
   });
   await persistRemoteProjectEnv(sandbox, bootstrapConfig, remoteEnv);
+  await emitProgress(options, "syncing_auth", {
+    sandboxId: sandbox.sandboxId,
+    remoteMode: config.remoteMode,
+  });
   await bootstrapRemoteDriverAuth(sandbox, bootstrapConfig, remoteEnv, authBootstrap);
+  await emitProgress(options, "starting_remote", {
+    sandboxId: sandbox.sandboxId,
+    remoteMode: config.remoteMode,
+  });
   await sandbox.commands.run(buildRemoteStartCommand(bootstrapConfig), {
     envs: remoteEnv,
     background: true,
     timeoutMs: 10 * 60 * 1000,
+  });
+  await emitProgress(options, "waiting_ready", {
+    sandboxId: sandbox.sandboxId,
+    remoteMode: config.remoteMode,
   });
   await waitForReady(readyUrl, 90 * 1000);
   await persistManagedRuntimeManifest(sandbox, bootstrapConfig);
 
   const state = buildStateRecord(projectRoot, sandbox.sandboxId, host, bootstrapConfig, DEFAULT_OWNER_MODE);
   savePocState(projectRoot, state);
+  await emitProgress(options, "done", {
+    sandboxId: sandbox.sandboxId,
+    remoteMode: config.remoteMode,
+  });
   return state;
 }
 
@@ -1079,11 +1138,19 @@ async function getTeleportStatus(projectRoot) {
 async function setRemoteWebhook(projectRoot, options = {}) {
   const existingState = requireProjectState(projectRoot);
   const runtimeEnv = loadRuntimeEnv(projectRoot);
-  const state = await ensureTeleportTargetReady(projectRoot, existingState);
+  const state = await ensureTeleportTargetReady(projectRoot, existingState, options);
+  await emitProgress(options, "switching_telegram", {
+    sandboxId: existingState.sandboxId,
+    remoteMode: existingState.remoteMode || DEFAULT_REMOTE_MODE,
+  });
   await setTelegramWebhook(runtimeEnv.TELEGRAM_BOT_TOKEN, state.webhookUrl, state.webhookSecret, {
     dropPendingUpdates: Boolean(options.dropPendingUpdates),
   });
 
+  await emitProgress(options, "verifying_cutover", {
+    sandboxId: state.sandboxId,
+    remoteMode: state.remoteMode || DEFAULT_REMOTE_MODE,
+  });
   const webhookInfo = await getTelegramWebhookInfo(runtimeEnv.TELEGRAM_BOT_TOKEN);
   const currentUrl = webhookInfo?.result?.url || "";
   if (currentUrl !== state.webhookUrl) {
@@ -1102,8 +1169,16 @@ async function setRemoteWebhook(projectRoot, options = {}) {
 async function clearRemoteWebhook(projectRoot, options = {}) {
   const state = loadPocState(projectRoot);
   const runtimeEnv = loadRuntimeEnv(projectRoot);
+  await emitProgress(options, "releasing_telegram", {
+    sandboxId: state?.sandboxId,
+    remoteMode: state?.remoteMode || DEFAULT_REMOTE_MODE,
+  });
   await deleteTelegramWebhook(runtimeEnv.TELEGRAM_BOT_TOKEN, {
     dropPendingUpdates: Boolean(options.dropPendingUpdates),
+  });
+  await emitProgress(options, "verifying_release", {
+    sandboxId: state?.sandboxId,
+    remoteMode: state?.remoteMode || DEFAULT_REMOTE_MODE,
   });
   const webhookInfo = await getTelegramWebhookInfo(runtimeEnv.TELEGRAM_BOT_TOKEN);
   const currentUrl = webhookInfo?.result?.url || "";
@@ -1132,15 +1207,27 @@ async function reconcileTeleportOwnership(projectRoot) {
   return saveStateWithOwner(projectRoot, state, "local");
 }
 
-async function pauseTeleportSandbox(projectRoot) {
+async function pauseTeleportSandbox(projectRoot, options = {}) {
   const state = requireProjectState(projectRoot);
+  await emitProgress(options, "pausing_remote", {
+    sandboxId: state.sandboxId,
+    remoteMode: state.remoteMode || DEFAULT_REMOTE_MODE,
+  });
   const { Sandbox } = await importSandbox();
   const info = await lookupSandboxInfo(Sandbox, state.sandboxId);
   if (info?.state === "paused") {
+    await emitProgress(options, "done", {
+      sandboxId: state.sandboxId,
+      remoteMode: state.remoteMode || DEFAULT_REMOTE_MODE,
+    });
     return state;
   }
   const sandbox = await Sandbox.connect(state.sandboxId, { timeoutMs: state.timeoutMs || 60_000 });
   await sandbox.pause();
+  await emitProgress(options, "done", {
+    sandboxId: state.sandboxId,
+    remoteMode: state.remoteMode || DEFAULT_REMOTE_MODE,
+  });
   return state;
 }
 
