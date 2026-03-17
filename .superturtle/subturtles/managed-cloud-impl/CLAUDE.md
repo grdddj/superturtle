@@ -1,5 +1,5 @@
 # Current task
-Implement the first managed-cloud lifecycle and ownership changes in `../superturtle-web`, starting with the local-authoritative surfaces called out in `super_turtle/docs/reviews/review-managed-cloud-hosted-audit-2026-03-17.md`.
+Remove or isolate remaining assumptions in `../superturtle-web` that managed cloud depends on local-PC state, following the findings in `super_turtle/docs/reviews/review-managed-cloud-hosted-audit-2026-03-17.md`.
 
 # End goal with specs
 - Implement the hosted managed cloud plane in `../superturtle-web` to match `super_turtle/docs/managed-cloud-plane-spec.md`.
@@ -22,8 +22,8 @@ Implement the first managed-cloud lifecycle and ownership changes in `../supertu
 
 # Backlog
 - [x] Audit `../superturtle-web/src/features/cloud/controllers/` and related hosted runtime code against the new managed-cloud spec
-- [ ] Implement the first managed-cloud code changes needed for hosted-authoritative lifecycle and ownership <- current
-- [ ] Remove or isolate assumptions that managed mode depends on local-PC state
+- [x] Implement the first managed-cloud code changes needed for hosted-authoritative lifecycle and ownership
+- [ ] Remove or isolate assumptions that managed mode depends on local-PC state <- current
 - [ ] Enforce or document the narrow sandbox public-surface model in hosted code and tests
 - [ ] Update managed status/reporting surfaces to match the cloud-only hosted model
 - [ ] Add or update tests for provisioning, takeover confirmation, and managed status semantics
