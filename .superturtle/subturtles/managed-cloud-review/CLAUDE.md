@@ -1,5 +1,5 @@
 # Current task
-Review onboarding, repair, and public-surface logic for behavioural regressions.
+Review the new and changed tests for coverage gaps.
 
 # End goal with specs
 - Review the hosted managed-cloud implementation in `../superturtle-web`, especially the recent commits `e50a020`, `1e9a345`, `fa2bffc`, `5954bce`, `8845d93`, `a92b92f`, and `8ba07c2`.
@@ -22,7 +22,7 @@ Review onboarding, repair, and public-surface logic for behavioural regressions.
 # Backlog
 - [x] Read the recent hosted commit range and map the highest-risk files first
 - [x] Review lifecycle, ownership, and status changes for correctness and security risks
-- [ ] Review onboarding, repair, and public-surface logic for behavioural regressions <- current
-- [ ] Review the new and changed tests for coverage gaps
+- [x] Review onboarding, repair, and public-surface logic for behavioural regressions
+- [ ] Review the new and changed tests for coverage gaps <- current
 - [ ] Write `super_turtle/docs/reviews/review-managed-cloud-hosted-implementation-2026-03-17.md` with prioritized findings or a no-findings conclusion
 - [ ] Stop after committing the review result and updating this state file

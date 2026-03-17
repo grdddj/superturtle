@@ -1,6 +1,6 @@
 # Review: Managed Cloud Hosted Implementation
 
-Status: In progress. This pass covered lifecycle, ownership, and status handling in the managed control-plane/runtime flow.
+Status: In progress. This pass covered lifecycle, ownership, status, onboarding, repair, and public-surface handling in the managed control-plane/runtime flow.
 
 ## Scope Covered
 
@@ -17,9 +17,12 @@ Reviewed commits in `../superturtle-web`:
 Primary files reviewed in this pass:
 
 - `../superturtle-web/src/features/cloud/controllers/managed-control-plane.ts`
+- `../superturtle-web/src/features/cloud/controllers/managed-onboarding.ts`
+- `../superturtle-web/src/features/cloud/controllers/managed-public-surface.ts`
 - `../superturtle-web/src/features/cloud/controllers/managed-runtime.ts`
 - `../superturtle-web/src/features/cloud/controllers/managed-telegram-ownership.ts`
 - `../superturtle-web/src/features/cloud/controllers/managed-telegram-repair.ts`
+- `../superturtle-web/src/features/cloud/components/managed-telegram-setup-flow.tsx`
 
 ## Findings
 
@@ -47,3 +50,32 @@ References:
 Why it matters:
 - This can duplicate billable sandboxes and split runtime state across two environments.
 - Because the fallback is silent, operators only see the final repaired host, not the reconnect failure that triggered an unintended reprovision.
+
+### High: initial Telegram setup cuts over the webhook before the managed runtime proves it is ready
+
+`configureManagedTelegramBot()` still calls `setTelegramWebhook()` before `startManagedRuntime()` and `waitForReady()`. The catch path even reports that "The Telegram webhook was already moved to this sandbox" when readiness fails. By contrast, the newer repair flow uses the safer order of `startManagedRuntime()` -> `waitForReady()` -> `setTelegramWebhook()`, so first-time onboarding remains the riskier path.
+
+References:
+- `../superturtle-web/src/features/cloud/controllers/managed-onboarding.ts:245`
+- `../superturtle-web/src/features/cloud/controllers/managed-onboarding.ts:260`
+- `../superturtle-web/src/features/cloud/controllers/managed-telegram-repair.ts:213`
+
+Why it matters:
+- A first-time setup or takeover can strand Telegram updates on a sandbox that never reaches readiness, taking the bot offline until an operator manually repairs or restores the old webhook.
+- The onboarding tests only cover takeover confirmation and stale confirmation rejection; they do not exercise the failure path after `setTelegramWebhook()` to catch this regression.
+
+### Medium: Telegram preflight/configure resumes or provisions the sandbox before input validation, and the UI triggers both paths for one setup attempt
+
+Both `preflightManagedTelegramBot()` and `configureManagedTelegramBot()` call `provisionManagedSandboxInstance()` before trimming and validating `botToken` / `allowedUserId`. That helper immediately inserts a provisioning job and may create or resume the E2B sandbox. The client flow then calls `/api/managed/telegram/preflight` and `/api/managed/telegram/configure` back-to-back for a single "Configure bot" submit, so a normal no-takeover flow performs the lifecycle path twice before Telegram is actually configured.
+
+References:
+- `../superturtle-web/src/features/cloud/controllers/managed-onboarding.ts:177`
+- `../superturtle-web/src/features/cloud/controllers/managed-onboarding.ts:303`
+- `../superturtle-web/src/features/cloud/controllers/managed-control-plane.ts:26`
+- `../superturtle-web/src/features/cloud/components/managed-telegram-setup-flow.tsx:44`
+- `../superturtle-web/src/features/cloud/components/managed-telegram-setup-flow.tsx:88`
+
+Why it matters:
+- Empty or malformed bot submissions can still create or resume a billable sandbox and append misleading `provisioning_jobs` / audit history before the user sees a validation error.
+- A successful setup attempt pays the latency and side effects of two resume/provision cycles, which makes the onboarding timeline noisier and harder to reason about operationally.
+- The current onboarding tests do not verify that invalid input short-circuits before provisioning or that the end-to-end Telegram setup path only resumes once.
