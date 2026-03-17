@@ -1,5 +1,5 @@
 # Current task
-Polish Scene 3 (Architecture) in PhoneLaunchVideo.tsx: center node chain, use thinner elegant connectors, deepen the dark background with layered gradients, reduce subtitle text, and make the nodes feel premium.
+Polish Scene 4 (Teleport) in PhoneLaunchVideo.tsx: tighten the card, smooth the beam animation without jumps, and make the /teleport badge more prominent.
 
 # End goal with specs
 A clean, professional 9:16 phone video at super_turtle/launch-video/out/teleport-launch-phone.mp4. Each scene should feel like it belongs to the same product — think YC demo day / polished product launch quality.
@@ -36,8 +36,8 @@ Tech: Remotion v4, React, 30fps, 1080x1920. spring() for organic motion, interpo
 - [x] Read PhoneLaunchVideo.tsx, constants.ts, design.ts, fonts.ts fully
 - [x] Standardize spacing: 8px grid, consistent padding/margins/gaps across all 5 scenes, remove ad-hoc values
 - [x] Polish Scene 2 (Chat): real Telegram bubble shapes (outgoing=round-TL/TR/BL flat-BR, incoming=opposite), typing indicator dots before reply, realistic timestamps, natural message spacing
-- [ ] Polish Scene 3 (Architecture): center node chain, thinner elegant connectors, deeper dark bg with layered gradients, reduce subtitle text, make nodes feel premium <- current
-- [ ] Polish Scene 4 (Teleport): tighten card, smooth beam animation without jumps, make /teleport badge more prominent
+- [x] Polish Scene 3 (Architecture): center node chain, thinner elegant connectors, deeper dark bg with layered gradients, reduce subtitle text, make nodes feel premium
+- [ ] Polish Scene 4 (Teleport): tighten card, smooth beam animation without jumps, make /teleport badge more prominent <- current
 - [ ] Polish Scene 5 (Close): even checkmark spacing, CTA button styling, good turtle avatar visual weight
 - [ ] Reduce floating turtle opacity to 0.04-0.05 globally or remove from scenes where they distract
 - [ ] Render final video, verify all 5 scenes look cohesive by checking frames at 35, 130, 240, 320, 395

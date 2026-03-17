@@ -570,20 +570,72 @@ const ArchitectureScene: React.FC = () => {
   const { fps } = useVideoConfig();
 
   const nodes = [
-    { icon: "📱", label: "You", delay: 4, y: 0 },
-    { icon: "✈️", label: "Telegram", delay: 12, y: 0 },
-    { icon: "☁️", label: "Cloud Sandbox", delay: 20, y: 0 },
-    { icon: "🐢", label: "Agent", delay: 28, y: 0 },
+    {
+      icon: "📱",
+      label: "You",
+      meta: "Local input",
+      badge: "Prompt",
+      delay: 4,
+      accent: "rgba(143, 217, 255, 0.18)",
+      edge: "rgba(143, 217, 255, 0.46)",
+    },
+    {
+      icon: "✈️",
+      label: "Telegram",
+      meta: "Message bus",
+      badge: "Live",
+      delay: 12,
+      accent: "rgba(59, 130, 246, 0.2)",
+      edge: "rgba(59, 130, 246, 0.48)",
+    },
+    {
+      icon: "☁️",
+      label: "Cloud Sandbox",
+      meta: "Remote runtime",
+      badge: "Warm",
+      delay: 20,
+      accent: "rgba(118, 247, 191, 0.18)",
+      edge: "rgba(118, 247, 191, 0.46)",
+    },
+    {
+      icon: "🐢",
+      label: "Agent",
+      meta: "Execution loop",
+      badge: "Coding",
+      delay: 28,
+      accent: "rgba(196, 97, 60, 0.2)",
+      edge: "rgba(255, 139, 106, 0.5)",
+    },
   ];
 
-  // Data flow pulse
-  const flowPhase = (frame - 40) * 0.04;
-  const flowActive = frame > 40;
+  const connectorHeight = space(7);
+  const flowStart = 36;
 
   return (
     <Canvas dark>
-      <FloatingTurtle x={50} y={100} size={42} delay={6} rotation={-10} opacity={0.06} />
-      <FloatingTurtle x={940} y={1640} size={36} delay={18} rotation={14} opacity={0.05} />
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background:
+            "radial-gradient(circle at 50% 22%, rgba(59,130,246,0.22), transparent 28%), radial-gradient(circle at 50% 70%, rgba(118,247,191,0.14), transparent 34%), radial-gradient(circle at 18% 82%, rgba(255,255,255,0.06), transparent 24%), linear-gradient(180deg, rgba(4,10,18,0.28), rgba(3,8,14,0.74))",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: 360,
+          width: 480,
+          height: 980,
+          transform: "translateX(-50%)",
+          background: "linear-gradient(180deg, rgba(143,217,255,0.1), rgba(118,247,191,0.08))",
+          filter: "blur(110px)",
+          opacity: 0.7,
+        }}
+      />
+      <FloatingTurtle x={52} y={124} size={42} delay={6} rotation={-10} opacity={0.04} />
+      <FloatingTurtle x={944} y={1632} size={36} delay={18} rotation={14} opacity={0.04} />
 
       <div
         style={{
@@ -594,95 +646,189 @@ const ArchitectureScene: React.FC = () => {
           justifyContent: "center",
           alignItems: "center",
           padding: `0 ${space(6)}px`,
-          gap: space(6),
+          gap: space(5),
         }}
       >
-        {/* Title */}
         <div
           style={{
-            fontSize: 48,
-            fontWeight: 700,
-            letterSpacing: -1.4,
-            opacity: cl(frame, 0, 10, 0, 1),
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: space(2),
+            opacity: cl(frame, 0, 12, 0, 1),
             textAlign: "center",
           }}
         >
-          How it works
+          <div
+            style={{
+              fontSize: 52,
+              fontWeight: 700,
+              letterSpacing: -1.6,
+              lineHeight: 1.05,
+            }}
+          >
+            How it works
+          </div>
+          <div
+            style={{
+              fontSize: 20,
+              color: "rgba(232,244,255,0.58)",
+              fontWeight: 500,
+              letterSpacing: -0.2,
+            }}
+          >
+            Telegram routes each request to your cloud turtle.
+          </div>
         </div>
 
-        {/* Vertical node chain */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0, width: "100%" }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 0,
+            width: "100%",
+            maxWidth: 520,
+          }}
+        >
           {nodes.map((node, i) => {
             const p = pop(frame, fps, node.delay);
             const isLast = i === nodes.length - 1;
+            const cycle = ((frame - flowStart - i * 7) % 44 + 44) % 44;
+            const pulseTop = (cycle / 44) * (connectorHeight - 18);
+            const flowVisible = frame >= flowStart + i * 3;
+
             return (
               <React.Fragment key={node.label}>
-                {/* Node */}
                 <div
                   style={{
                     display: "flex",
                     alignItems: "center",
+                    justifyContent: "space-between",
                     gap: space(3),
-                    width: space(54),
+                    width: "100%",
+                    padding: `${space(3)}px ${space(4)}px`,
+                    borderRadius: 28,
+                    background:
+                      "linear-gradient(180deg, rgba(255,255,255,0.1), rgba(255,255,255,0.04))",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    boxShadow:
+                      "0 22px 60px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.07)",
+                    backdropFilter: "blur(8px)",
                     opacity: p,
-                    transform: `translateX(${(1 - p) * (i % 2 === 0 ? -30 : 30)}px)`,
+                    transform: `translateY(${(1 - p) * 18}px) scale(${0.96 + p * 0.04})`,
                   }}
                 >
+                  <div style={{ display: "flex", alignItems: "center", gap: space(2) }}>
+                    <div
+                      style={{
+                        width: 72,
+                        height: 72,
+                        borderRadius: 22,
+                        background: `linear-gradient(180deg, ${node.accent}, rgba(255,255,255,0.06))`,
+                        border: `1px solid ${node.edge}`,
+                        boxShadow: `0 16px 30px ${node.accent}`,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 32,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {node.icon}
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: space(1) }}>
+                      <div
+                        style={{
+                          fontFamily: monoFont,
+                          fontSize: 13,
+                          letterSpacing: 1.4,
+                          textTransform: "uppercase",
+                          color: "rgba(232,244,255,0.48)",
+                        }}
+                      >
+                        {node.meta}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 29,
+                          fontWeight: 700,
+                          letterSpacing: -0.8,
+                          color: "#f5fbff",
+                        }}
+                      >
+                        {node.label}
+                      </div>
+                    </div>
+                  </div>
                   <div
                     style={{
-                      width: 72,
-                      height: 72,
-                      borderRadius: 20,
-                      background: "rgba(255,255,255,0.06)",
-                      border: "1px solid rgba(255,255,255,0.12)",
                       display: "flex",
                       alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 34,
+                      gap: space(1),
+                      padding: `${space(1)}px ${space(2)}px`,
+                      borderRadius: 999,
+                      background: "rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      color: "rgba(232,244,255,0.7)",
+                      fontSize: 14,
+                      fontWeight: 600,
                       flexShrink: 0,
                     }}
                   >
-                    {node.icon}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 28, fontWeight: 700 }}>{node.label}</div>
+                    <div
+                      style={{
+                        width: 7,
+                        height: 7,
+                        borderRadius: 999,
+                        background: node.edge,
+                        boxShadow: `0 0 14px ${node.edge}`,
+                      }}
+                    />
+                    <span>{node.badge}</span>
                   </div>
                 </div>
 
-                {/* Connector line between nodes */}
                 {!isLast && (
                   <div
                     style={{
                       display: "flex",
                       justifyContent: "center",
-                      width: space(54),
-                      paddingLeft: space(3),
+                      width: "100%",
+                      padding: `${space(2)}px 0`,
                     }}
                   >
                     <div
                       style={{
-                        width: 3,
-                        height: 48,
-                        background: flowActive
-                          ? `linear-gradient(180deg, rgba(59,130,246,${0.3 + Math.sin(flowPhase + i * 1.5) * 0.3}), rgba(34,197,94,${0.3 + Math.sin(flowPhase + i * 1.5 + 1) * 0.3}))`
-                          : "rgba(255,255,255,0.08)",
+                        width: 2,
+                        height: connectorHeight,
+                        background: "linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))",
                         borderRadius: 999,
                         position: "relative",
-                        overflow: "visible",
+                        overflow: "hidden",
                       }}
                     >
-                      {/* Traveling dot */}
-                      {flowActive && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          inset: 0,
+                          background:
+                            "linear-gradient(180deg, rgba(143,217,255,0.12), rgba(118,247,191,0.18))",
+                          opacity: cl(frame, 18 + i * 6, 28 + i * 6, 0, 1),
+                        }}
+                      />
+                      {flowVisible && (
                         <div
                           style={{
                             position: "absolute",
-                            left: -4,
-                            top: `${((Math.sin(flowPhase + i * 1.8) + 1) / 2) * 100}%`,
-                            width: 10,
-                            height: 10,
+                            left: -1,
+                            top: pulseTop,
+                            width: 4,
+                            height: 18,
                             borderRadius: 999,
-                            background: c.sky,
-                            boxShadow: `0 0 12px ${c.sky}88`,
+                            background:
+                              "linear-gradient(180deg, rgba(143,217,255,0.92), rgba(118,247,191,0.92))",
+                            boxShadow: "0 0 18px rgba(143,217,255,0.42)",
                           }}
                         />
                       )}
@@ -692,22 +838,6 @@ const ArchitectureScene: React.FC = () => {
               </React.Fragment>
             );
           })}
-        </div>
-
-        {/* Subtitle */}
-        <div
-          style={{
-            fontSize: 22,
-            color: "rgba(232,244,255,0.5)",
-            fontWeight: 500,
-            textAlign: "center",
-            lineHeight: 1.5,
-            opacity: cl(frame, 36, 46, 0, 1),
-          }}
-        >
-          You message on Telegram.
-          <br />
-          The agent codes in a cloud sandbox.
         </div>
       </div>
     </Canvas>
