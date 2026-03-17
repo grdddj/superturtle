@@ -8,8 +8,8 @@ The current helper bootstrap lives in:
 
 It does three things before starting the remote bot:
 
-1. syncs the repo into the sandbox
-2. writes a sandbox-local `.superturtle/.env`
+1. installs or verifies the published `superturtle` runtime package inside the sandbox
+2. writes sandbox-local `.superturtle/project.json` and `.superturtle/.env`
 3. bootstraps remote Claude/Codex auth material
 
 ## Claude setup
@@ -70,7 +70,7 @@ If you want to start the bot manually inside the sandbox instead of through the 
 
 ```bash
 cd <remote-root>
-node super_turtle/bin/superturtle.js start
+superturtle start
 ```
 
 That path expects the generated `.superturtle/.env` to exist.

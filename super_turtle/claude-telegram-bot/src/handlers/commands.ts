@@ -153,16 +153,10 @@ function formatTeleportProgressText(stage: TeleportProgressEvent["stage"]): stri
         return "Connecting to your E2B sandbox";
       case "creating_sandbox":
         return "Creating your E2B sandbox";
-      case "syncing_project":
-        return "Syncing project files";
-      case "packing_project":
-        return "Packing local project files";
-      case "uploading_project":
-        return "Uploading project files to E2B";
-      case "unpacking_project":
-        return "Unpacking project files in E2B";
-      case "syncing_auth":
-        return "Syncing credentials";
+      case "configuring_remote":
+        return "Configuring the remote runtime";
+      case "bootstrapping_auth":
+        return "Bootstrapping credentials";
       case "starting_remote":
         return "Starting remote SuperTurtle";
       case "waiting_ready":

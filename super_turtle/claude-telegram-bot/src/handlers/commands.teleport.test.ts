@@ -63,9 +63,8 @@ async function loadCommandsModuleForRole(
     reconcileTeleportOwnershipForCurrentProject: async () => null,
     launchTeleportRuntimeForCurrentProject: async (options: { onProgress?: (event: { stage: string }) => unknown }) => {
       await options.onProgress?.({ stage: "connecting_sandbox" });
-      await options.onProgress?.({ stage: "packing_project" });
-      await options.onProgress?.({ stage: "uploading_project" });
-      await options.onProgress?.({ stage: "unpacking_project" });
+      await options.onProgress?.({ stage: "configuring_remote" });
+      await options.onProgress?.({ stage: "bootstrapping_auth" });
       await options.onProgress?.({ stage: "waiting_ready" });
       return {
         sandboxId: "sbx_123",
@@ -118,9 +117,8 @@ describe("teleport commands", () => {
       { text: "🌀 Teleporting to E2B\n• Preparing teleport" },
     ]);
     expect(edits.some((reply) => reply.text.includes("Connecting to your E2B sandbox"))).toBe(true);
-    expect(edits.some((reply) => reply.text.includes("Packing local project files"))).toBe(true);
-    expect(edits.some((reply) => reply.text.includes("Uploading project files to E2B"))).toBe(true);
-    expect(edits.some((reply) => reply.text.includes("Unpacking project files in E2B"))).toBe(true);
+    expect(edits.some((reply) => reply.text.includes("Configuring the remote runtime"))).toBe(true);
+    expect(edits.some((reply) => reply.text.includes("Bootstrapping credentials"))).toBe(true);
     expect(edits.some((reply) => reply.text.includes("Switching Telegram to the remote turtle"))).toBe(true);
     expect(edits.at(-1)?.text).toBe(
       "✅ Teleported to E2B.\nTelegram is now routed to the remote turtle."

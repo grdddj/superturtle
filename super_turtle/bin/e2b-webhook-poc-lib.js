@@ -28,7 +28,6 @@ const DEFAULT_READY_PATH = "/readyz";
 const DEFAULT_REMOTE_HOME = "/home/user";
 const DEFAULT_LOG_PATH = "/tmp/superturtle-e2b-bot.log";
 const DEFAULT_PID_PATH = "/tmp/superturtle-e2b-bot.pid";
-const DEFAULT_ARCHIVE_PATH = "/tmp/superturtle-e2b-project.tgz";
 const DEFAULT_TEMPLATE_NAME =
   process.env.SUPERTURTLE_E2B_TEMPLATE_NAME?.trim() || "superturtle-managed-runtime";
 const DEFAULT_TEMPLATE_CHANNEL =
@@ -380,6 +379,19 @@ function getLocalRuntimeVersion() {
   return "0.0.0-dev";
 }
 
+function deriveRuntimeVersionFromInstallSpec(installSpec) {
+  const trimmed = String(installSpec || "").trim();
+  if (!trimmed) {
+    return "";
+  }
+  const atIndex = trimmed.lastIndexOf("@");
+  if (atIndex <= 0 || atIndex === trimmed.length - 1) {
+    return "";
+  }
+  const candidate = trimmed.slice(atIndex + 1).trim();
+  return /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(candidate) ? candidate : "";
+}
+
 async function resolveManagedTeleportTarget(env = process.env) {
   let session = null;
   try {
@@ -447,7 +459,6 @@ function buildPocConfig(projectRoot, options = {}, existingState = null) {
     options.readyPath || existingState?.readyPath || DEFAULT_READY_PATH
   );
   const remoteRoot = options.remoteRoot || existingState?.remoteRoot || `${DEFAULT_REMOTE_HOME}/${repoName}`;
-  const remoteBotDir = `${remoteRoot}/super_turtle/claude-telegram-bot`;
   const templateId =
     options.templateId ||
     existingState?.templateId ||
@@ -456,7 +467,16 @@ function buildPocConfig(projectRoot, options = {}, existingState = null) {
     options.templateVersion ||
     existingState?.templateVersion ||
     DEFAULT_TEMPLATE_CHANNEL;
-  const runtimeVersion = options.runtimeVersion || existingState?.runtimeVersion || getLocalRuntimeVersion();
+  const runtimeInstallSpec =
+    options.runtimeInstallSpec ||
+    existingState?.runtimeInstallSpec ||
+    process.env.SUPERTURTLE_RUNTIME_INSTALL_SPEC?.trim() ||
+    `superturtle@${getLocalRuntimeVersion()}`;
+  const runtimeVersion =
+    options.runtimeVersion ||
+    existingState?.runtimeVersion ||
+    deriveRuntimeVersionFromInstallSpec(runtimeInstallSpec) ||
+    getLocalRuntimeVersion();
   const webhookSecret = options.webhookSecret || existingState?.webhookSecret || randomToken(16);
   const remoteMode = options.remoteMode || existingState?.remoteMode || DEFAULT_REMOTE_MODE;
   if (remoteMode !== "control" && remoteMode !== "agent") {
@@ -476,7 +496,6 @@ function buildPocConfig(projectRoot, options = {}, existingState = null) {
   );
   const logPath = options.logPath || existingState?.logPath || DEFAULT_LOG_PATH;
   const pidPath = options.pidPath || existingState?.pidPath || DEFAULT_PID_PATH;
-  const archivePath = options.archivePath || existingState?.archivePath || DEFAULT_ARCHIVE_PATH;
 
   return {
     port,
@@ -484,9 +503,9 @@ function buildPocConfig(projectRoot, options = {}, existingState = null) {
     healthPath,
     readyPath,
     remoteRoot,
-    remoteBotDir,
     templateId,
     templateVersion,
+    runtimeInstallSpec,
     runtimeVersion,
     remoteMode,
     remoteDriver,
@@ -494,7 +513,6 @@ function buildPocConfig(projectRoot, options = {}, existingState = null) {
     webhookPath,
     logPath,
     pidPath,
-    archivePath,
   };
 }
 
@@ -568,12 +586,12 @@ function buildStateRecord(projectRoot, sandboxId, host, config, ownerMode = DEFA
     sandboxId,
     templateId: config.templateId || null,
     templateVersion: config.templateVersion || null,
+    runtimeInstallSpec: config.runtimeInstallSpec || null,
     runtimeVersion: config.runtimeVersion || null,
     host,
     port: config.port,
     timeoutMs: config.timeoutMs,
     remoteRoot: config.remoteRoot,
-    remoteBotDir: config.remoteBotDir,
     webhookPath: config.webhookPath,
     webhookSecret: config.webhookSecret,
     webhookUrl: buildWebhookUrl(host, config.webhookPath),
@@ -583,7 +601,6 @@ function buildStateRecord(projectRoot, sandboxId, host, config, ownerMode = DEFA
     readyUrl: buildReadyUrl(host, config.readyPath),
     logPath: config.logPath,
     pidPath: config.pidPath,
-    archivePath: config.archivePath,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -596,12 +613,12 @@ function formatStateSummary(state) {
     `Managed target: ${state.managed ? "yes" : "no"}`,
     `Template: ${state.templateId || "<unset>"}`,
     `Template version: ${state.templateVersion || "<unset>"}`,
+    `Runtime install spec: ${state.runtimeInstallSpec || "<unset>"}`,
     `Runtime version: ${state.runtimeVersion || "<unset>"}`,
     `Webhook URL: ${state.webhookUrl}`,
     `Health URL: ${state.healthUrl}`,
     `Ready URL: ${state.readyUrl}`,
     `Remote root: ${state.remoteRoot}`,
-    `Remote bot dir: ${state.remoteBotDir}`,
     `Remote log: ${state.logPath}`,
   ];
   if (state.updatedAt) {
@@ -618,14 +635,13 @@ function buildRemoteBootstrapCommand(config, options = {}) {
   const bunInstallSnippet =
     "if ! command -v bun >/dev/null 2>&1; then " +
     "curl -fsSL https://bun.sh/install | bash >/tmp/superturtle-e2b-bun-install.log 2>&1; " +
-    "fi; " +
-    "export PATH=\"$HOME/.bun/bin:$PATH\"";
+    "fi";
   const shouldResetRemoteRoot = options.resetRemoteRoot !== false;
-  const shouldInstallDependencies = options.installDependencies !== false;
 
   const commands = [
     "set -euo pipefail",
     bunInstallSnippet,
+    "export BUN_INSTALL=\"$HOME/.bun\" PATH=\"$HOME/.bun/bin:$HOME/.local/bin:$PATH\"",
   ];
 
   if (shouldResetRemoteRoot) {
@@ -634,15 +650,10 @@ function buildRemoteBootstrapCommand(config, options = {}) {
 
   commands.push(
     `mkdir -p ${shellEscape(config.remoteRoot)}`,
-    `tar -xzf ${shellEscape(config.archivePath)} -C ${shellEscape(config.remoteRoot)}`,
-    `rm -f ${shellEscape(config.archivePath)}`,
     `mkdir -p ${shellEscape(`${config.remoteRoot}/.superturtle`)}`,
-    `cd ${shellEscape(config.remoteBotDir)}`
+    `bun install -g ${shellEscape(config.runtimeInstallSpec)} >/tmp/superturtle-e2b-runtime-install.log 2>&1`,
+    "command -v superturtle >/dev/null 2>&1"
   );
-
-  if (shouldInstallDependencies) {
-    commands.push("bun install --frozen-lockfile || bun install");
-  }
 
   return commands.join(" && ");
 }
@@ -674,15 +685,16 @@ function buildRemoteAuthFinalizeCommand(config) {
 function buildRemoteStartCommand(config) {
   return [
     "set -euo pipefail",
-    "export PATH=\"$HOME/.bun/bin:$PATH\"",
-    `cd ${shellEscape(config.remoteBotDir)}`,
-    "chmod +x ./run-loop.sh",
+    "export PATH=\"$HOME/.bun/bin:$HOME/.local/bin:$PATH\"",
+    `cd ${shellEscape(config.remoteRoot)}`,
+    "command -v superturtle >/dev/null 2>&1",
     `if [ -f ${shellEscape(config.pidPath)} ]; then kill "$(cat ${shellEscape(config.pidPath)})" >/dev/null 2>&1 || true; rm -f ${shellEscape(config.pidPath)}; fi`,
+    "superturtle stop >/tmp/superturtle-e2b-stop.log 2>&1 || true",
     `: > ${shellEscape(config.logPath)}`,
     `export CLAUDE_WORKING_DIR=${shellEscape(config.remoteRoot)}`,
     "export SUPERTURTLE_RESTART_ON_CRASH=1",
     `echo $$ > ${shellEscape(config.pidPath)}`,
-    `exec ./run-loop.sh >> ${shellEscape(config.logPath)} 2>&1`,
+    `exec superturtle service run >> ${shellEscape(config.logPath)} 2>&1`,
   ].join(" && ");
 }
 
@@ -697,14 +709,49 @@ async function importSandbox() {
   }
 }
 
-async function persistRemoteProjectEnv(sandbox, config, remoteEnv) {
+async function persistRemoteProjectState(sandbox, config, remoteEnv) {
+  const remoteProjectDir = `${config.remoteRoot}/.superturtle`;
+  const remoteProjectConfigPath = `${remoteProjectDir}/project.json`;
   const remoteProjectEnvPath = `${config.remoteRoot}/${DEFAULT_REMOTE_PROJECT_ENV_PATH}`;
+
+  await sandbox.commands.run(
+    ["set -euo pipefail", `mkdir -p ${shellEscape(remoteProjectDir)}`].join(" && "),
+    { timeoutMs: 30_000 }
+  );
+
+  await sandbox.files.write(
+    remoteProjectConfigPath,
+    `${JSON.stringify(
+      {
+        schema_version: 1,
+        repo_root: config.remoteRoot,
+        init_cwd: config.remoteRoot,
+        git_created: false,
+        initialized_at: new Date().toISOString(),
+      },
+      null,
+      2
+    )}\n`
+  );
   await sandbox.files.write(remoteProjectEnvPath, serializeDotEnv(remoteEnv));
-  return remoteProjectEnvPath;
+  await sandbox.commands.run(
+    [
+      "set -euo pipefail",
+      `chmod 600 ${shellEscape(remoteProjectConfigPath)}`,
+      `chmod 600 ${shellEscape(remoteProjectEnvPath)}`,
+    ].join(" && "),
+    { timeoutMs: 30_000 }
+  );
+
+  return {
+    remoteProjectConfigPath,
+    remoteProjectEnvPath,
+  };
 }
 
 function buildManagedRuntimeManifest(config) {
   return {
+    runtime_install_spec: config.runtimeInstallSpec || null,
     runtime_version: config.runtimeVersion || null,
     template_id: config.templateId || null,
     template_version: config.templateVersion || null,
@@ -745,6 +792,10 @@ function shouldRunFullBootstrap(config, remoteManifest) {
   if (!remoteManifest || typeof remoteManifest !== "object") {
     return true;
   }
+  const runtimeInstallSpec =
+    typeof remoteManifest.runtime_install_spec === "string"
+      ? remoteManifest.runtime_install_spec.trim()
+      : "";
   const runtimeVersion =
     typeof remoteManifest.runtime_version === "string"
       ? remoteManifest.runtime_version.trim()
@@ -761,6 +812,7 @@ function shouldRunFullBootstrap(config, remoteManifest) {
         : String(remoteManifest.remote_driver).trim();
 
   return (
+    runtimeInstallSpec !== String(config.runtimeInstallSpec || "") ||
     runtimeVersion !== String(config.runtimeVersion || "") ||
     remoteMode !== String(config.remoteMode || DEFAULT_REMOTE_MODE) ||
     remoteDriver !== String(config.remoteDriver || "")
@@ -785,45 +837,6 @@ async function bootstrapRemoteDriverAuth(sandbox, config, remoteEnv, authBootstr
     envs: remoteEnv,
     timeoutMs: 5 * 60 * 1000,
   });
-}
-
-function createArchiveBuffer(projectRoot) {
-  migrateLegacyRuntimeLayout(projectRoot);
-  const tarArgs = [
-    "-czf",
-    "-",
-    "--exclude=.git",
-    "--exclude=.env",
-    "--exclude=node_modules",
-    "--exclude=.venv",
-    "--exclude=.superturtle/.env",
-    "--exclude=.superturtle/e2b-webhook-poc.json",
-    "--exclude=.superturtle/teleport-state.json",
-    "--exclude=.superturtle/cloud-runtime-lease.json",
-    "--exclude=.superturtle/logs",
-    "--exclude=*.log",
-    ".",
-  ];
-
-  const proc = spawnSync("tar", tarArgs, {
-    cwd: projectRoot,
-    encoding: null,
-    maxBuffer: 512 * 1024 * 1024,
-    env: {
-      ...process.env,
-      COPYFILE_DISABLE: "1",
-    },
-  });
-
-  if (proc.error) {
-    throw new Error(`Failed to create project archive: ${proc.error.message}`);
-  }
-  if (proc.status !== 0) {
-    const stderr = proc.stderr ? proc.stderr.toString("utf-8") : "";
-    throw new Error(`Failed to create project archive: ${stderr.trim() || "tar exited non-zero."}`);
-  }
-
-  return proc.stdout;
 }
 
 async function fetchJson(url, options) {
@@ -1045,49 +1058,29 @@ async function launchTeleportRuntime(projectRoot, options = {}) {
       });
       return state;
     } catch {
-      // Fall through to a full resync/restart when the existing runtime is not ready.
+      // Fall through to a full runtime reinstall/restart when the existing runtime is not ready.
     }
   }
 
-  const bootstrapConfig = {
-    ...config,
-    archivePath:
-      options.archivePath ||
-      `/tmp/superturtle-e2b-project-${randomToken(6)}.tgz`,
-  };
-  await emitProgress(options, "syncing_project", {
+  await emitProgress(options, "configuring_remote", {
     sandboxId: sandbox.sandboxId,
     remoteMode: config.remoteMode,
   });
-  await emitProgress(options, "packing_project", {
-    sandboxId: sandbox.sandboxId,
-    remoteMode: config.remoteMode,
-  });
-  const archiveBuffer = createArchiveBuffer(projectRoot);
-  await emitProgress(options, "uploading_project", {
-    sandboxId: sandbox.sandboxId,
-    remoteMode: config.remoteMode,
-  });
-  await sandbox.files.write(bootstrapConfig.archivePath, archiveBuffer);
-  await emitProgress(options, "unpacking_project", {
-    sandboxId: sandbox.sandboxId,
-    remoteMode: config.remoteMode,
-  });
-  await sandbox.commands.run(buildRemoteBootstrapCommand(bootstrapConfig), {
+  await sandbox.commands.run(buildRemoteBootstrapCommand(config), {
     envs: remoteEnv,
     timeoutMs: 10 * 60 * 1000,
   });
-  await persistRemoteProjectEnv(sandbox, bootstrapConfig, remoteEnv);
-  await emitProgress(options, "syncing_auth", {
+  await persistRemoteProjectState(sandbox, config, remoteEnv);
+  await emitProgress(options, "bootstrapping_auth", {
     sandboxId: sandbox.sandboxId,
     remoteMode: config.remoteMode,
   });
-  await bootstrapRemoteDriverAuth(sandbox, bootstrapConfig, remoteEnv, authBootstrap);
+  await bootstrapRemoteDriverAuth(sandbox, config, remoteEnv, authBootstrap);
   await emitProgress(options, "starting_remote", {
     sandboxId: sandbox.sandboxId,
     remoteMode: config.remoteMode,
   });
-  await sandbox.commands.run(buildRemoteStartCommand(bootstrapConfig), {
+  await sandbox.commands.run(buildRemoteStartCommand(config), {
     envs: remoteEnv,
     background: true,
     timeoutMs: 10 * 60 * 1000,
@@ -1097,9 +1090,9 @@ async function launchTeleportRuntime(projectRoot, options = {}) {
     remoteMode: config.remoteMode,
   });
   await waitForReady(readyUrl, 90 * 1000);
-  await persistManagedRuntimeManifest(sandbox, bootstrapConfig);
+  await persistManagedRuntimeManifest(sandbox, config);
 
-  const state = buildStateRecord(projectRoot, sandbox.sandboxId, host, bootstrapConfig, DEFAULT_OWNER_MODE);
+  const state = buildStateRecord(projectRoot, sandbox.sandboxId, host, config, DEFAULT_OWNER_MODE);
   savePocState(projectRoot, state);
   await emitProgress(options, "done", {
     sandboxId: sandbox.sandboxId,
@@ -1252,7 +1245,6 @@ async function tailTeleportLogs(projectRoot, lines = 50) {
 }
 
 module.exports = {
-  DEFAULT_ARCHIVE_PATH,
   DEFAULT_CLAUDE_CREDENTIAL_PATHS,
   DEFAULT_HEALTH_PATH,
   DEFAULT_REMOTE_CODEX_AUTH_PATH,
@@ -1284,7 +1276,6 @@ module.exports = {
   getTelegramWebhookInfo,
   hasLocalCodexAuth,
   clearRemoteWebhook,
-  createArchiveBuffer,
   deleteTelegramWebhook,
   getTeleportStatus,
   importSandbox,
@@ -1297,7 +1288,7 @@ module.exports = {
   isMissingSandboxError,
   parseDotEnv,
   persistManagedRuntimeManifest,
-  persistRemoteProjectEnv,
+  persistRemoteProjectState,
   serializeDotEnv,
   shouldRunFullBootstrap,
   pauseTeleportSandbox,

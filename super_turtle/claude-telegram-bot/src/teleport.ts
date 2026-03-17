@@ -13,11 +13,8 @@ export type TeleportProgressStage =
   | "preparing"
   | "connecting_sandbox"
   | "creating_sandbox"
-  | "syncing_project"
-  | "packing_project"
-  | "uploading_project"
-  | "unpacking_project"
-  | "syncing_auth"
+  | "configuring_remote"
+  | "bootstrapping_auth"
   | "starting_remote"
   | "waiting_ready"
   | "switching_telegram"
@@ -46,7 +43,7 @@ export type TeleportState = {
   port: number;
   timeoutMs: number;
   remoteRoot: string;
-  remoteBotDir: string;
+  runtimeInstallSpec?: string | null;
   webhookPath: string;
   webhookSecret: string;
   webhookUrl: string;
@@ -56,7 +53,6 @@ export type TeleportState = {
   readyUrl?: string;
   logPath: string;
   pidPath: string;
-  archivePath: string;
   updatedAt: string;
 };
 
