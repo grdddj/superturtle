@@ -9,7 +9,7 @@ The template is intentionally infrastructure-only:
 - `claude`, `codex`, and the published `superturtle` npm package are preinstalled
 - user auth and project files are not baked into the template
 
-That split is deliberate. The template should change rarely, while user project sync and auth refresh happen later at runtime.
+That split is deliberate. The template should change rarely, while runtime state setup and auth refresh happen later at launch time.
 
 ## Build
 

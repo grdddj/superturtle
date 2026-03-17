@@ -115,18 +115,13 @@ To make this robust, the runtime freshness contract should move from "local repo
 
 ### Required manifest/state fields
 
-Remote template manifest already has the important field:
+Remote template manifest and local teleport state should both carry the exact runtime install spec so reuse decisions are exact.
 
-- `runtime_install_spec`
+Current state:
 
-Teleport state should also track it so comparisons are exact on reuse.
-
-Current gap:
-
-- `super_turtle/bin/e2b-webhook-poc-lib.js` stores `runtimeVersion`
-- it does not store the exact install spec that the sandbox was built from
-
-That should be extended before package-mode teleport becomes the default.
+- the template manifest records `runtime_install_spec`
+- the local teleport state now records `runtimeInstallSpec`
+- reuse checks compare the desired install spec against the remote manifest before cutover
 
 ### Default launch path
 
