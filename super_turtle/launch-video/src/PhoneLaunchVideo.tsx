@@ -1162,6 +1162,12 @@ const CloseScene: React.FC<Pick<LaunchVideoProps, "cta">> = ({ cta }) => {
   const { fps } = useVideoConfig();
   const tPop = pop(frame, fps, 0, 24);
   const tagPop = pop(frame, fps, 10);
+  const ctaPop = pop(frame, fps, 28, 24);
+  const proofPoints = [
+    { label: "Telegram", delay: 16 },
+    { label: "Cloud", delay: 20 },
+    { label: "Autonomous", delay: 24 },
+  ] as const;
 
   return (
     <Canvas>
@@ -1178,37 +1184,59 @@ const CloseScene: React.FC<Pick<LaunchVideoProps, "cta">> = ({ cta }) => {
           flexDirection: "column",
           justifyContent: "center",
           alignItems: "center",
-          gap: 0,
+          gap: space(4),
           padding: `0 ${space(8)}px`,
         }}
       >
-        {/* Big turtle */}
+        {/* Turtle badge */}
         <div
           style={{
-            width: 130,
-            height: 130,
-            borderRadius: 999,
-            background: c.greenSoft,
-            border: `3px solid ${c.green}`,
+            position: "relative",
+            width: 180,
+            height: 180,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            transform: `scale(${tPop})`,
-            boxShadow: "0 16px 48px rgba(34,197,94,0.2)",
-            marginBottom: space(4),
+            transform: `scale(${0.94 + tPop * 0.06})`,
           }}
         >
-          <Img src={staticFile("robot-turtle.png")} style={{ width: 82, height: 82 }} />
+          <div
+            style={{
+              position: "absolute",
+              width: 180,
+              height: 180,
+              borderRadius: 999,
+              background:
+                "radial-gradient(circle, rgba(34,197,94,0.16) 0%, rgba(34,197,94,0.05) 54%, transparent 72%)",
+              opacity: tPop,
+            }}
+          />
+          <div
+            style={{
+              width: 144,
+              height: 144,
+              borderRadius: 999,
+              background: "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, #f0fdf4 100%)",
+              border: "1px solid rgba(34,197,94,0.18)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 20px 42px rgba(34,197,94,0.16), inset 0 1px 0 rgba(255,255,255,0.9)",
+            }}
+          >
+            <Img src={staticFile("robot-turtle.png")} style={{ width: 98, height: 98 }} />
+          </div>
         </div>
 
         {/* Tagline */}
         <div
           style={{
-            fontSize: 50,
+            fontSize: 54,
             fontWeight: 700,
             letterSpacing: -1.6,
             textAlign: "center",
             lineHeight: 1.15,
+            maxWidth: 760,
             opacity: tagPop,
             transform: `translateY(${(1 - tagPop) * 16}px)`,
           }}
@@ -1219,48 +1247,52 @@ const CloseScene: React.FC<Pick<LaunchVideoProps, "cta">> = ({ cta }) => {
         {/* Three proof points */}
         <div
           style={{
-            marginTop: space(4),
             display: "flex",
-            gap: space(3),
+            gap: space(2),
             justifyContent: "center",
+            width: "100%",
+            maxWidth: 720,
           }}
         >
-          {[
-            { label: "Telegram", delay: 16 },
-            { label: "Cloud", delay: 20 },
-            { label: "Autonomous", delay: 24 },
-          ].map(({ label, delay }) => {
+          {proofPoints.map(({ label, delay }) => {
             const p = pop(frame, fps, delay);
             return (
               <div
                 key={label}
                 style={{
                   display: "flex",
-                  flexDirection: "column",
                   alignItems: "center",
-                  gap: space(1),
+                  justifyContent: "center",
+                  gap: space(1.25),
+                  width: 160,
+                  height: space(7),
+                  borderRadius: 999,
+                  background: "rgba(255,255,255,0.9)",
+                  border: "1px solid rgba(34,197,94,0.1)",
+                  boxShadow: "0 10px 24px rgba(15,23,42,0.06)",
                   opacity: p,
-                  transform: `scale(${p})`,
+                  transform: `translateY(${(1 - p) * 12}px) scale(${0.96 + p * 0.04})`,
                 }}
               >
                 <div
                   style={{
-                    width: 44,
-                    height: 44,
+                    width: 26,
+                    height: 26,
                     borderRadius: 999,
-                    background: c.green,
+                    background: c.greenSoft,
+                    border: "1px solid rgba(34,197,94,0.14)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    color: "#fff",
-                    fontSize: 22,
+                    color: c.green,
+                    fontSize: 15,
                     fontWeight: 700,
-                    boxShadow: `0 4px 12px ${c.green}44`,
+                    flexShrink: 0,
                   }}
                 >
                   ✓
                 </div>
-                <span style={{ fontSize: 16, fontWeight: 600, color: c.muted }}>{label}</span>
+                <span style={{ fontSize: 17, fontWeight: 600, color: c.text }}>{label}</span>
               </div>
             );
           })}
@@ -1269,23 +1301,66 @@ const CloseScene: React.FC<Pick<LaunchVideoProps, "cta">> = ({ cta }) => {
         {/* CTA */}
         <div
           style={{
-            marginTop: space(5),
-            width: "80%",
-            height: space(8),
-            borderRadius: 16,
-            background: c.accent,
-            color: "#fff",
+            width: "100%",
             display: "flex",
-            alignItems: "center",
             justifyContent: "center",
-            fontSize: 22,
-            fontWeight: 700,
-            boxShadow: "0 6px 24px rgba(196,97,60,0.3)",
-            opacity: cl(frame, 30, 38, 0, 1),
-            transform: `translateY(${cl(frame, 30, 38, 12, 0)}px)`,
+            opacity: ctaPop,
+            transform: `translateY(${(1 - ctaPop) * 14}px) scale(${0.96 + ctaPop * 0.04})`,
           }}
         >
-          Get started
+          <div
+            style={{
+              position: "relative",
+              width: "100%",
+              maxWidth: 640,
+              height: space(9),
+              borderRadius: 24,
+              background: "linear-gradient(180deg, #d77350 0%, #c4613c 100%)",
+              border: "1px solid rgba(255,255,255,0.32)",
+              color: "#fff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 18px 42px rgba(196,97,60,0.24), inset 0 1px 0 rgba(255,255,255,0.3)",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                inset: 1,
+                borderRadius: 23,
+                background: "linear-gradient(180deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 48%)",
+              }}
+            />
+            <div
+              style={{
+                position: "relative",
+                display: "flex",
+                alignItems: "center",
+                gap: space(1.5),
+              }}
+            >
+              <span style={{ fontSize: 24, fontWeight: 700, letterSpacing: -0.4 }}>Get started</span>
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 999,
+                  background: "rgba(255,255,255,0.16)",
+                  border: "1px solid rgba(255,255,255,0.24)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontFamily: monoFont,
+                  fontSize: 14,
+                  fontWeight: 700,
+                }}
+              >
+                -&gt;
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </Canvas>
