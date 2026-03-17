@@ -54,6 +54,8 @@ const cl = (frame: number, a: number, b: number, from: number, to: number) =>
 
 /* ── floating turtle (background decoration) ─────── */
 
+const FLOATING_TURTLE_MAX_OPACITY = 0.05;
+
 const FloatingTurtle: React.FC<{
   x: number;
   y: number;
@@ -61,12 +63,14 @@ const FloatingTurtle: React.FC<{
   delay?: number;
   rotation?: number;
   opacity?: number;
-}> = ({ x, y, size = 64, delay = 0, rotation = 0, opacity = 0.12 }) => {
+}> = ({ x, y, size = 64, delay = 0, rotation = 0, opacity = FLOATING_TURTLE_MAX_OPACITY }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const floatY = Math.sin((frame - delay) * 0.06) * 10;
   const rot = Math.sin((frame - delay) * 0.04) * 4 + rotation;
   const s = pop(frame, fps, delay, 30);
+  const baseOpacity = Math.min(opacity, FLOATING_TURTLE_MAX_OPACITY);
+  const opacityScale = Math.min(s, 1);
   return (
     <div
       style={{
@@ -75,7 +79,7 @@ const FloatingTurtle: React.FC<{
         top: y,
         width: size,
         height: size,
-        opacity: opacity * s,
+        opacity: baseOpacity * opacityScale,
         transform: `translateY(${floatY}px) rotate(${rot}deg) scale(${s})`,
         pointerEvents: "none",
       }}
@@ -172,9 +176,9 @@ const HeroScene: React.FC = () => {
 
   return (
     <Canvas>
-      <FloatingTurtle x={40} y={120} size={44} delay={10} rotation={-14} opacity={0.08} />
-      <FloatingTurtle x={940} y={180} size={36} delay={20} rotation={10} opacity={0.06} />
-      <FloatingTurtle x={80} y={1660} size={38} delay={30} rotation={18} opacity={0.06} />
+      <FloatingTurtle x={40} y={120} size={44} delay={10} rotation={-14} opacity={0.05} />
+      <FloatingTurtle x={940} y={180} size={36} delay={20} rotation={10} opacity={0.04} />
+      <FloatingTurtle x={80} y={1660} size={38} delay={30} rotation={18} opacity={0.04} />
 
       <div
         style={{
@@ -296,8 +300,8 @@ const ChatScene: React.FC = () => {
           backgroundSize: "32px 32px",
         }}
       />
-      <FloatingTurtle x={920} y={100} size={40} delay={8} rotation={12} opacity={0.07} />
-      <FloatingTurtle x={50} y={1640} size={36} delay={16} rotation={-10} opacity={0.06} />
+      <FloatingTurtle x={920} y={100} size={40} delay={8} rotation={12} opacity={0.04} />
+      <FloatingTurtle x={50} y={1640} size={36} delay={16} rotation={-10} opacity={0.04} />
 
       <div
         style={{
@@ -886,8 +890,8 @@ const TeleportScene: React.FC = () => {
 
   return (
     <Canvas>
-      <FloatingTurtle x={50} y={100} size={46} delay={4} rotation={-8} opacity={0.08} />
-      <FloatingTurtle x={920} y={1600} size={38} delay={16} rotation={16} opacity={0.06} />
+      <FloatingTurtle x={50} y={100} size={46} delay={4} rotation={-8} opacity={0.05} />
+      <FloatingTurtle x={920} y={1600} size={38} delay={16} rotation={16} opacity={0.04} />
 
       <div
         style={{
@@ -1171,10 +1175,10 @@ const CloseScene: React.FC<Pick<LaunchVideoProps, "cta">> = ({ cta }) => {
 
   return (
     <Canvas>
-      <FloatingTurtle x={30} y={100} size={56} delay={0} rotation={-14} opacity={0.12} />
-      <FloatingTurtle x={920} y={140} size={46} delay={6} rotation={10} opacity={0.1} />
-      <FloatingTurtle x={60} y={1600} size={40} delay={12} rotation={18} opacity={0.08} />
-      <FloatingTurtle x={900} y={1640} size={44} delay={18} rotation={-12} opacity={0.08} />
+      <FloatingTurtle x={30} y={100} size={56} delay={0} rotation={-14} opacity={0.05} />
+      <FloatingTurtle x={920} y={140} size={46} delay={6} rotation={10} opacity={0.05} />
+      <FloatingTurtle x={60} y={1600} size={40} delay={12} rotation={18} opacity={0.04} />
+      <FloatingTurtle x={900} y={1640} size={44} delay={18} rotation={-12} opacity={0.04} />
 
       <div
         style={{
