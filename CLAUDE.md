@@ -98,4 +98,12 @@ Hosted managed-mode backlog:
 6. Add local npm-package update prompting so users are told when a newer SuperTurtle release exists without silently mutating their machine.
 7. Extend hosted status/session reporting so the CLI can show provisioning state, sandbox state, template version, and remote runtime version.
 
+Managed npm prerelease workflow:
+
+1. Use npm prereleases plus a non-`latest` dist-tag for managed onboarding and teleport testing.
+2. Publish test builds with `npm version prerelease --preid beta` and `npm publish --tag beta` so `@latest` stays stable.
+3. Install beta builds explicitly with `superturtle@beta` or, preferably for templates, an exact prerelease like `superturtle@0.2.6-beta.1`.
+4. Managed E2B templates should be able to target beta runtime builds through `SUPERTURTLE_RUNTIME_INSTALL_SPEC` without replacing the stable template/channel.
+5. Prefer exact prerelease versions inside E2B templates over a floating `beta` tag so sandbox builds remain reproducible.
+
 Keep any future task updates in the dedicated docs above rather than growing another stale task block here.
