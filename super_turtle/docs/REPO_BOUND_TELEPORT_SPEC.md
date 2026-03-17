@@ -59,6 +59,57 @@ Expected runtime env:
 - `TELEGRAM_WEBHOOK_URL=<public webhook url>`
 - `TELEGRAM_WEBHOOK_SECRET=<secret token>`
 
+## Public Surface Area
+
+The sandbox should not be a generic internet-exposed control plane.
+
+Intended public HTTP surface:
+
+- `POST <random webhook path>` for Telegram updates only
+- `GET /healthz` for liveness checks
+- `GET /readyz` for readiness checks
+
+Everything else should return `404`, and Telegram update delivery should require the configured `x-telegram-bot-api-secret-token`.
+
+This means teleport should expose one narrowly scoped webhook ingress, not a general-purpose remote action API.
+
+## Mode Split
+
+There are two distinct E2B-facing modes and they should stay conceptually separate.
+
+### `/teleport`
+
+Purpose:
+
+- developer/operator handoff from the local turtle to a user-owned E2B sandbox
+- fast testing of real webhook cutover, pause/resume, and remote runtime behavior
+
+Authority and trust boundary:
+
+- the local machine is the orchestrator
+- the user supplies and owns the E2B account
+- the local machine seeds runtime state and any required auth/bootstrap material
+- `/home` returns Telegram ownership to local polling
+
+### Managed onboarding
+
+Purpose:
+
+- hosted product flow for users who want SuperTurtle to provision and track a managed sandbox for them
+- account-linked onboarding, provisioning state, and hosted status reporting
+
+Authority and trust boundary:
+
+- the hosted control plane is the orchestrator
+- one managed sandbox is tracked per user in hosted state
+- provider credentials and Telegram configuration are handled through the hosted onboarding flow
+- this mode is optional and should not be required for the default npm-user BYO-E2B path
+
+Shared runtime rule:
+
+- both modes should run the same published `superturtle` npm package and the same narrow webhook-only public surface
+- they differ in who provisions the sandbox, who stores the authoritative state, and where auth/bootstrap comes from
+
 ## Ownership And Cutover
 
 Teleport requires:
