@@ -1,6 +1,8 @@
 # Current task
 Remove or isolate remaining assumptions in `../superturtle-web` that managed cloud depends on local-PC state, following the findings in `super_turtle/docs/reviews/review-managed-cloud-hosted-audit-2026-03-17.md`.
 
+Progress note: managed onboarding now writes sandbox-local `.superturtle/managed-runtime.json`, so template/runtime metadata no longer depends solely on the local-style `.superturtle/project.json` contract.
+
 # End goal with specs
 - Implement the hosted managed cloud plane in `../superturtle-web` to match `super_turtle/docs/managed-cloud-plane-spec.md`.
 - Keep managed mode cloud-only for this phase: no dependency on the user's local PC, no repo sync, and no local-auth-copy assumption.
