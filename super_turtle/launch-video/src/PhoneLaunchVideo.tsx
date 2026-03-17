@@ -854,10 +854,35 @@ const TeleportScene: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const progress = cl(frame, 16, 56, 0, 1);
-  const localOp = 1 - progress * 0.7;
-  const cloudOp = 0.3 + progress * 0.7;
-  const beamGlow = cl(frame, 30, 50, 0, 1);
+  const badgePop = pop(frame, fps, 0, 20);
+  const cardPop = pop(frame, fps, 10, 24);
+  const transfer = Math.min(
+    1,
+    Math.max(
+      0,
+      spring({
+        frame: frame - 18,
+        fps,
+        durationInFrames: 38,
+        config: { damping: 18, stiffness: 110, mass: 0.9 },
+      })
+    )
+  );
+  const localOp = 1 - transfer * 0.72;
+  const cloudOp = 0.38 + transfer * 0.62;
+  const beamHead = interpolate(transfer, [0, 1], [0.08, 0.92], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const beamTail = interpolate(transfer, [0, 1], [0, 0.66], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const beamSpan = Math.max(0.14, beamHead - beamTail);
+  const beamSweepOpacity = 1 - cl(frame, 54, 68, 0, 0.9);
+  const beamDotOpacity = cl(frame, 20, 28, 0, 1) * (1 - cl(frame, 54, 66, 0, 1));
+  const beamSettle = ease(frame, 42, 60, 0, 1);
+  const cloudActive = ease(frame, 46, 64, 0, 1);
 
   return (
     <Canvas>
@@ -873,23 +898,38 @@ const TeleportScene: React.FC = () => {
           justifyContent: "center",
           alignItems: "center",
           padding: `0 ${space(6)}px`,
-          gap: space(5),
+          gap: space(4),
         }}
       >
         {/* Command badge */}
         <div
           style={{
+            display: "flex",
+            alignItems: "center",
+            gap: space(1.5),
             fontFamily: monoFont,
-            fontSize: 26,
-            fontWeight: 600,
+            fontSize: 28,
+            fontWeight: 700,
             color: c.accent,
-            background: "#f6dfd6",
-            padding: `${space(1)}px ${space(3)}px`,
+            background: "linear-gradient(180deg, #ffe9e0 0%, #ffd9cf 100%)",
+            border: "1px solid rgba(196,97,60,0.18)",
+            padding: `${space(1.25)}px ${space(3)}px`,
             borderRadius: 999,
-            opacity: pop(frame, fps, 0),
-            transform: `scale(${pop(frame, fps, 0)})`,
+            boxShadow: "0 10px 24px rgba(196,97,60,0.12)",
+            opacity: badgePop,
+            transform: `translateY(${(1 - badgePop) * 10}px) scale(${0.94 + badgePop * 0.06})`,
           }}
         >
+          <div
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: 999,
+              background: c.accent,
+              boxShadow: "0 0 12px rgba(196,97,60,0.28)",
+              flexShrink: 0,
+            }}
+          />
           /teleport
         </div>
 
@@ -913,19 +953,30 @@ const TeleportScene: React.FC = () => {
         <div
           style={{
             width: "100%",
-            borderRadius: 28,
-            background: c.card,
+            maxWidth: 760,
+            borderRadius: 32,
+            background: "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(249,250,251,0.98) 100%)",
             border: `1px solid ${c.border}`,
-            padding: `${space(5)}px ${space(4)}px`,
-            boxShadow: "0 8px 32px rgba(0,0,0,0.05)",
+            padding: `${space(4)}px ${space(4)}px`,
+            boxShadow: "0 16px 40px rgba(15,23,42,0.08)",
+            opacity: cl(frame, 10, 18, 0, 1),
+            transform: `translateY(${(1 - cardPop) * 18}px) scale(${0.97 + cardPop * 0.03})`,
           }}
         >
           {/* Top row */}
-          <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: space(3),
+              padding: `0 ${space(1)}px`,
+            }}
+          >
             {/* Local */}
             <div
               style={{
-                flex: 1,
+                width: 144,
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
@@ -939,7 +990,7 @@ const TeleportScene: React.FC = () => {
                   height: 72,
                   borderRadius: 20,
                   background: c.soft,
-                  border: `2px solid ${progress < 0.5 ? c.sky : c.border}`,
+                  border: `2px solid ${transfer < 0.48 ? c.sky : c.border}`,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -952,15 +1003,47 @@ const TeleportScene: React.FC = () => {
             </div>
 
             {/* Beam */}
-            <div style={{ flex: 1, position: "relative", height: 6 }}>
-              <div style={{ width: "100%", height: 6, borderRadius: 999, background: c.soft }}>
+            <div
+              style={{
+                width: 232,
+                height: 24,
+                position: "relative",
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
+              <div
+                style={{
+                  position: "relative",
+                  width: "100%",
+                  height: 8,
+                  borderRadius: 999,
+                  background: "linear-gradient(90deg, rgba(59,130,246,0.08), rgba(34,197,94,0.08))",
+                  overflow: "hidden",
+                }}
+              >
                 <div
                   style={{
-                    height: "100%",
-                    width: `${progress * 100}%`,
+                    position: "absolute",
+                    inset: 0,
                     borderRadius: 999,
                     background: `linear-gradient(90deg, ${c.sky}, ${c.green})`,
-                    boxShadow: beamGlow > 0.5 ? `0 0 16px ${c.green}44` : "none",
+                    opacity: beamSettle,
+                    transform: `scaleX(${beamSettle})`,
+                    transformOrigin: "left center",
+                    boxShadow: beamSettle > 0 ? "0 0 18px rgba(34,197,94,0.18)" : "none",
+                  }}
+                />
+                <div
+                  style={{
+                    position: "absolute",
+                    left: `${beamTail * 100}%`,
+                    width: `${beamSpan * 100}%`,
+                    height: "100%",
+                    borderRadius: 999,
+                    background: `linear-gradient(90deg, ${c.sky}, ${c.green})`,
+                    opacity: beamSweepOpacity,
+                    boxShadow: "0 0 18px rgba(34,197,94,0.32)",
                   }}
                 />
               </div>
@@ -968,15 +1051,15 @@ const TeleportScene: React.FC = () => {
               <div
                 style={{
                   position: "absolute",
-                  left: `${progress * 100}%`,
-                  top: -5,
-                  width: 16,
-                  height: 16,
+                  left: `${beamHead * 100}%`,
+                  top: "50%",
+                  width: 18,
+                  height: 18,
                   borderRadius: 999,
                   background: c.green,
-                  transform: "translateX(-50%)",
-                  boxShadow: `0 0 16px ${c.green}66`,
-                  opacity: progress > 0.02 && progress < 0.98 ? 1 : 0,
+                  transform: "translate(-50%, -50%)",
+                  boxShadow: "0 0 18px rgba(34,197,94,0.5), 0 0 32px rgba(59,130,246,0.18)",
+                  opacity: beamDotOpacity,
                 }}
               />
             </div>
@@ -984,7 +1067,7 @@ const TeleportScene: React.FC = () => {
             {/* Cloud */}
             <div
               style={{
-                flex: 1,
+                width: 144,
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
@@ -997,12 +1080,13 @@ const TeleportScene: React.FC = () => {
                   width: 72,
                   height: 72,
                   borderRadius: 20,
-                  background: progress > 0.5 ? c.greenSoft : c.soft,
-                  border: `2px solid ${progress > 0.5 ? c.green : c.border}`,
+                  background: cloudActive > 0.45 ? c.greenSoft : c.soft,
+                  border: `2px solid ${cloudActive > 0.45 ? c.green : c.border}`,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   fontSize: 34,
+                  boxShadow: cloudActive > 0.2 ? "0 10px 26px rgba(34,197,94,0.14)" : "none",
                 }}
               >
                 ☁️
@@ -1012,7 +1096,7 @@ const TeleportScene: React.FC = () => {
           </div>
 
           {/* Divider */}
-          <div style={{ height: 1, background: c.border, margin: `${space(4)}px 0` }} />
+          <div style={{ height: 1, background: c.border, margin: `${space(3)}px 0` }} />
 
           {/* Telegram — stays connected */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: space(2) }}>
@@ -1058,6 +1142,7 @@ const TeleportScene: React.FC = () => {
             textAlign: "center",
             fontWeight: 500,
             opacity: cl(frame, 60, 72, 0, 1),
+            transform: `translateY(${cl(frame, 60, 72, 10, 0)}px)`,
           }}
         >
           One command. Zero downtime.
