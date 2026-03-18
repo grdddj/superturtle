@@ -39,7 +39,8 @@ E2B_API_KEY=... node super_turtle/bin/e2b-webhook-poc.js launch
 What this does:
 
 - creates or reuses one E2B sandbox with `onTimeout=pause` and `autoResume=true`
-- uploads the current repo working tree, excluding local runtime state
+- installs or verifies the published `superturtle` runtime package in the sandbox
+- writes the minimal remote `.superturtle` runtime state needed for launch
 - starts the existing Telegram bot in webhook mode inside the sandbox
 - waits for `GET /healthz`
 - saves local state to `.superturtle/teleport-state.json`

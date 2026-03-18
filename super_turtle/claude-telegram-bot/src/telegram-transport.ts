@@ -209,6 +209,7 @@ function defaultStartPollingRunner(bot: TelegramBotLike): PollingRunnerLike {
     runner: {
       maxRetryTime: Infinity,
       retryInterval: "exponential",
+      silent: true,
     },
   });
 }
@@ -279,7 +280,7 @@ async function createStandbyTransport(
   config: Extract<TelegramTransportConfig, { mode: "standby" }>,
   dependencies: StartTelegramTransportDependencies = {}
 ): Promise<TelegramTransportHandle> {
-  transportLog.info(
+  transportLog.debug(
     {
       expectedRemoteWebhookUrl: config.expectedRemoteWebhookUrl || null,
       checkIntervalMs: config.checkIntervalMs ?? 5000,
@@ -322,8 +323,8 @@ async function createStandbyTransport(
         }
 
         lastHandledWebhookConflictAt = Date.now();
-        transportLog.info(
-          "Telegram standby transport handed resumed polling back to standby after webhook cutover"
+        transportLog.debug(
+          "Telegram standby transport handed polling back to standby after webhook cutover"
         );
         runner = null;
         ensureWatching();
@@ -333,7 +334,7 @@ async function createStandbyTransport(
       clearIntervalFn(intervalHandle);
       intervalHandle = null;
     }
-    transportLog.info("Telegram standby transport resumed polling");
+    transportLog.debug("Telegram standby transport resumed polling");
   };
 
   const checkWebhookOwnership = async () => {
@@ -352,7 +353,7 @@ async function createStandbyTransport(
         config.expectedRemoteWebhookUrl &&
         currentUrl !== config.expectedRemoteWebhookUrl
       ) {
-        transportLog.warn(
+        transportLog.debug(
           {
             currentUrl,
             expectedRemoteWebhookUrl: config.expectedRemoteWebhookUrl,
@@ -420,7 +421,7 @@ export async function startTelegramTransport(
             return;
           }
 
-          transportLog.info("Telegram polling transport handed off to standby after webhook cutover");
+          transportLog.debug("Telegram polling transport handed off to standby after webhook cutover");
           lastHandledWebhookConflictAt = Date.now();
           fallbackTransport = await createStandbyTransport(bot, standbyConfig, dependencies);
         } catch (standbyError) {
@@ -446,14 +447,15 @@ export async function startTelegramTransport(
     return createStandbyTransport(bot, config, dependencies);
   }
 
-  transportLog.info(
+  transportLog.info("Starting Telegram webhook transport");
+  transportLog.debug(
     {
       publicUrl: config.publicUrl,
       host: config.host,
       port: config.port,
       path: config.path,
     },
-    "Starting Telegram webhook transport"
+    "Telegram webhook transport details"
   );
 
   if (config.registerWebhook) {

@@ -38,13 +38,13 @@
     "claude-telegram-bot/send_turtle_mcp/",
     "claude-telegram-bot/scripts/",
     "claude-telegram-bot/systemd/",
+    "claude-telegram-bot/launchagent/",
     "claude-telegram-bot/package.json",
     "claude-telegram-bot/tsconfig.json",
     "claude-telegram-bot/mcp-config.ts",
     "claude-telegram-bot/mcp-config.example.ts",
     "claude-telegram-bot/live.sh",
     "claude-telegram-bot/run-loop.sh",
-    "claude-telegram-bot/.env.example",
     "meta/*.md",
     "meta/claude-meta",
     "state/__init__.py",
@@ -63,8 +63,7 @@
     "templates/",
     "templates/.claude/",
     "setup",
-    "LICENSE",
-    "README.md"
+    "LICENSE"
   ],
   "engines": {
     "node": ">=18",

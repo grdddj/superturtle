@@ -62,7 +62,7 @@ Teleport planning on `teleport-v2.0` now lives in:
 Current direction:
 
 - E2B is the only remote runtime target for teleport
-- teleport transfer scope is repo-bound, not machine-bound
+- teleport is package-based and does not sync repo content into E2B
 - BYO E2B is the default product path for this cycle
 - local installs keep long polling and do not expose ports
 - remote E2B runtimes use webhooks after health-checked cutover
@@ -83,10 +83,18 @@ Current implementation focus:
 1. Keep the local polling <-> remote webhook ownership handoff reliable across repeated `/teleport` and `/home` cycles.
 2. Preserve the E2B auth/bootstrap path for Codex and Claude-related runtime setup.
 3. Keep repeat `/teleport` fast by reusing a healthy sandbox instead of re-bootstrapping it.
-4. Keep the user project as the source of truth and sync the required runtime folders when remote freshness is needed.
+4. Keep the user project as the source of truth for local state and write only the minimum runtime files needed on the remote sandbox.
 5. Expand the remote runtime from text-first POC toward broader SuperTurtle feature parity.
 6. Decide how much session continuity we want between local and remote runtimes versus treating remote as a fresh turtle.
 7. Keep teleport docs and operator runbooks in the dedicated files above instead of re-growing a stale task list here.
+
+Security boundary for the active E2B runtime:
+
+- Local installs do not expose inbound HTTP at all.
+- Remote E2B runtimes should expose only the Telegram webhook path plus minimal health/readiness endpoints needed for cutover and wake checks.
+- Do not expose a generic browser UI, shell, file API, or arbitrary action API from the sandbox.
+- `/teleport` is the BYO-E2B developer/operator path: the local machine provisions or resumes the sandbox and seeds runtime state/auth directly.
+- Hosted managed mode is a separate product surface: the hosted control plane provisions and tracks one sandbox per user, stores hosted onboarding state, and should not be required for the npm-user path.
 
 Hosted managed-mode backlog:
 
@@ -97,5 +105,13 @@ Hosted managed-mode backlog:
 5. Add remote runtime version checks so `/teleport` can self-update the remote sandbox to the local installed SuperTurtle package version before cutover.
 6. Add local npm-package update prompting so users are told when a newer SuperTurtle release exists without silently mutating their machine.
 7. Extend hosted status/session reporting so the CLI can show provisioning state, sandbox state, template version, and remote runtime version.
+
+Managed npm prerelease workflow:
+
+1. Use npm prereleases plus a non-`latest` dist-tag for managed onboarding and teleport testing.
+2. Publish test builds with `npm version prerelease --preid beta` and `npm publish --tag beta` so `@latest` stays stable.
+3. Install beta builds explicitly with `superturtle@beta` or, preferably for templates, an exact prerelease like `superturtle@0.2.6-beta.1`.
+4. Managed E2B templates should be able to target beta runtime builds through `SUPERTURTLE_RUNTIME_INSTALL_SPEC` without replacing the stable template/channel.
+5. Prefer exact prerelease versions inside E2B templates over a floating `beta` tag so sandbox builds remain reproducible.
 
 Keep any future task updates in the dedicated docs above rather than growing another stale task block here.

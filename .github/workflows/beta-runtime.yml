@@ -1,0 +1,63 @@
+name: Beta Runtime
+
+on:
+  push:
+    branches:
+      - unify-superturtle-layout
+  workflow_dispatch:
+
+concurrency:
+  group: beta-runtime-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish-beta-package:
+    if: ${{ secrets.NPM_TOKEN != '' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: super_turtle
+    outputs:
+      branch_dist_tag: ${{ steps.version.outputs.branch_dist_tag }}
+      package_version: ${{ steps.version.outputs.package_version }}
+      runtime_install_spec: ${{ steps.version.outputs.runtime_install_spec }}
+      sha_tag: ${{ steps.version.outputs.sha_tag }}
+      template_channel: ${{ steps.version.outputs.template_channel }}
+      template_version_tag: ${{ steps.version.outputs.template_version_tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+      - id: version
+        run: node scripts/prepare-beta-release.mjs >> "$GITHUB_OUTPUT"
+      - run: bash tests/npm-package-smoke.sh
+      - run: npm publish --tag beta --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - run: npm dist-tag add "superturtle@${PACKAGE_VERSION}" "${BRANCH_DIST_TAG}"
+        env:
+          BRANCH_DIST_TAG: ${{ steps.version.outputs.branch_dist_tag }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          PACKAGE_VERSION: ${{ steps.version.outputs.package_version }}
+
+  publish-beta-template:
+    if: ${{ needs.publish-beta-package.result == 'success' && secrets.E2B_API_KEY != '' }}
+    needs:
+      - publish-beta-package
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: super_turtle
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run e2b:template:build
+        env:
+          E2B_API_KEY: ${{ secrets.E2B_API_KEY }}
+          SUPERTURTLE_E2B_TEMPLATE_CHANNEL: ${{ needs.publish-beta-package.outputs.template_channel }}
+          SUPERTURTLE_E2B_TEMPLATE_TAGS: ${{ needs.publish-beta-package.outputs.sha_tag }}
+          SUPERTURTLE_E2B_TEMPLATE_VERSION: ${{ needs.publish-beta-package.outputs.template_version_tag }}
+          SUPERTURTLE_RUNTIME_INSTALL_SPEC: ${{ needs.publish-beta-package.outputs.runtime_install_spec }}

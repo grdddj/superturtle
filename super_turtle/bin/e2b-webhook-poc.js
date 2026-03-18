@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 "use strict";
 
+const fs = require("fs");
 const { basename, resolve } = require("path");
 const {
   clearRemoteWebhook,
@@ -46,6 +47,37 @@ function requireEnv(name) {
   return value.trim();
 }
 
+function loadDotEnvFileIntoProcess(filePath, options = {}) {
+  const overrideExisting = options.overrideExisting !== false;
+  if (!fs.existsSync(filePath)) {
+    return;
+  }
+
+  const content = fs.readFileSync(filePath, "utf-8");
+  for (const line of content.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+    const equalsIndex = trimmed.indexOf("=");
+    if (equalsIndex <= 0) {
+      continue;
+    }
+    const key = trimmed.slice(0, equalsIndex).trim();
+    if (!key || (!overrideExisting && process.env[key])) {
+      continue;
+    }
+    let value = trimmed.slice(equalsIndex + 1).trim();
+    if (
+      (value.startsWith("\"") && value.endsWith("\"")) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    process.env[key] = value;
+  }
+}
+
 function projectRootFromOptions(options) {
   return getBoundProjectRoot(options.cwd || process.cwd());
 }
@@ -54,7 +86,7 @@ function printHelp() {
   console.log(`Usage: node super_turtle/bin/e2b-webhook-poc.js <command> [options]
 
 Commands:
-  launch            Create or reuse one sandbox, sync repo, and start the bot
+  launch            Create or reuse one sandbox, install the runtime, and start the bot
   status            Show local POC state, sandbox state, health, and Telegram webhook info
   pause             Pause the sandbox
   resume            Resume the sandbox with Sandbox.connect()
@@ -68,6 +100,7 @@ Common options:
   --timeout-ms <ms>           Sandbox timeout before auto-pause
   --remote-root <path>        Remote project root (default: /home/user/<repo>)
   --remote-mode <mode>        Remote runtime mode: control | agent
+  --runtime-install-spec <s>  Exact npm runtime spec (default: superturtle@<local-version>)
   --webhook-path <path>       Telegram webhook path inside the sandbox
   --webhook-secret <secret>   Telegram webhook secret token
   --drop-pending-updates      Apply Telegram drop_pending_updates when changing webhook
@@ -82,6 +115,7 @@ async function launch(options) {
     timeoutMs: options["timeout-ms"],
     remoteRoot: options["remote-root"],
     remoteMode: options["remote-mode"],
+    runtimeInstallSpec: options["runtime-install-spec"],
     webhookPath: options["webhook-path"],
     webhookSecret: options["webhook-secret"],
     healthPath: options["health-path"],
@@ -165,6 +199,10 @@ async function main() {
     return;
   }
 
+  const projectRoot = projectRootFromOptions(options);
+  loadDotEnvFileIntoProcess(resolve(projectRoot, ".env"));
+  loadDotEnvFileIntoProcess(resolve(projectRoot, ".superturtle", ".env"));
+
   requireEnv("E2B_API_KEY");
 
   switch (command) {
@@ -195,7 +233,16 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.stack || error.message : String(error));
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.stack || error.message : String(error));
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  loadDotEnvFileIntoProcess,
+  parseArgs,
+  projectRootFromOptions,
+  requireEnv,
+};

@@ -55,7 +55,7 @@ Each message type has a dedicated async handler:
 
 ### Configuration
 
-All config via `.env` (copy from `.env.example`). Key variables:
+All config via `.superturtle/.env` (seeded from `templates/.env.example` in the package). Key variables:
 - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USERS` (required)
 - `CLAUDE_WORKING_DIR` - Working directory for Claude
 - `ALLOWED_PATHS` - Directories Claude can access

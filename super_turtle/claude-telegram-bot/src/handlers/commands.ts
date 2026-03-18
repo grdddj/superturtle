@@ -23,6 +23,7 @@ import {
   DEFAULT_CODEX_EFFORT,
   SUPERTURTLE_REMOTE_MODE,
   SUPERTURTLE_RUNTIME_ROLE,
+  SUPERTURTLE_SUBTURTLES_DIR,
   getCodexUnavailableReason,
 } from "../config";
 import { getContextReport } from "../context-command";
@@ -39,9 +40,11 @@ import {
   activateTeleportOwnershipForCurrentProject,
   launchTeleportRuntimeForCurrentProject,
   loadTeleportStateForCurrentProject,
+  pauseTeleportSandboxForCurrentProject,
   reconcileTeleportOwnershipForCurrentProject,
   releaseTeleportOwnershipForCurrentProject,
   recentlyReturnedHome,
+  type TeleportProgressEvent,
 } from "../teleport";
 
 // Canonical main-loop log written by live.sh (tmux + caffeinate + run-loop).
@@ -110,6 +113,109 @@ async function syncTelegramCommandsFromCommand(
   } catch (error) {
     cmdLog.warn({ err: error, runtimeRole, remoteMode }, "Failed to refresh Telegram slash commands");
   }
+}
+
+type ProgressCard = {
+  update(text: string): Promise<void>;
+};
+
+async function createProgressCard(ctx: Context, initialText: string): Promise<ProgressCard> {
+  let currentText = initialText;
+  let message = await ctx.reply(initialText);
+
+  const setText = async (text: string) => {
+    if (!text || text === currentText) {
+      return;
+    }
+    currentText = text;
+    try {
+      await ctx.api.editMessageText(message.chat.id, message.message_id, text);
+    } catch (error) {
+      const summary = String(error).toLowerCase();
+      if (summary.includes("message is not modified")) {
+        return;
+      }
+      message = await ctx.reply(text);
+    }
+  };
+
+  return {
+    update: setText,
+  };
+}
+
+function formatTeleportProgressText(stage: TeleportProgressEvent["stage"]): string {
+  const detail = (() => {
+    switch (stage) {
+      case "preparing":
+        return "Preparing teleport";
+      case "connecting_sandbox":
+        return "Connecting to your E2B sandbox";
+      case "creating_sandbox":
+        return "Creating your E2B sandbox";
+      case "configuring_remote":
+        return "Configuring the remote runtime";
+      case "bootstrapping_auth":
+        return "Bootstrapping credentials";
+      case "starting_remote":
+        return "Starting remote SuperTurtle";
+      case "waiting_ready":
+        return "Waiting for the remote turtle to become ready";
+      case "switching_telegram":
+        return "Switching Telegram to the remote turtle";
+      case "verifying_cutover":
+        return "Verifying Telegram cutover";
+      case "done":
+        return "Remote turtle is ready";
+      default:
+        return "Teleporting";
+    }
+  })();
+
+  return `🌀 Teleporting to E2B\n• ${detail}`;
+}
+
+function formatHomeProgressText(stage: TeleportProgressEvent["stage"]): string {
+  const detail = (() => {
+    switch (stage) {
+      case "releasing_telegram":
+        return "Releasing Telegram ownership";
+      case "verifying_release":
+        return "Confirming Telegram is back on your PC";
+      case "pausing_remote":
+        return "Pausing the remote sandbox";
+      case "done":
+        return "Finalizing return";
+      default:
+        return "Returning control to your PC";
+    }
+  })();
+
+  return `🏠 Returning home\n• ${detail}`;
+}
+
+function summarizeTeleportUserError(error: unknown, fallback: string): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  let message = raw.replace(/https?:\/\/\S+/g, "remote endpoint");
+
+  if (/template .* not found/i.test(message)) {
+    return "The configured E2B template is not available for this account.";
+  }
+  if (/timed out waiting for sandbox readiness/i.test(message)) {
+    return "The remote turtle did not become ready in time.";
+  }
+  if (/webhook ownership verification failed/i.test(message)) {
+    return "Telegram did not switch cleanly to the remote turtle.";
+  }
+  if (/webhook delete verification failed/i.test(message)) {
+    return "Telegram did not switch cleanly back to your PC.";
+  }
+  if (/missing required env/i.test(message)) {
+    return "Your project configuration is incomplete for teleport.";
+  }
+
+  message = message.replace(/\s+/g, " ").trim();
+  return message ? message.slice(0, 200) : fallback;
 }
 
 /**
@@ -430,7 +536,7 @@ export function parseCtlListOutput(output: string): ListedSubTurtle[] {
 
 export async function getSubTurtleElapsed(name: string): Promise<string> {
   try {
-    const metaPath = `${WORKING_DIR}/.subturtles/${name}/subturtle.meta`;
+    const metaPath = `${SUPERTURTLE_SUBTURTLES_DIR}/${name}/subturtle.meta`;
     const metaText = await Bun.file(metaPath).text();
     const spawnedAtMatch = metaText.match(/^SPAWNED_AT=(\d+)$/m);
     if (!spawnedAtMatch?.[1]) return "unknown";
@@ -533,7 +639,7 @@ export async function handleTeleport(ctx: Context): Promise<void> {
   const existingState = loadTeleportStateForCurrentProject();
   if (existingState?.ownerMode === "remote") {
     await ctx.reply(
-      `ℹ️ Telegram is already routed to E2B.\nSandbox: ${existingState.sandboxId}\nUse /home from the remote turtle to return ownership to this PC.`
+      "ℹ️ Telegram is already routed to E2B. Use /home from the remote turtle to return ownership to this PC."
     );
     return;
   }
@@ -543,26 +649,35 @@ export async function handleTeleport(ctx: Context): Promise<void> {
     return;
   }
 
-  const progress = await ctx.reply("🌀 Teleporting to E2B...");
+  const progress = await createProgressCard(
+    ctx,
+    formatTeleportProgressText("preparing")
+  );
   try {
-    const state = await launchTeleportRuntimeForCurrentProject({
+    await launchTeleportRuntimeForCurrentProject({
       remoteMode: "agent",
       remoteDriver: "codex",
+      onProgress: async (event) => {
+        await progress.update(formatTeleportProgressText(event.stage));
+      },
     });
-    await activateTeleportOwnershipForCurrentProject();
+    await activateTeleportOwnershipForCurrentProject({
+      onProgress: async (event) => {
+        await progress.update(formatTeleportProgressText(event.stage));
+      },
+    });
     await syncTelegramCommandsFromCommand(ctx, "teleport-remote", "agent");
-    await ctx.reply(
-      `✅ Teleported to E2B.\nSandbox: ${state.sandboxId}\nWebhook: ${state.webhookUrl}\nLocal bot stays running but Telegram is now routed to the remote runtime.`
+    await progress.update(
+      "✅ Teleported to E2B.\nTelegram is now routed to the remote turtle."
     );
   } catch (error) {
     cmdLog.error({ err: error }, "Teleport command failed");
-    await ctx.reply(`❌ Teleport failed: ${String(error).slice(0, 200)}`);
-  } finally {
-    try {
-      await ctx.api.deleteMessage(progress.chat.id, progress.message_id);
-    } catch {
-      // Ignore transient cleanup failures.
-    }
+    await progress.update(
+      `❌ Teleport failed: ${summarizeTeleportUserError(
+        error,
+        "Teleport could not be completed."
+      )}`
+    );
   }
 }
 
@@ -582,22 +697,37 @@ export async function handleHome(ctx: Context): Promise<void> {
     return;
   }
 
-  const progress = await ctx.reply("🏠 Returning Telegram ownership to your PC...");
+  const progress = await createProgressCard(
+    ctx,
+    formatHomeProgressText("releasing_telegram")
+  );
   try {
-    await releaseTeleportOwnershipForCurrentProject();
+    await releaseTeleportOwnershipForCurrentProject({
+      onProgress: async (event) => {
+        await progress.update(formatHomeProgressText(event.stage));
+      },
+    });
     await syncTelegramCommandsFromCommand(ctx, "local");
-    await ctx.reply(
-      "✅ Telegram ownership returned to the local polling turtle. This remote sandbox is still running, but it no longer owns updates."
+    try {
+      await pauseTeleportSandboxForCurrentProject({
+        onProgress: async (event) => {
+          await progress.update(formatHomeProgressText(event.stage));
+        },
+      });
+    } catch (error) {
+      cmdLog.warn({ err: error }, "Failed to pause teleport sandbox after /home");
+    }
+    await progress.update(
+      "✅ Back on your PC.\nTelegram is now routed to the local turtle."
     );
   } catch (error) {
     cmdLog.error({ err: error }, "Home command failed");
-    await ctx.reply(`❌ Failed to return home: ${String(error).slice(0, 200)}`);
-  } finally {
-    try {
-      await ctx.api.deleteMessage(progress.chat.id, progress.message_id);
-    } catch {
-      // Ignore transient cleanup failures.
-    }
+    await progress.update(
+      `❌ Failed to return home: ${summarizeTeleportUserError(
+        error,
+        "Return home could not be completed."
+      )}`
+    );
   }
 }
 
@@ -1992,7 +2122,7 @@ export async function handleSubturtle(ctx: Context): Promise<void> {
     readClaudeStateSummary(rootStatePath),
     Promise.all(
       turtles.map(async (turtle) => {
-        const statePath = `${WORKING_DIR}/.subturtles/${turtle.name}/CLAUDE.md`;
+        const statePath = `${SUPERTURTLE_SUBTURTLES_DIR}/${turtle.name}/CLAUDE.md`;
         const summary = await readClaudeStateSummary(statePath);
         return [turtle.name, summary] as const;
       })

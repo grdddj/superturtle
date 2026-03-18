@@ -23,6 +23,10 @@ superturtle init
 superturtle start
 ```
 
+For normal local use, `superturtle start` is the command that makes the bot run continuously. Use `superturtle stop` to stop it.
+
+Do not manually run both `start` and `service run`. `service run` is the internal foreground runner used by `launchd`, `systemd`, and cloud-managed runtimes.
+
 For agents and CI, init runs non-interactively with flags:
 
 ```bash
@@ -138,9 +142,14 @@ You should run Super Turtle in a sandboxed or dedicated environment (VM, contain
 git clone https://github.com/Rigos0/superturtle.git
 cd superturtle
 npx superturtle init          # installs deps, creates .superturtle/.env, prompts for tokens
-cd super_turtle/claude-telegram-bot
-bun run start
+node super_turtle/bin/superturtle.js start
+# stop later:
+node super_turtle/bin/superturtle.js stop
 ```
+
+If you have the npm package installed globally, use the explicit `node super_turtle/bin/superturtle.js ...` form while developing this repo so you run the source version, not the global install.
+
+For `launchd`, `systemd`, and E2B supervisors, use `node super_turtle/bin/superturtle.js service run`.
 
 ## Star History
 

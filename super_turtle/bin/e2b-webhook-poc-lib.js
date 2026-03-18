@@ -17,6 +17,10 @@ const TELEPORT_STATE_RELATIVE_PATH = join(".superturtle", "teleport-state.json")
 const LEGACY_POC_STATE_RELATIVE_PATH = join(".superturtle", "e2b-webhook-poc.json");
 const PROJECT_CONFIG_RELATIVE_PATH = join(".superturtle", "project.json");
 const PROJECT_ENV_RELATIVE_PATH = join(".superturtle", ".env");
+const LEGACY_SUBTURTLES_RELATIVE_PATH = ".subturtles";
+const SUBTURTLES_RELATIVE_PATH = join(".superturtle", "subturtles");
+const TELEPORT_RUNTIME_RELATIVE_PATH = join(".superturtle", "teleport");
+const LEGACY_TELEPORT_RUNTIME_RELATIVE_PATH = join("-s", ".superturtle", "teleport");
 const DEFAULT_PORT = 3000;
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 const DEFAULT_HEALTH_PATH = "/healthz";
@@ -24,7 +28,11 @@ const DEFAULT_READY_PATH = "/readyz";
 const DEFAULT_REMOTE_HOME = "/home/user";
 const DEFAULT_LOG_PATH = "/tmp/superturtle-e2b-bot.log";
 const DEFAULT_PID_PATH = "/tmp/superturtle-e2b-bot.pid";
-const DEFAULT_ARCHIVE_PATH = "/tmp/superturtle-e2b-project.tgz";
+const DEFAULT_TEMPLATE_NAME =
+  process.env.SUPERTURTLE_E2B_TEMPLATE_NAME?.trim() || "superturtle-managed-runtime";
+const DEFAULT_TEMPLATE_CHANNEL =
+  process.env.SUPERTURTLE_E2B_TEMPLATE_CHANNEL?.trim() || "latest";
+const DEFAULT_TEMPLATE_REF = `${DEFAULT_TEMPLATE_NAME}:${DEFAULT_TEMPLATE_CHANNEL}`;
 const DEFAULT_OWNER_MODE = "local";
 const DEFAULT_REMOTE_MODE = "control";
 const DEFAULT_REMOTE_CODEX_AUTH_PATH = join(".codex", "auth.json");
@@ -34,6 +42,13 @@ const DEFAULT_CLAUDE_CREDENTIAL_PATHS = [
   join(".config", "claude-code", "credentials.json"),
   join(".claude", "credentials.json"),
 ];
+
+async function emitProgress(options, stage, extra = {}) {
+  if (!options || typeof options.onProgress !== "function") {
+    return;
+  }
+  await options.onProgress({ stage, ...extra });
+}
 
 function normalizeExistingPath(path) {
   try {
@@ -96,6 +111,43 @@ function getBoundProjectRoot(startDir) {
   }
 
   return normalizeExistingPath(startDir);
+}
+
+function removeDirIfEmpty(pathname) {
+  try {
+    fs.rmdirSync(pathname);
+  } catch {}
+}
+
+function migrateLegacyRuntimeLayout(projectRoot) {
+  const subturtlesDir = resolve(projectRoot, SUBTURTLES_RELATIVE_PATH);
+  const legacySubturtlesDir = resolve(projectRoot, LEGACY_SUBTURTLES_RELATIVE_PATH);
+  const teleportDir = resolve(projectRoot, TELEPORT_RUNTIME_RELATIVE_PATH);
+  const legacyTeleportDir = resolve(projectRoot, LEGACY_TELEPORT_RUNTIME_RELATIVE_PATH);
+
+  fs.mkdirSync(resolve(projectRoot, ".superturtle"), { recursive: true });
+
+  if (fs.existsSync(legacySubturtlesDir)) {
+    if (fs.existsSync(subturtlesDir)) {
+      throw new Error(
+        `Cannot migrate legacy SubTurtle workspaces because both ${legacySubturtlesDir} and ${subturtlesDir} exist.`
+      );
+    }
+    fs.mkdirSync(dirname(subturtlesDir), { recursive: true });
+    fs.renameSync(legacySubturtlesDir, subturtlesDir);
+  }
+
+  if (fs.existsSync(legacyTeleportDir)) {
+    if (fs.existsSync(teleportDir)) {
+      throw new Error(
+        `Cannot migrate legacy teleport runtime files because both ${legacyTeleportDir} and ${teleportDir} exist.`
+      );
+    }
+    fs.mkdirSync(dirname(teleportDir), { recursive: true });
+    fs.renameSync(legacyTeleportDir, teleportDir);
+    removeDirIfEmpty(resolve(projectRoot, "-s", ".superturtle"));
+    removeDirIfEmpty(resolve(projectRoot, "-s"));
+  }
 }
 
 function getStateFilePath(projectRoot) {
@@ -298,6 +350,7 @@ function buildLocalAuthBootstrap(projectEnv = {}) {
 }
 
 function loadProjectEnv(projectRoot) {
+  migrateLegacyRuntimeLayout(projectRoot);
   const envPath = resolve(projectRoot, PROJECT_ENV_RELATIVE_PATH);
   if (!fs.existsSync(envPath)) {
     throw new Error(`Missing project env file at ${envPath}. Run 'superturtle init' first.`);
@@ -324,6 +377,19 @@ function getLocalRuntimeVersion() {
     }
   } catch {}
   return "0.0.0-dev";
+}
+
+function deriveRuntimeVersionFromInstallSpec(installSpec) {
+  const trimmed = String(installSpec || "").trim();
+  if (!trimmed) {
+    return "";
+  }
+  const atIndex = trimmed.lastIndexOf("@");
+  if (atIndex <= 0 || atIndex === trimmed.length - 1) {
+    return "";
+  }
+  const candidate = trimmed.slice(atIndex + 1).trim();
+  return /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(candidate) ? candidate : "";
 }
 
 async function resolveManagedTeleportTarget(env = process.env) {
@@ -393,10 +459,24 @@ function buildPocConfig(projectRoot, options = {}, existingState = null) {
     options.readyPath || existingState?.readyPath || DEFAULT_READY_PATH
   );
   const remoteRoot = options.remoteRoot || existingState?.remoteRoot || `${DEFAULT_REMOTE_HOME}/${repoName}`;
-  const remoteBotDir = `${remoteRoot}/super_turtle/claude-telegram-bot`;
-  const templateId = options.templateId || existingState?.templateId || null;
-  const templateVersion = options.templateVersion || existingState?.templateVersion || null;
-  const runtimeVersion = options.runtimeVersion || existingState?.runtimeVersion || getLocalRuntimeVersion();
+  const templateId =
+    options.templateId ||
+    existingState?.templateId ||
+    DEFAULT_TEMPLATE_REF;
+  const templateVersion =
+    options.templateVersion ||
+    existingState?.templateVersion ||
+    DEFAULT_TEMPLATE_CHANNEL;
+  const runtimeInstallSpec =
+    options.runtimeInstallSpec ||
+    existingState?.runtimeInstallSpec ||
+    process.env.SUPERTURTLE_RUNTIME_INSTALL_SPEC?.trim() ||
+    `superturtle@${getLocalRuntimeVersion()}`;
+  const runtimeVersion =
+    options.runtimeVersion ||
+    existingState?.runtimeVersion ||
+    deriveRuntimeVersionFromInstallSpec(runtimeInstallSpec) ||
+    getLocalRuntimeVersion();
   const webhookSecret = options.webhookSecret || existingState?.webhookSecret || randomToken(16);
   const remoteMode = options.remoteMode || existingState?.remoteMode || DEFAULT_REMOTE_MODE;
   if (remoteMode !== "control" && remoteMode !== "agent") {
@@ -416,7 +496,6 @@ function buildPocConfig(projectRoot, options = {}, existingState = null) {
   );
   const logPath = options.logPath || existingState?.logPath || DEFAULT_LOG_PATH;
   const pidPath = options.pidPath || existingState?.pidPath || DEFAULT_PID_PATH;
-  const archivePath = options.archivePath || existingState?.archivePath || DEFAULT_ARCHIVE_PATH;
 
   return {
     port,
@@ -424,9 +503,9 @@ function buildPocConfig(projectRoot, options = {}, existingState = null) {
     healthPath,
     readyPath,
     remoteRoot,
-    remoteBotDir,
     templateId,
     templateVersion,
+    runtimeInstallSpec,
     runtimeVersion,
     remoteMode,
     remoteDriver,
@@ -434,7 +513,6 @@ function buildPocConfig(projectRoot, options = {}, existingState = null) {
     webhookPath,
     logPath,
     pidPath,
-    archivePath,
   };
 }
 
@@ -508,12 +586,12 @@ function buildStateRecord(projectRoot, sandboxId, host, config, ownerMode = DEFA
     sandboxId,
     templateId: config.templateId || null,
     templateVersion: config.templateVersion || null,
+    runtimeInstallSpec: config.runtimeInstallSpec || null,
     runtimeVersion: config.runtimeVersion || null,
     host,
     port: config.port,
     timeoutMs: config.timeoutMs,
     remoteRoot: config.remoteRoot,
-    remoteBotDir: config.remoteBotDir,
     webhookPath: config.webhookPath,
     webhookSecret: config.webhookSecret,
     webhookUrl: buildWebhookUrl(host, config.webhookPath),
@@ -523,7 +601,6 @@ function buildStateRecord(projectRoot, sandboxId, host, config, ownerMode = DEFA
     readyUrl: buildReadyUrl(host, config.readyPath),
     logPath: config.logPath,
     pidPath: config.pidPath,
-    archivePath: config.archivePath,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -536,12 +613,12 @@ function formatStateSummary(state) {
     `Managed target: ${state.managed ? "yes" : "no"}`,
     `Template: ${state.templateId || "<unset>"}`,
     `Template version: ${state.templateVersion || "<unset>"}`,
+    `Runtime install spec: ${state.runtimeInstallSpec || "<unset>"}`,
     `Runtime version: ${state.runtimeVersion || "<unset>"}`,
     `Webhook URL: ${state.webhookUrl}`,
     `Health URL: ${state.healthUrl}`,
     `Ready URL: ${state.readyUrl}`,
     `Remote root: ${state.remoteRoot}`,
-    `Remote bot dir: ${state.remoteBotDir}`,
     `Remote log: ${state.logPath}`,
   ];
   if (state.updatedAt) {
@@ -558,14 +635,13 @@ function buildRemoteBootstrapCommand(config, options = {}) {
   const bunInstallSnippet =
     "if ! command -v bun >/dev/null 2>&1; then " +
     "curl -fsSL https://bun.sh/install | bash >/tmp/superturtle-e2b-bun-install.log 2>&1; " +
-    "fi; " +
-    "export PATH=\"$HOME/.bun/bin:$PATH\"";
+    "fi";
   const shouldResetRemoteRoot = options.resetRemoteRoot !== false;
-  const shouldInstallDependencies = options.installDependencies !== false;
 
   const commands = [
     "set -euo pipefail",
     bunInstallSnippet,
+    "export BUN_INSTALL=\"$HOME/.bun\" PATH=\"$HOME/.bun/bin:$HOME/.local/bin:$PATH\"",
   ];
 
   if (shouldResetRemoteRoot) {
@@ -574,14 +650,10 @@ function buildRemoteBootstrapCommand(config, options = {}) {
 
   commands.push(
     `mkdir -p ${shellEscape(config.remoteRoot)}`,
-    `tar -xzf ${shellEscape(config.archivePath)} -C ${shellEscape(config.remoteRoot)}`,
     `mkdir -p ${shellEscape(`${config.remoteRoot}/.superturtle`)}`,
-    `cd ${shellEscape(config.remoteBotDir)}`
+    `bun install -g ${shellEscape(config.runtimeInstallSpec)} >/tmp/superturtle-e2b-runtime-install.log 2>&1`,
+    "command -v superturtle >/dev/null 2>&1"
   );
-
-  if (shouldInstallDependencies) {
-    commands.push("bun install --frozen-lockfile || bun install");
-  }
 
   return commands.join(" && ");
 }
@@ -613,12 +685,16 @@ function buildRemoteAuthFinalizeCommand(config) {
 function buildRemoteStartCommand(config) {
   return [
     "set -euo pipefail",
-    "export PATH=\"$HOME/.bun/bin:$PATH\"",
-    `cd ${shellEscape(config.remoteBotDir)}`,
+    "export PATH=\"$HOME/.bun/bin:$HOME/.local/bin:$PATH\"",
+    `cd ${shellEscape(config.remoteRoot)}`,
+    "command -v superturtle >/dev/null 2>&1",
     `if [ -f ${shellEscape(config.pidPath)} ]; then kill "$(cat ${shellEscape(config.pidPath)})" >/dev/null 2>&1 || true; rm -f ${shellEscape(config.pidPath)}; fi`,
+    "superturtle stop >/tmp/superturtle-e2b-stop.log 2>&1 || true",
     `: > ${shellEscape(config.logPath)}`,
+    `export CLAUDE_WORKING_DIR=${shellEscape(config.remoteRoot)}`,
+    "export SUPERTURTLE_RESTART_ON_CRASH=1",
     `echo $$ > ${shellEscape(config.pidPath)}`,
-    `exec bun run src/index.ts >> ${shellEscape(config.logPath)} 2>&1`,
+    `exec superturtle service run >> ${shellEscape(config.logPath)} 2>&1`,
   ].join(" && ");
 }
 
@@ -633,14 +709,49 @@ async function importSandbox() {
   }
 }
 
-async function persistRemoteProjectEnv(sandbox, config, remoteEnv) {
+async function persistRemoteProjectState(sandbox, config, remoteEnv) {
+  const remoteProjectDir = `${config.remoteRoot}/.superturtle`;
+  const remoteProjectConfigPath = `${remoteProjectDir}/project.json`;
   const remoteProjectEnvPath = `${config.remoteRoot}/${DEFAULT_REMOTE_PROJECT_ENV_PATH}`;
+
+  await sandbox.commands.run(
+    ["set -euo pipefail", `mkdir -p ${shellEscape(remoteProjectDir)}`].join(" && "),
+    { timeoutMs: 30_000 }
+  );
+
+  await sandbox.files.write(
+    remoteProjectConfigPath,
+    `${JSON.stringify(
+      {
+        schema_version: 1,
+        repo_root: config.remoteRoot,
+        init_cwd: config.remoteRoot,
+        git_created: false,
+        initialized_at: new Date().toISOString(),
+      },
+      null,
+      2
+    )}\n`
+  );
   await sandbox.files.write(remoteProjectEnvPath, serializeDotEnv(remoteEnv));
-  return remoteProjectEnvPath;
+  await sandbox.commands.run(
+    [
+      "set -euo pipefail",
+      `chmod 600 ${shellEscape(remoteProjectConfigPath)}`,
+      `chmod 600 ${shellEscape(remoteProjectEnvPath)}`,
+    ].join(" && "),
+    { timeoutMs: 30_000 }
+  );
+
+  return {
+    remoteProjectConfigPath,
+    remoteProjectEnvPath,
+  };
 }
 
 function buildManagedRuntimeManifest(config) {
   return {
+    runtime_install_spec: config.runtimeInstallSpec || null,
     runtime_version: config.runtimeVersion || null,
     template_id: config.templateId || null,
     template_version: config.templateVersion || null,
@@ -681,6 +792,10 @@ function shouldRunFullBootstrap(config, remoteManifest) {
   if (!remoteManifest || typeof remoteManifest !== "object") {
     return true;
   }
+  const runtimeInstallSpec =
+    typeof remoteManifest.runtime_install_spec === "string"
+      ? remoteManifest.runtime_install_spec.trim()
+      : "";
   const runtimeVersion =
     typeof remoteManifest.runtime_version === "string"
       ? remoteManifest.runtime_version.trim()
@@ -697,6 +812,7 @@ function shouldRunFullBootstrap(config, remoteManifest) {
         : String(remoteManifest.remote_driver).trim();
 
   return (
+    runtimeInstallSpec !== String(config.runtimeInstallSpec || "") ||
     runtimeVersion !== String(config.runtimeVersion || "") ||
     remoteMode !== String(config.remoteMode || DEFAULT_REMOTE_MODE) ||
     remoteDriver !== String(config.remoteDriver || "")
@@ -721,42 +837,6 @@ async function bootstrapRemoteDriverAuth(sandbox, config, remoteEnv, authBootstr
     envs: remoteEnv,
     timeoutMs: 5 * 60 * 1000,
   });
-}
-
-function createArchiveBuffer(projectRoot) {
-  const { spawnSync } = require("child_process");
-  const tarArgs = [
-    "-czf",
-    "-",
-    "--exclude=.git",
-    "--exclude=.env",
-    "--exclude=node_modules",
-    "--exclude=.venv",
-    "--exclude=.subturtles",
-    "--exclude=.superturtle",
-    "--exclude=*.log",
-    ".",
-  ];
-
-  const proc = spawnSync("tar", tarArgs, {
-    cwd: projectRoot,
-    encoding: null,
-    maxBuffer: 512 * 1024 * 1024,
-    env: {
-      ...process.env,
-      COPYFILE_DISABLE: "1",
-    },
-  });
-
-  if (proc.error) {
-    throw new Error(`Failed to create project archive: ${proc.error.message}`);
-  }
-  if (proc.status !== 0) {
-    const stderr = proc.stderr ? proc.stderr.toString("utf-8") : "";
-    throw new Error(`Failed to create project archive: ${stderr.trim() || "tar exited non-zero."}`);
-  }
-
-  return proc.stdout;
 }
 
 async function fetchJson(url, options) {
@@ -838,6 +918,27 @@ async function waitForReady(url, timeoutMs) {
   return waitForHttpReady(url, timeoutMs, "readiness");
 }
 
+async function ensureTeleportTargetReady(projectRoot, state, options = {}) {
+  await emitProgress(options, "connecting_sandbox", {
+    sandboxId: state.sandboxId,
+    remoteMode: state.remoteMode || DEFAULT_REMOTE_MODE,
+  });
+  const { Sandbox } = await importSandbox();
+  const sandbox = await Sandbox.connect(state.sandboxId, {
+    timeoutMs: state.timeoutMs || DEFAULT_TIMEOUT_MS,
+  });
+  const readyUrl = state.readyUrl || state.healthUrl;
+  await waitForReady(readyUrl, 15 * 1000);
+
+  const nextState = buildStateRecord(projectRoot, sandbox.sandboxId, sandbox.getHost(state.port), {
+    ...state,
+    readyPath: state.readyPath || DEFAULT_READY_PATH,
+    healthPath: state.healthPath || DEFAULT_HEALTH_PATH,
+  }, state.ownerMode || DEFAULT_OWNER_MODE);
+  savePocState(projectRoot, nextState);
+  return nextState;
+}
+
 async function lookupSandboxInfo(Sandbox, sandboxId) {
   const paginator = await Sandbox.list();
   while (paginator.hasNext) {
@@ -880,16 +981,30 @@ function saveStateWithOwner(projectRoot, state, ownerMode) {
 }
 
 async function launchTeleportRuntime(projectRoot, options = {}) {
+  await emitProgress(options, "preparing");
   const projectEnv = loadProjectEnv(projectRoot);
   const existingState = loadPocState(projectRoot);
   const config = buildPocConfig(projectRoot, options, existingState);
   const authBootstrap = buildLocalAuthBootstrap(projectEnv);
   const { Sandbox } = await importSandbox();
 
-  const sandboxId = options["sandbox-id"] || existingState?.sandboxId || null;
+  const canReuseExistingSandbox =
+    Boolean(options["sandbox-id"]) ||
+    Boolean(
+      existingState?.sandboxId &&
+      existingState?.templateId &&
+      existingState.templateId === config.templateId
+    );
+  const sandboxId =
+    options["sandbox-id"] ||
+    (canReuseExistingSandbox ? existingState?.sandboxId || null : null);
   let sandbox = null;
   if (sandboxId) {
     try {
+      await emitProgress(options, "connecting_sandbox", {
+        sandboxId,
+        remoteMode: config.remoteMode,
+      });
       sandbox = await Sandbox.connect(sandboxId, { timeoutMs: config.timeoutMs });
     } catch (error) {
       if (!isMissingSandboxError(error)) {
@@ -898,7 +1013,10 @@ async function launchTeleportRuntime(projectRoot, options = {}) {
     }
   }
   if (!sandbox) {
-    sandbox = await Sandbox.create({
+    await emitProgress(options, "creating_sandbox", {
+      remoteMode: config.remoteMode,
+    });
+    sandbox = await Sandbox.create(config.templateId, {
       timeoutMs: config.timeoutMs,
       lifecycle: {
         onTimeout: "pause",
@@ -927,33 +1045,59 @@ async function launchTeleportRuntime(projectRoot, options = {}) {
   const remoteManifest = sandbox ? await readRemoteManagedRuntimeManifest(sandbox, config) : null;
   if (sandbox && !shouldRunFullBootstrap(config, remoteManifest)) {
     try {
+      await emitProgress(options, "waiting_ready", {
+        sandboxId: sandbox.sandboxId,
+        remoteMode: config.remoteMode,
+      });
       await waitForReady(readyUrl, 5 * 1000);
       const state = buildStateRecord(projectRoot, sandbox.sandboxId, host, config, DEFAULT_OWNER_MODE);
       savePocState(projectRoot, state);
+      await emitProgress(options, "done", {
+        sandboxId: sandbox.sandboxId,
+        remoteMode: config.remoteMode,
+      });
       return state;
     } catch {
-      // Fall through to a full resync/restart when the existing runtime is not ready.
+      // Fall through to a full runtime reinstall/restart when the existing runtime is not ready.
     }
   }
 
-  const archiveBuffer = createArchiveBuffer(projectRoot);
-  await sandbox.files.write(config.archivePath, archiveBuffer);
+  await emitProgress(options, "configuring_remote", {
+    sandboxId: sandbox.sandboxId,
+    remoteMode: config.remoteMode,
+  });
   await sandbox.commands.run(buildRemoteBootstrapCommand(config), {
     envs: remoteEnv,
     timeoutMs: 10 * 60 * 1000,
   });
-  await persistRemoteProjectEnv(sandbox, config, remoteEnv);
+  await persistRemoteProjectState(sandbox, config, remoteEnv);
+  await emitProgress(options, "bootstrapping_auth", {
+    sandboxId: sandbox.sandboxId,
+    remoteMode: config.remoteMode,
+  });
   await bootstrapRemoteDriverAuth(sandbox, config, remoteEnv, authBootstrap);
+  await emitProgress(options, "starting_remote", {
+    sandboxId: sandbox.sandboxId,
+    remoteMode: config.remoteMode,
+  });
   await sandbox.commands.run(buildRemoteStartCommand(config), {
     envs: remoteEnv,
     background: true,
     timeoutMs: 10 * 60 * 1000,
+  });
+  await emitProgress(options, "waiting_ready", {
+    sandboxId: sandbox.sandboxId,
+    remoteMode: config.remoteMode,
   });
   await waitForReady(readyUrl, 90 * 1000);
   await persistManagedRuntimeManifest(sandbox, config);
 
   const state = buildStateRecord(projectRoot, sandbox.sandboxId, host, config, DEFAULT_OWNER_MODE);
   savePocState(projectRoot, state);
+  await emitProgress(options, "done", {
+    sandboxId: sandbox.sandboxId,
+    remoteMode: config.remoteMode,
+  });
   return state;
 }
 
@@ -988,12 +1132,21 @@ async function getTeleportStatus(projectRoot) {
 }
 
 async function setRemoteWebhook(projectRoot, options = {}) {
-  const state = requireProjectState(projectRoot);
+  const existingState = requireProjectState(projectRoot);
   const runtimeEnv = loadRuntimeEnv(projectRoot);
+  const state = await ensureTeleportTargetReady(projectRoot, existingState, options);
+  await emitProgress(options, "switching_telegram", {
+    sandboxId: existingState.sandboxId,
+    remoteMode: existingState.remoteMode || DEFAULT_REMOTE_MODE,
+  });
   await setTelegramWebhook(runtimeEnv.TELEGRAM_BOT_TOKEN, state.webhookUrl, state.webhookSecret, {
     dropPendingUpdates: Boolean(options.dropPendingUpdates),
   });
 
+  await emitProgress(options, "verifying_cutover", {
+    sandboxId: state.sandboxId,
+    remoteMode: state.remoteMode || DEFAULT_REMOTE_MODE,
+  });
   const webhookInfo = await getTelegramWebhookInfo(runtimeEnv.TELEGRAM_BOT_TOKEN);
   const currentUrl = webhookInfo?.result?.url || "";
   if (currentUrl !== state.webhookUrl) {
@@ -1012,8 +1165,16 @@ async function setRemoteWebhook(projectRoot, options = {}) {
 async function clearRemoteWebhook(projectRoot, options = {}) {
   const state = loadPocState(projectRoot);
   const runtimeEnv = loadRuntimeEnv(projectRoot);
+  await emitProgress(options, "releasing_telegram", {
+    sandboxId: state?.sandboxId,
+    remoteMode: state?.remoteMode || DEFAULT_REMOTE_MODE,
+  });
   await deleteTelegramWebhook(runtimeEnv.TELEGRAM_BOT_TOKEN, {
     dropPendingUpdates: Boolean(options.dropPendingUpdates),
+  });
+  await emitProgress(options, "verifying_release", {
+    sandboxId: state?.sandboxId,
+    remoteMode: state?.remoteMode || DEFAULT_REMOTE_MODE,
   });
   const webhookInfo = await getTelegramWebhookInfo(runtimeEnv.TELEGRAM_BOT_TOKEN);
   const currentUrl = webhookInfo?.result?.url || "";
@@ -1042,15 +1203,27 @@ async function reconcileTeleportOwnership(projectRoot) {
   return saveStateWithOwner(projectRoot, state, "local");
 }
 
-async function pauseTeleportSandbox(projectRoot) {
+async function pauseTeleportSandbox(projectRoot, options = {}) {
   const state = requireProjectState(projectRoot);
+  await emitProgress(options, "pausing_remote", {
+    sandboxId: state.sandboxId,
+    remoteMode: state.remoteMode || DEFAULT_REMOTE_MODE,
+  });
   const { Sandbox } = await importSandbox();
   const info = await lookupSandboxInfo(Sandbox, state.sandboxId);
   if (info?.state === "paused") {
+    await emitProgress(options, "done", {
+      sandboxId: state.sandboxId,
+      remoteMode: state.remoteMode || DEFAULT_REMOTE_MODE,
+    });
     return state;
   }
   const sandbox = await Sandbox.connect(state.sandboxId, { timeoutMs: state.timeoutMs || 60_000 });
   await sandbox.pause();
+  await emitProgress(options, "done", {
+    sandboxId: state.sandboxId,
+    remoteMode: state.remoteMode || DEFAULT_REMOTE_MODE,
+  });
   return state;
 }
 
@@ -1072,7 +1245,6 @@ async function tailTeleportLogs(projectRoot, lines = 50) {
 }
 
 module.exports = {
-  DEFAULT_ARCHIVE_PATH,
   DEFAULT_CLAUDE_CREDENTIAL_PATHS,
   DEFAULT_HEALTH_PATH,
   DEFAULT_REMOTE_CODEX_AUTH_PATH,
@@ -1104,10 +1276,10 @@ module.exports = {
   getTelegramWebhookInfo,
   hasLocalCodexAuth,
   clearRemoteWebhook,
-  createArchiveBuffer,
   deleteTelegramWebhook,
   getTeleportStatus,
   importSandbox,
+  ensureTeleportTargetReady,
   launchTeleportRuntime,
   loadPocState,
   loadProjectEnv,
@@ -1116,7 +1288,7 @@ module.exports = {
   isMissingSandboxError,
   parseDotEnv,
   persistManagedRuntimeManifest,
-  persistRemoteProjectEnv,
+  persistRemoteProjectState,
   serializeDotEnv,
   shouldRunFullBootstrap,
   pauseTeleportSandbox,
