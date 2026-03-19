@@ -11,6 +11,8 @@ describe("subturtle board service", () => {
     expect(isRelevantSubturtleBoardEventType("worker.started")).toBe(true);
     expect(isRelevantSubturtleBoardEventType("worker.checkpoint")).toBe(true);
     expect(isRelevantSubturtleBoardEventType("worker.archived")).toBe(true);
+    expect(isRelevantSubturtleBoardEventType("worker.cleanup_verified")).toBe(true);
+    expect(isRelevantSubturtleBoardEventType("worker.completed")).toBe(true);
     expect(isRelevantSubturtleBoardEventType("worker.notification_sent")).toBe(false);
     expect(isRelevantSubturtleBoardEventType("worker.supervision_checked")).toBe(false);
   });

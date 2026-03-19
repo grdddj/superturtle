@@ -13,6 +13,8 @@ const RELEVANT_EVENT_TYPES = new Set([
   "worker.timed_out",
   "worker.failed",
   "worker.completion_requested",
+  "worker.cleanup_verified",
+  "worker.completed",
 ]);
 
 const BOARD_RECONCILE_DEBOUNCE_MS = 750;
