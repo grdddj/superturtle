@@ -7,6 +7,16 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- intermediate Telegram updates are now push-silent, with the final reply still notifying normally
+- startup notifications now send a short Telegram message whenever the turtle process boots
+- `.superturtle/` is now the canonical home for runtime state and live config; the active env lives in `.superturtle/.env`, while `.env.example` ships as a repo-root reference file
+- onboarding is simplified around `superturtle init`; the legacy `setup` script is removed, and init now merges templates into an existing `.claude` directory
+
+### Fixed
+- fixed Codex stalling around pending tool output delivery
+- process startup and shutdown are more reliable, reducing duplicate runners and other restart cleanup bugs
+
 ## [0.2.5] - 2026-03-13
 
 ### Fixed
