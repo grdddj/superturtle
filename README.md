@@ -51,6 +51,27 @@ superturtle init --token <BOT_TOKEN> --user <TELEGRAM_USER_ID> --openai-key <KEY
 4. **Milestone updates** — you get progress, not noise.
 5. **Works from anywhere** — phone, tablet, another machine.
 
+## SuperTurtle vs OpenClaw
+
+OpenClaw is broader across channels. SuperTurtle is narrower on purpose: a phone-first coding agent focused on Telegram, voice, and getting work done on your own machine.
+
+| Feature | SuperTurtle | OpenClaw |
+|---------|-------------|----------|
+| Telegram control from your phone | ✅ | ✅ |
+| Telegram voice-message workflow | ✅ | ✅ |
+| Self-hosted on your own machine | ✅ | ✅ |
+| Built for coding-agent workflows | ✅ | ✅ |
+| Parallel worker agents | ✅ | ✅ |
+| Built-in web dashboard | ✅ | ✅ |
+| WhatsApp support | ❌ | ✅ |
+| Discord support | ❌ | ✅ |
+| iMessage support | ❌ | ✅ |
+| Plugin channel ecosystem | ❌ | ✅ |
+| Paired iOS/Android device nodes | ❌ | ✅ |
+| macOS companion app / menu bar app | ❌ | ✅ |
+
+Comparison based on SuperTurtle docs and OpenClaw public docs as of 2026-03-19: [SuperTurtle docs](https://www.superturtle.dev/docs), [OpenClaw docs](https://docs.openclaw.ai/).
+
 ## What it looks like
 
 <p align="center">
