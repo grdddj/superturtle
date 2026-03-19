@@ -276,6 +276,76 @@ describe("/subturtle", () => {
     }
   });
 
+  it("unpins an unchanged board when no workers are running", async () => {
+    const workdir = WORKING_DIR;
+    const chatId = authorizedUserId + 21;
+    const boardPath = join(
+      workdir,
+      ".superturtle/state/telegram/subturtle-boards",
+      `${chatId}.json`
+    );
+    rmSync(boardPath, { force: true });
+    mkdirSync(dirname(boardPath), { recursive: true });
+    writeFileSync(
+      boardPath,
+      JSON.stringify({
+        chat_id: chatId,
+        message_id: 731,
+        last_render_hash: "28b3cd8ce5ec336c47af1462763213578abc4636",
+        last_rendered_at: "2026-03-19T00:00:00Z",
+        created_at: "2026-03-19T00:00:00Z",
+        updated_at: new Date().toISOString(),
+        current_view: { kind: "board" },
+      })
+    );
+
+    const originalSpawnSync = Bun.spawnSync;
+    const unpinned: Array<{ chatId: number; messageId?: number }> = [];
+    let edited = 0;
+    let sent = 0;
+
+    Bun.spawnSync = ((cmd: unknown, opts?: unknown) => {
+      if (Array.isArray(cmd) && String(cmd[0]).endsWith("/subturtle/ctl") && cmd[1] === "list") {
+        return {
+          stdout: Buffer.from("No SubTurtles found."),
+          stderr: Buffer.from(""),
+          success: true,
+          exitCode: 0,
+        } as ReturnType<typeof Bun.spawnSync>;
+      }
+
+      return originalSpawnSync(cmd as Parameters<typeof Bun.spawnSync>[0], opts as Parameters<typeof Bun.spawnSync>[1]);
+    }) as typeof Bun.spawnSync;
+
+    try {
+      const result = await syncLiveSubturtleBoard({
+        sendMessage: async () => {
+          sent += 1;
+          return { message_id: 732, chat: { id: chatId } };
+        },
+        editMessageText: async () => {
+          edited += 1;
+        },
+        unpinChatMessage: async (targetChatId: number, messageId?: number) => {
+          unpinned.push({ chatId: targetChatId, messageId });
+        },
+      }, chatId, { pin: true, disableNotification: true });
+
+      expect(result.status).toBe("unchanged");
+      expect(result.messageId).toBe(731);
+      expect(edited).toBe(0);
+      expect(unpinned).toEqual([{ chatId, messageId: 731 }]);
+      expect(sent).toBe(0);
+
+      const trackedBoard = JSON.parse(readFileSync(boardPath, "utf-8"));
+      expect(trackedBoard.message_id).toBe(731);
+      expect(trackedBoard.current_view).toEqual({ kind: "board" });
+    } finally {
+      Bun.spawnSync = originalSpawnSync;
+      rmSync(boardPath, { force: true });
+    }
+  });
+
   it("does not auto-create a board when no workers are running", async () => {
     const workdir = WORKING_DIR;
     const chatId = authorizedUserId + 3;

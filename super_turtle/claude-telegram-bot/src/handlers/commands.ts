@@ -2692,17 +2692,6 @@ export async function syncLiveSubturtleBoard(
   const renderHash = computeLiveSubturtleBoardHash(payload.text, payload.replyMarkup);
   const now = nowIso();
 
-  if (record && !options.force) {
-    const ageMs = Date.now() - Date.parse(record.updated_at);
-    if (
-      record.last_render_hash === renderHash &&
-      Number.isFinite(ageMs) &&
-      ageMs < LIVE_SUBTURTLE_BOARD_REFRESH_MIN_MS
-    ) {
-      return { status: "unchanged", messageId: record.message_id, view: record.current_view || payload.view };
-    }
-  }
-
   const saveRecord = (messageId: number, createdAt?: string) => {
     writeLiveSubturtleBoardRecord({
       chat_id: chatId,
@@ -2747,6 +2736,22 @@ export async function syncLiveSubturtleBoard(
       }
     }
   };
+
+  if (record && !options.force) {
+    const ageMs = Date.now() - Date.parse(record.updated_at);
+    if (
+      record.last_render_hash === renderHash &&
+      Number.isFinite(ageMs) &&
+      ageMs < LIVE_SUBTURTLE_BOARD_REFRESH_MIN_MS
+    ) {
+      if (hasActiveWorkers) {
+        await pinMessage(record.message_id);
+      } else {
+        await unpinMessage(record.message_id);
+      }
+      return { status: "unchanged", messageId: record.message_id, view: record.current_view || payload.view };
+    }
+  }
 
   if (record) {
     try {
