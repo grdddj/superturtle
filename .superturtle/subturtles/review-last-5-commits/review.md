@@ -15,3 +15,9 @@
 ### Medium
 
 - `.superturtle/subturtles/board-poc-check-3/CLAUDE.md:1` and `.superturtle/subturtles/board-poc-check-3/board-poc-check-note.md:1` commit ephemeral worker-runtime files from `.superturtle/subturtles/`, even though `.gitignore:39` marks `.superturtle/` as local runtime state and `AGENTS.md:16` says live project state now lives there. Tracking these files means normal worker cleanup shows up as repository deletions/modifications and makes it easier to accidentally commit future local state from the same runtime tree.
+
+## Commit `4a728970` - `Add board POC workspace note`
+
+### Medium
+
+- `.superturtle/subturtles/board-poc-check-2/CLAUDE.md:1` and `.superturtle/subturtles/board-poc-check-2/board-poc-check-note.md:1` repeat the same problem as the previous board-POC note commit: they add ephemeral worker files from `.superturtle/subturtles/` even though `.gitignore:39` reserves `.superturtle/` for local runtime state and `AGENTS.md:16` documents it as live project state. Because these files are now tracked, routine SubTurtle cleanup or reruns appear as repo deletions/modifications and increase the chance of accidentally committing more machine-local state.
