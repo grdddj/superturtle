@@ -63,8 +63,6 @@ superturtle init --token <BOT_TOKEN> --user <TELEGRAM_USER_ID> --openai-key <KEY
 
 ## SuperTurtle vs OpenClaw
 
-OpenClaw is broader across channels. SuperTurtle is intentionally narrower: Telegram-first, built around the headless coding CLI pattern, with a roadmap toward native sandboxing and native remote session mobility.
-
 | Feature | SuperTurtle | OpenClaw |
 |---------|-------------|----------|
 | Telegram control | ✅ | ✅ |
@@ -74,6 +72,15 @@ OpenClaw is broader across channels. SuperTurtle is intentionally narrower: Tele
 | Custom skills, connectors, and MCPs | ✅ | ✅ |
 | Persistent remote VM in one command | 🔜 | ❌ |
 | Plugin / channel ecosystem | ❌ | ✅ |
+
+### What SuperTurtle Does Differently
+
+| Positioning | SuperTurtle | OpenClaw |
+|------------|-------------|----------|
+| Setup | Minimal - 3 commands | More setup surface because the platform covers more channels, plugins, and agent modes |
+| Product focus | Coding-first | More general-purpose agent platform |
+| Runtime model | Moving the agent between your machine, sandboxes, and VMs with one command is part of the product direction | Runs on one machine at a time: local machine or VM |
+| Main agent runtime | Wraps the Codex and Claude Code CLIs | Embedded `pi-agent-core` / `pi-mono` runtime |
 
 ## Headless CLI Pattern
 
