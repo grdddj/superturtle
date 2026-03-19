@@ -4,6 +4,7 @@ import { codexLog } from "../logger";
 
 const DEFAULT_PENDING_REQUEST_TIMEOUT_MS = 1500;
 const DEFAULT_PENDING_PUMP_SHUTDOWN_TIMEOUT_MS = 2000;
+const ASK_USER_TIMEOUT_GRACE_MS = 300;
 const MCP_WRITE_SETTLE_MS = 200;
 const MCP_RETRY_DELAY_MS = 100;
 const MCP_RETRY_ATTEMPTS = 3;
@@ -24,6 +25,12 @@ type ToolCompletionConfig = {
   logMessage: string;
   breakOnHandled?: boolean;
   handledLogMessage?: string;
+};
+
+type PendingCheckResult = {
+  handled: boolean;
+  timedOut: boolean;
+  completion: Promise<boolean>;
 };
 
 const TOOL_COMPLETION_CONFIG: Partial<Record<string, ToolCompletionConfig>> = {
@@ -79,18 +86,24 @@ export function createCodexPendingOutputCoordinator(options: {
   const runPendingCheck = async (
     checkName: PendingCheckName,
     phase: string
-  ): Promise<boolean> => {
+  ): Promise<PendingCheckResult> => {
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    const completion = options.checks[checkName]().catch((error) => {
+      codexLog.warn(
+        { err: error, driver: options.driverId, chatId: options.chatId, checkName, phase },
+        "Pending Codex output check failed"
+      );
+      return false;
+    });
+
     try {
       return await Promise.race([
-        options.checks[checkName]().catch((error) => {
-          codexLog.warn(
-            { err: error, driver: options.driverId, chatId: options.chatId, checkName, phase },
-            "Pending Codex output check failed"
-          );
-          return false;
-        }),
-        new Promise<boolean>((resolve) => {
+        completion.then((handled) => ({
+          handled,
+          timedOut: false,
+          completion,
+        })),
+        new Promise<PendingCheckResult>((resolve) => {
           timeoutId = setTimeout(() => {
             codexLog.warn(
               {
@@ -102,7 +115,11 @@ export function createCodexPendingOutputCoordinator(options: {
               },
               "Pending Codex output check timed out"
             );
-            resolve(false);
+            resolve({
+              handled: false,
+              timedOut: true,
+              completion,
+            });
           }, pendingRequestTimeoutMs);
         }),
       ]);
@@ -120,6 +137,14 @@ export function createCodexPendingOutputCoordinator(options: {
       )
     );
   };
+
+  const waitForAskUserGraceWindow = async (
+    completion: Promise<boolean>
+  ): Promise<boolean> =>
+    Promise.race([
+      completion,
+      wait(ASK_USER_TIMEOUT_GRACE_MS).then(() => false),
+    ]);
 
   const handleToolCompletion = async (tool: string): Promise<boolean> => {
     const normalizedTool = tool.toLowerCase().replace(/-/g, "_");
@@ -142,10 +167,27 @@ export function createCodexPendingOutputCoordinator(options: {
     await wait(MCP_WRITE_SETTLE_MS);
 
     for (let attempt = 0; attempt < MCP_RETRY_ATTEMPTS; attempt++) {
-      const handled = await runPendingCheck(
+      const result = await runPendingCheck(
         config.checkName,
         `mcp:${normalizedTool}`
       );
+      let handled = result.handled;
+
+      if (!handled && result.timedOut && config.breakOnHandled === true) {
+        handled = await waitForAskUserGraceWindow(result.completion);
+        if (handled) {
+          codexLog.info(
+            {
+              driver: options.driverId,
+              tool: normalizedTool,
+              chatId: options.chatId,
+              attempt: attempt + 1,
+              graceMs: ASK_USER_TIMEOUT_GRACE_MS,
+            },
+            "Ask-user pending check completed during grace window"
+          );
+        }
+      }
 
       if (handled) {
         if (config.handledLogMessage) {
