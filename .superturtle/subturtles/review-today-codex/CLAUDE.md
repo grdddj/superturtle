@@ -1,6 +1,6 @@
 # Current task
 
-Review `super_turtle/claude-telegram-bot/src/drivers/codex-pending-outputs.ts` for races, retries, and flush/shutdown edge cases.
+Review `super_turtle/claude-telegram-bot/src/drivers/codex-driver.ts` and `super_turtle/claude-telegram-bot/src/handlers/streaming.ts` for integration regressions.
 
 # End goal with specs
 
@@ -41,8 +41,8 @@ Acceptance criteria:
 # Backlog
 
 - [x] Inspect today's streaming/pending-output commits and summarize the intended behavior. `27cf3247` adds timeout-guarded pending-output flushing plus deferred `done` forwarding so hung checks do not stall completion; `bd2a881f` extracts that pump/tool-completion/final-flush logic into `codex-pending-outputs.ts`; `4e4dad7b` adds outbound message-kind classifiers so streaming code can distinguish progress, final output, and side-effect messages.
-- [ ] Review `super_turtle/claude-telegram-bot/src/drivers/codex-pending-outputs.ts` for races, retries, and flush/shutdown edge cases <- current
-- [ ] Review `super_turtle/claude-telegram-bot/src/drivers/codex-driver.ts` and `super_turtle/claude-telegram-bot/src/handlers/streaming.ts` for integration regressions
+- [x] Review `super_turtle/claude-telegram-bot/src/drivers/codex-pending-outputs.ts` for races, retries, and flush/shutdown edge cases. Found a high-severity `ask_user` timeout race: if `runPendingCheck()` times out but the underlying checker later succeeds, `handleToolCompletion()` still returns `false`, so Codex can continue streaming after the prompt was already sent.
+- [ ] Review `super_turtle/claude-telegram-bot/src/drivers/codex-driver.ts` and `super_turtle/claude-telegram-bot/src/handlers/streaming.ts` for integration regressions <- current
 - [ ] Review `super_turtle/claude-telegram-bot/src/message-kinds.ts` and its usage for classification gaps
 - [ ] Review the related tests touched today for missing coverage or brittle assertions
 - [ ] Run focused tests or checks if they materially improve confidence
