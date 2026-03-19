@@ -36,10 +36,13 @@ import { isAnyDriverRunning, runMessageWithActiveDriver, stopActiveDriverQuery }
 import { escapeHtml, convertMarkdownToHtml } from "../formatting";
 import { removeJob } from "../cron";
 import {
+  buildSubturtleBacklogMessage,
+  buildSubturtleLogMessage,
   buildClaudeModelPickerMessage,
   buildCodexModelPickerMessage,
   buildSessionOverviewLines,
   buildSubturtleMenuMessage,
+  listSubturtles,
   chunkText,
   resetAllDriverSessions,
   readClaudeStateSummary,
@@ -47,6 +50,7 @@ import {
   formatBacklogSummary,
   replySubturtleDetail,
   parseCtlListOutput,
+  syncLiveSubturtleBoard,
 } from "./commands";
 import { eventLog, streamLog } from "../logger";
 import { consumeHandledStopReply } from "./stop";
@@ -54,8 +58,6 @@ import { consumeHandledStopReply } from "./stop";
 const SAFE_CALLBACK_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const SAFE_CALLBACK_OPTION_INDEX = /^\d+$/;
 const PINOLOG_LEVELS = new Set(["info", "warn", "error"]);
-const BACKLOG_PAGE_SIZE = 5;
-const LOG_LINES_PER_PAGE = 30;
 const callbackLog = streamLog.child({ handler: "callback" });
 
 function isSafeCallbackId(value: string): boolean {
@@ -346,6 +348,36 @@ export async function handleCallback(ctx: Context): Promise<void> {
     return;
   }
 
+  if (callbackData === "sub_board_refresh") {
+    await handleLiveSubturtleBoardRefresh(ctx);
+    return;
+  }
+
+  if (callbackData.startsWith("sub_board_pick:")) {
+    await handleLiveSubturtleBoardPick(ctx, callbackData);
+    return;
+  }
+
+  if (callbackData === "sub_board_home") {
+    await handleLiveSubturtleBoardHome(ctx);
+    return;
+  }
+
+  if (callbackData.startsWith("sub_board_bl:")) {
+    await handleLiveSubturtleBoardBacklog(ctx, callbackData);
+    return;
+  }
+
+  if (callbackData.startsWith("sub_board_lg:")) {
+    await handleLiveSubturtleBoardLogs(ctx, callbackData);
+    return;
+  }
+
+  if (callbackData.startsWith("sub_board_stop:")) {
+    await handleSubturtleStopCallback(ctx, callbackData, { boardMode: true });
+    return;
+  }
+
   // 5b. Handle subturtle pick callback: sub_pick:{name}
   if (callbackData.startsWith("sub_pick:")) {
     await handleSubturtlePickCallback(ctx, callbackData);
@@ -592,6 +624,143 @@ async function handleSubturtleLogsCallback(
 /**
  * Handle "↩ Menu" button — re-displays the /sub listing.
  */
+async function handleLiveSubturtleBoardRefresh(ctx: Context): Promise<void> {
+  const chatId = ctx.chat?.id;
+  if (!chatId) {
+    await ctx.answerCallbackQuery({ text: "Chat unavailable" });
+    return;
+  }
+
+  try {
+    const result = await syncLiveSubturtleBoard(ctx.api, chatId, {
+      force: true,
+      pin: true,
+      disableNotification: true,
+    });
+    await ctx.answerCallbackQuery({
+      text: result.status === "unchanged" ? "Already up to date" : "Live board refreshed",
+    });
+  } catch (error) {
+    callbackLog.error({ err: error, chatId }, "Failed to refresh live SubTurtle board");
+    await ctx.answerCallbackQuery({ text: "Failed to refresh board" });
+  }
+}
+
+async function handleLiveSubturtleBoardPick(
+  ctx: Context,
+  callbackData: string
+): Promise<void> {
+  const match = /^sub_board_pick:([^:]+)$/.exec(callbackData);
+  if (!match) {
+    await ctx.answerCallbackQuery({ text: "Invalid SubTurtle name" });
+    return;
+  }
+
+  const name = match[1]!;
+  if (!isSafeCallbackId(name)) {
+    await ctx.answerCallbackQuery({ text: "Invalid SubTurtle name" });
+    return;
+  }
+
+  try {
+    await syncLiveSubturtleBoard(ctx.api, ctx.chat!.id, {
+      force: true,
+      pin: true,
+      disableNotification: true,
+      view: { kind: "detail", name },
+    });
+    await ctx.answerCallbackQuery();
+  } catch (error) {
+    callbackLog.error({ err: error, name, chatId: ctx.chat?.id }, "Failed to open SubTurtle detail from live board");
+    await ctx.answerCallbackQuery({ text: "Failed to load SubTurtle" });
+  }
+}
+
+async function handleLiveSubturtleBoardHome(ctx: Context): Promise<void> {
+  const chatId = ctx.chat?.id;
+  if (!chatId) {
+    await ctx.answerCallbackQuery({ text: "Chat unavailable" });
+    return;
+  }
+
+  try {
+    await syncLiveSubturtleBoard(ctx.api, chatId, {
+      force: true,
+      pin: true,
+      disableNotification: true,
+      view: { kind: "board" },
+    });
+    await ctx.answerCallbackQuery();
+  } catch (error) {
+    callbackLog.error({ err: error, chatId }, "Failed to return to live SubTurtle board home");
+    await ctx.answerCallbackQuery({ text: "Failed to load board" });
+  }
+}
+
+async function handleLiveSubturtleBoardBacklog(
+  ctx: Context,
+  callbackData: string
+): Promise<void> {
+  const parsed = parsePaginationCallback(callbackData, "sub_board_bl:");
+  if (!parsed) {
+    await ctx.answerCallbackQuery({ text: "Invalid callback data" });
+    return;
+  }
+
+  try {
+    const preview = await buildSubturtleBacklogMessage(parsed.name, parsed.page, {
+      callbackPrefix: "sub_board_bl:",
+      backButton: { text: "↩ Worker", callback_data: `sub_board_pick:${parsed.name}` },
+    });
+    if (!preview) {
+      await ctx.answerCallbackQuery({ text: "No backlog items" });
+      return;
+    }
+    await syncLiveSubturtleBoard(ctx.api, ctx.chat!.id, {
+      force: true,
+      pin: true,
+      disableNotification: true,
+      view: { kind: "backlog", name: parsed.name, page: parsed.page },
+    });
+    await ctx.answerCallbackQuery();
+  } catch (error) {
+    callbackLog.error({ err: error, name: parsed.name, chatId: ctx.chat?.id }, "Failed to render live SubTurtle backlog");
+    await ctx.answerCallbackQuery({ text: "Failed to read backlog" });
+  }
+}
+
+async function handleLiveSubturtleBoardLogs(
+  ctx: Context,
+  callbackData: string
+): Promise<void> {
+  const parsed = parsePaginationCallback(callbackData, "sub_board_lg:");
+  if (!parsed) {
+    await ctx.answerCallbackQuery({ text: "Invalid callback data" });
+    return;
+  }
+
+  try {
+    const preview = await buildSubturtleLogMessage(parsed.name, parsed.page, {
+      callbackPrefix: "sub_board_lg:",
+      backButton: { text: "↩ Worker", callback_data: `sub_board_pick:${parsed.name}` },
+    });
+    if (!preview) {
+      await ctx.answerCallbackQuery({ text: "Log file not found" });
+      return;
+    }
+    await syncLiveSubturtleBoard(ctx.api, ctx.chat!.id, {
+      force: true,
+      pin: true,
+      disableNotification: true,
+      view: { kind: "logs", name: parsed.name, page: parsed.page },
+    });
+    await ctx.answerCallbackQuery();
+  } catch (error) {
+    callbackLog.error({ err: error, name: parsed.name, chatId: ctx.chat?.id }, "Failed to render live SubTurtle logs");
+    await ctx.answerCallbackQuery({ text: "Failed to read logs" });
+  }
+}
+
 async function handleSubturtleMenuCallback(ctx: Context): Promise<void> {
   const callbackData = ctx.callbackQuery?.data || "";
   const pageMatch = /^sub_menu:(\d+)$/.exec(callbackData);
@@ -726,59 +895,19 @@ async function handleSubturtleBacklogPagination(
   const { name, page } = parsed;
 
   try {
-    const statePath = `${SUPERTURTLE_SUBTURTLES_DIR}/${name}/CLAUDE.md`;
-    const [summary, backlog] = await Promise.all([
-      readClaudeStateSummary(statePath),
-      readClaudeBacklogItems(statePath),
-    ]);
+    const payload = await buildSubturtleBacklogMessage(name, page, {
+      callbackPrefix: "sub_bl:",
+      backButton: { text: "↩ Menu", callback_data: "sub_menu" },
+    });
 
-    if (!summary) {
-      await ctx.answerCallbackQuery({ text: "State file not found" });
-      return;
-    }
-
-    if (backlog.length === 0) {
+    if (!payload) {
       await ctx.answerCallbackQuery({ text: "No backlog items" });
       return;
     }
 
-    const totalPages = Math.ceil(backlog.length / BACKLOG_PAGE_SIZE);
-    const safePage = Math.max(0, Math.min(page, totalPages - 1));
-    const start = safePage * BACKLOG_PAGE_SIZE;
-    const pageItems = backlog.slice(start, start + BACKLOG_PAGE_SIZE);
-    const doneCount = backlog.filter((item) => item.done).length;
-
-    const lines: string[] = [
-      `📝 <b>Backlog for ${escapeHtml(name)}</b>`,
-      `${doneCount}/${backlog.length} done — page ${safePage + 1}/${totalPages}`,
-      "",
-    ];
-
-    for (let i = 0; i < pageItems.length; i++) {
-      const item = pageItems[i]!;
-      const status = item.done ? "✅" : "⬜";
-      const currentTag = item.current ? " ← current" : "";
-      const idx = start + i + 1;
-      lines.push(`${idx}. ${status} ${convertMarkdownToHtml(item.text)}${currentTag}`);
-    }
-
-    const navButtons: Array<{ text: string; callback_data: string }> = [];
-    if (safePage > 0) {
-      navButtons.push({ text: "◀ Prev", callback_data: `sub_bl:${name}:${safePage - 1}` });
-    }
-    if (safePage < totalPages - 1) {
-      navButtons.push({ text: "▶ Next", callback_data: `sub_bl:${name}:${safePage + 1}` });
-    }
-
-    const keyboard: Array<Array<{ text: string; callback_data: string }>> = [];
-    if (navButtons.length > 0) {
-      keyboard.push(navButtons);
-    }
-    keyboard.push([{ text: "↩ Menu", callback_data: "sub_menu" }]);
-
-    await ctx.editMessageText(lines.join("\n"), {
+    await ctx.editMessageText(payload.text, {
       parse_mode: "HTML",
-      reply_markup: { inline_keyboard: keyboard },
+      reply_markup: payload.replyMarkup,
     });
     await ctx.answerCallbackQuery();
   } catch (error) {
@@ -804,61 +933,18 @@ async function handleSubturtleLogPagination(
   const { name, page } = parsed;
 
   try {
-    const logPath = `${SUPERTURTLE_SUBTURTLES_DIR}/${name}/subturtle.log`;
-    const logFile = Bun.file(logPath);
-    const exists = await logFile.exists();
-
-    if (!exists) {
+    const payload = await buildSubturtleLogMessage(name, page, {
+      callbackPrefix: "sub_lg:",
+      backButton: { text: "↩ Menu", callback_data: "sub_menu" },
+    });
+    if (!payload) {
       await ctx.answerCallbackQuery({ text: "Log file not found" });
       return;
     }
 
-    const content = await logFile.text();
-    const allLines = content.split("\n").filter((line) => line.trim().length > 0);
-
-    if (allLines.length === 0) {
-      await ctx.answerCallbackQuery({ text: "Log file is empty" });
-      return;
-    }
-
-    // Reverse so page 0 = newest lines
-    const reversed = [...allLines].reverse();
-    const totalPages = Math.ceil(reversed.length / LOG_LINES_PER_PAGE);
-    const safePage = Math.max(0, Math.min(page, totalPages - 1));
-    const start = safePage * LOG_LINES_PER_PAGE;
-    const pageLines = reversed.slice(start, start + LOG_LINES_PER_PAGE);
-
-    // Re-reverse so lines read top-to-bottom in chronological order
-    pageLines.reverse();
-
-    const header = `📜 <b>Logs for ${escapeHtml(name)}</b> — page ${safePage + 1}/${totalPages}\n`;
-    const logText = pageLines.map((l) => escapeHtml(l)).join("\n");
-
-    // Truncate if needed to stay under Telegram's limit
-    const maxLogLength = 4000 - header.length - 100;
-    const truncatedLog = logText.length > maxLogLength
-      ? logText.slice(0, maxLogLength) + "\n..."
-      : logText;
-
-    const body = `${header}<pre>${truncatedLog}</pre>`;
-
-    const navButtons: Array<{ text: string; callback_data: string }> = [];
-    if (safePage < totalPages - 1) {
-      navButtons.push({ text: "◀ Older", callback_data: `sub_lg:${name}:${safePage + 1}` });
-    }
-    if (safePage > 0) {
-      navButtons.push({ text: "▶ Newer", callback_data: `sub_lg:${name}:${safePage - 1}` });
-    }
-
-    const keyboard: Array<Array<{ text: string; callback_data: string }>> = [];
-    if (navButtons.length > 0) {
-      keyboard.push(navButtons);
-    }
-    keyboard.push([{ text: "↩ Menu", callback_data: "sub_menu" }]);
-
-    await ctx.editMessageText(body, {
+    await ctx.editMessageText(payload.text, {
       parse_mode: "HTML",
-      reply_markup: { inline_keyboard: keyboard },
+      reply_markup: payload.replyMarkup,
     });
     await ctx.answerCallbackQuery();
   } catch (error) {
@@ -872,9 +958,12 @@ async function handleSubturtleLogPagination(
  */
 async function handleSubturtleStopCallback(
   ctx: Context,
-  callbackData: string
+  callbackData: string,
+  options: { boardMode?: boolean } = {}
 ): Promise<void> {
-  const name = callbackData.replace("subturtle_stop:", "");
+  const name = options.boardMode
+    ? callbackData.replace("sub_board_stop:", "")
+    : callbackData.replace("subturtle_stop:", "");
 
   if (!name || !isSafeCallbackId(name)) {
     await ctx.answerCallbackQuery({ text: "Invalid SubTurtle name" });
@@ -889,9 +978,34 @@ async function handleSubturtleStopCallback(
     const isSuccess = output.includes("stopped") || output.includes("killing");
 
     if (isSuccess) {
-      await ctx.editMessageText(`✅ <b>${escapeHtml(name)}</b> stopped`, {
-        parse_mode: "HTML",
-      });
+      if (
+        options.boardMode &&
+        ctx.chat?.id &&
+        typeof ctx.api?.sendMessage === "function" &&
+        typeof ctx.api?.editMessageText === "function"
+      ) {
+        await syncLiveSubturtleBoard(ctx.api, ctx.chat.id, {
+          force: true,
+          pin: true,
+          disableNotification: true,
+          view: { kind: "board" },
+        });
+      } else {
+        await ctx.editMessageText(`✅ <b>${escapeHtml(name)}</b> stopped`, {
+          parse_mode: "HTML",
+        });
+        if (
+          ctx.chat?.id &&
+          typeof ctx.api?.sendMessage === "function" &&
+          typeof ctx.api?.editMessageText === "function"
+        ) {
+          await syncLiveSubturtleBoard(ctx.api, ctx.chat.id, {
+            force: true,
+            pin: true,
+            disableNotification: true,
+          });
+        }
+      }
       await ctx.answerCallbackQuery({ text: `${name} stopped` });
     } else {
       await ctx.answerCallbackQuery({ text: `Failed to stop ${name}` });

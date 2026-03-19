@@ -48,7 +48,7 @@ import {
   handleVideo,
   handleCallback,
 } from "./handlers";
-import { resetAllDriverSessions } from "./handlers/commands";
+import { resetAllDriverSessions, syncLiveSubturtleBoard } from "./handlers/commands";
 import { handlePinologs } from "./handlers/commands";
 import { TELEGRAM_COMMANDS } from "./handlers/commands";
 import { enqueueBusyDeferredCronJob, pruneQueuedDueCronJobIds } from "./cron-deferred-queue";
@@ -96,6 +96,7 @@ import {
   startTelegramTransport,
   type TelegramTransportConfig,
 } from "./telegram-transport";
+import { startSubturtleBoardService } from "./subturtle-board-service";
 import {
   getTeleportRemoteUnsupportedMessage,
   isTeleportRemoteAgentMode,
@@ -757,6 +758,17 @@ const startCronTimer = () => {
                 refreshConductorHandoff();
               }
             }
+            try {
+              await syncLiveSubturtleBoard(bot.api, resolvedChatId, {
+                pin: true,
+                disableNotification: true,
+              });
+            } catch (error) {
+              cronLog.warn(
+                { err: error, cronJobId: job.id, workerName: supervisedWorkerName, chatId: resolvedChatId },
+                "Failed to refresh live SubTurtle board"
+              );
+            }
             continue;
           }
 
@@ -1138,6 +1150,8 @@ const transport = await startTelegramTransport(bot, transportConfig, {
   },
 });
 
+const subturtleBoardService = startSubturtleBoardService(bot.api);
+
 // Graceful shutdown
 let shutdownInitiated = false;
 
@@ -1145,6 +1159,7 @@ const stopRunner = () => {
   if (shutdownInitiated) return;
   shutdownInitiated = true;
   botLog.info({ mode: transport.mode }, "Stopping bot transport...");
+  subturtleBoardService.stop();
   Promise.resolve(transport.stop()).catch((error) => {
     botLog.warn({ err: error }, "Failed to stop Telegram transport cleanly");
   });

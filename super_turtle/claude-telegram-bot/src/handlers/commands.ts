@@ -2,6 +2,9 @@
  * Command handlers for Claude Telegram Bot.
  */
 
+import { createHash } from "crypto";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "fs";
+import { dirname, join } from "path";
 import { InlineKeyboard, type Context } from "grammy";
 import { session, getAvailableModels, EFFORT_DISPLAY, type EffortLevel } from "../session";
 import { codexSession } from "../codex-session";
@@ -24,6 +27,7 @@ import {
   TELEPORT_COMMANDS_ENABLED,
   SUPERTURTLE_REMOTE_MODE,
   SUPERTURTLE_RUNTIME_ROLE,
+  SUPERTURTLE_DATA_DIR,
   SUPERTURTLE_SUBTURTLES_DIR,
   getCodexUnavailableReason,
 } from "../config";
@@ -53,6 +57,8 @@ export const MAIN_LOOP_LOG_PATH = `/tmp/claude-telegram-${TOKEN_PREFIX}-bot-ts.l
 const LEGACY_MAIN_LOOP_LOG_PATH = "/tmp/claude-telegram-bot-ts.log";
 const LOOPLOGS_LINE_COUNT = 50;
 const RESUME_SESSIONS_LIMIT = 5;
+const LIVE_SUBTURTLE_BOARD_REFRESH_MIN_MS = 90 * 1000;
+const LIVE_SUBTURTLE_BOARD_MAX_BUTTONS = 8;
 const CLAUDE_USAGE_RATE_LIMIT_MESSAGE =
   "Claude usage is temporarily unavailable due to Anthropic service limits. This comes from Anthropic's usage endpoint, not from Super Turtle.";
 
@@ -318,6 +324,60 @@ type InlineKeyboardMarkup = {
 };
 
 const SUBTURTLE_MENU_PAGE_SIZE = 3;
+const BACKLOG_PAGE_SIZE = 5;
+const LOG_LINES_PER_PAGE = 30;
+const LIVE_SUBTURTLE_BOARD_DIR = join(
+  SUPERTURTLE_DATA_DIR,
+  "state",
+  "telegram",
+  "subturtle-boards"
+);
+
+export type LiveSubturtleBoardView =
+  | { kind: "board" }
+  | { kind: "detail"; name: string }
+  | { kind: "backlog"; name: string; page: number }
+  | { kind: "logs"; name: string; page: number };
+
+type LiveSubturtleBoardRecord = {
+  chat_id: number;
+  message_id: number;
+  last_render_hash: string;
+  last_rendered_at: string;
+  created_at: string;
+  updated_at: string;
+  current_view?: LiveSubturtleBoardView;
+};
+
+export type LiveSubturtleBoardApi = {
+  sendMessage: (
+    chatId: number,
+    text: string,
+    extra: {
+      parse_mode: "HTML";
+      reply_markup?: InlineKeyboardMarkup;
+      disable_notification?: boolean;
+    }
+  ) => Promise<{ message_id?: number; chat?: { id?: number } }>;
+  editMessageText: (
+    chatId: number,
+    messageId: number,
+    text: string,
+    extra: {
+      parse_mode: "HTML";
+      reply_markup?: InlineKeyboardMarkup;
+    }
+  ) => Promise<unknown>;
+  pinChatMessage?: (
+    chatId: number,
+    messageId: number,
+    extra?: { disable_notification?: boolean }
+  ) => Promise<unknown>;
+  unpinChatMessage?: (
+    chatId: number,
+    messageId?: number
+  ) => Promise<unknown>;
+};
 
 export type ClaudeStateSummary = {
   currentTask: string;
@@ -357,6 +417,118 @@ function truncateText(value: string, maxLength: number): string {
   if (value.length <= maxLength) return value;
   if (maxLength <= 3) return value.slice(0, maxLength);
   return `${value.slice(0, maxLength - 3)}...`;
+}
+
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
+function atomicWriteText(path: string, content: string): void {
+  mkdirSync(dirname(path), { recursive: true });
+  const tmpPath = `${path}.${process.pid}.${Date.now()}.tmp`;
+  writeFileSync(tmpPath, content, "utf-8");
+  renameSync(tmpPath, path);
+}
+
+function liveSubturtleBoardPath(chatId: number): string {
+  return join(LIVE_SUBTURTLE_BOARD_DIR, `${String(chatId).replace(/^-/, "neg-")}.json`);
+}
+
+function isSafeSubturtleName(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value) && !value.includes("..") && !value.startsWith(".");
+}
+
+function normalizeBoardPage(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 0;
+  const page = Math.floor(value);
+  return page >= 0 && page <= 1000 ? page : 0;
+}
+
+function normalizeLiveSubturtleBoardView(value: unknown): LiveSubturtleBoardView {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { kind: "board" };
+  }
+
+  const kind = (value as { kind?: unknown }).kind;
+  if (kind === "detail" && isSafeSubturtleName((value as { name?: unknown }).name)) {
+    return { kind, name: (value as { name: string }).name };
+  }
+  if (kind === "backlog" && isSafeSubturtleName((value as { name?: unknown }).name)) {
+    return {
+      kind,
+      name: (value as { name: string }).name,
+      page: normalizeBoardPage((value as { page?: unknown }).page),
+    };
+  }
+  if (kind === "logs" && isSafeSubturtleName((value as { name?: unknown }).name)) {
+    return {
+      kind,
+      name: (value as { name: string }).name,
+      page: normalizeBoardPage((value as { page?: unknown }).page),
+    };
+  }
+  return { kind: "board" };
+}
+
+function readLiveSubturtleBoardRecord(chatId: number): LiveSubturtleBoardRecord | null {
+  const path = liveSubturtleBoardPath(chatId);
+  if (!existsSync(path)) return null;
+  try {
+    const parsed = JSON.parse(readFileSync(path, "utf-8"));
+    if (
+      typeof parsed?.chat_id === "number" &&
+      Number.isFinite(parsed.chat_id) &&
+      typeof parsed?.message_id === "number" &&
+      Number.isFinite(parsed.message_id) &&
+      typeof parsed?.last_render_hash === "string" &&
+      typeof parsed?.last_rendered_at === "string" &&
+      typeof parsed?.created_at === "string" &&
+      typeof parsed?.updated_at === "string"
+    ) {
+      return {
+        ...(parsed as LiveSubturtleBoardRecord),
+        current_view: normalizeLiveSubturtleBoardView(parsed?.current_view),
+      };
+    }
+  } catch {}
+  return null;
+}
+
+function writeLiveSubturtleBoardRecord(record: LiveSubturtleBoardRecord): void {
+  atomicWriteText(
+    liveSubturtleBoardPath(record.chat_id),
+    `${JSON.stringify(record, null, 2)}\n`
+  );
+}
+
+function summarizeBoardReplyMarkup(replyMarkup?: InlineKeyboardMarkup): string {
+  if (!replyMarkup) return "";
+  return JSON.stringify(replyMarkup.inline_keyboard);
+}
+
+function computeLiveSubturtleBoardHash(
+  text: string,
+  replyMarkup?: InlineKeyboardMarkup
+): string {
+  return createHash("sha1")
+    .update(text)
+    .update("\n")
+    .update(summarizeBoardReplyMarkup(replyMarkup))
+    .digest("hex");
+}
+
+function shouldIgnoreUnchangedMessageError(error: unknown): boolean {
+  return String(error).toLowerCase().includes("message is not modified");
+}
+
+function shouldRecreateLiveBoard(error: unknown): boolean {
+  const summary = String(error).toLowerCase();
+  return (
+    summary.includes("message to edit not found") ||
+    summary.includes("message can't be edited") ||
+    summary.includes("message identifier is not specified")
+  );
 }
 
 export function parseClaudeBacklogItems(content: string): ClaudeBacklogItem[] {
@@ -511,6 +683,82 @@ export function parseCtlListOutput(output: string): ListedSubTurtle[] {
   }
 
   return turtles;
+}
+
+function noSubturtlesMessage(): { text: string; replyMarkup?: InlineKeyboardMarkup } {
+  return {
+    text: "🐢 <b>SubTurtles</b>\n\nNo SubTurtles running",
+  };
+}
+
+function formatLiveBoardMetaLine(
+  turtle: ListedSubTurtle,
+  summary: ClaudeStateSummary | null
+): string | null {
+  const parts: string[] = [];
+
+  if (summary && summary.backlogTotal > 0) {
+    parts.push(`${summary.backlogDone}/${summary.backlogTotal} done`);
+  }
+
+  if (turtle.timeRemaining) {
+    const suffix = turtle.timeRemaining === "OVERDUE" || turtle.timeRemaining === "no timeout"
+      ? ""
+      : " left";
+    parts.push(`${escapeHtml(turtle.timeRemaining)}${suffix}`);
+  }
+
+  if (parts.length === 0) {
+    return null;
+  }
+
+  return parts.join(" • ");
+}
+
+async function buildLiveSubturtleBoardHomeLines(turtles: ListedSubTurtle[]): Promise<string[]> {
+  const runningTurtles = turtles.filter((turtle) => turtle.status === "running");
+  const turtleStateEntries = await Promise.all(
+    runningTurtles.map(async (turtle) => {
+      const statePath = `${SUPERTURTLE_SUBTURTLES_DIR}/${turtle.name}/CLAUDE.md`;
+      const summary = await readClaudeStateSummary(statePath);
+      return [turtle.name, summary] as const;
+    })
+  );
+  const turtleStateMap = new Map(turtleStateEntries);
+
+  const messageLines: string[] = ["🐢 <b>SubTurtles</b>"];
+
+  for (const turtle of runningTurtles) {
+    const summary = turtleStateMap.get(turtle.name) || null;
+    const taskSource = summary?.currentTask || turtle.task || "No current task";
+    const taskLine = truncateText(taskSource, 120);
+    const metaLine = formatLiveBoardMetaLine(turtle, summary);
+
+    messageLines.push("");
+    messageLines.push(`<b>${escapeHtml(turtle.name)}</b>`);
+    messageLines.push(convertMarkdownToHtml(taskLine));
+    if (metaLine) {
+      messageLines.push(metaLine);
+    }
+  }
+
+  return messageLines;
+}
+
+export function listSubturtles(): ListedSubTurtle[] {
+  const proc = Bun.spawnSync([CTL_PATH, "list"], {
+    cwd: WORKING_DIR,
+    env: {
+      ...process.env,
+      SUPER_TURTLE_PROJECT_DIR: WORKING_DIR,
+      CLAUDE_WORKING_DIR: WORKING_DIR,
+    },
+  });
+  const output = proc.stdout.toString().trim();
+  if (!output || output.includes("No SubTurtles")) {
+    return [];
+  }
+  return parseCtlListOutput(output);
 }
 
 export async function getSubTurtleElapsed(name: string): Promise<string> {
@@ -2064,64 +2312,12 @@ export async function handleRestart(ctx: Context): Promise<void> {
 /**
  * /subturtle - List all SubTurtles with status and controls.
  */
-export async function handleSubturtle(ctx: Context): Promise<void> {
-  const userId = ctx.from?.id;
-
-  if (!isAuthorized(userId, ALLOWED_USERS)) {
-    await ctx.reply("Unauthorized.");
-    return;
-  }
-
-  // Check if a specific SubTurtle name was given (e.g. "/sub texting-page")
-  const messageText = ctx.message?.text || "";
-  const argName = messageText.split(/\s+/).slice(1).join(" ").trim();
-
-  // Run ctl list command
-  const ctlPath = CTL_PATH;
-  const proc = Bun.spawnSync([ctlPath, "list"], {
-    cwd: WORKING_DIR,
-    env: {
-      ...process.env,
-      SUPER_TURTLE_PROJECT_DIR: WORKING_DIR,
-      CLAUDE_WORKING_DIR: WORKING_DIR,
-    },
-  });
-  const output = proc.stdout.toString().trim();
-
-  if (!output || output.includes("No SubTurtles")) {
-    await ctx.reply("📋 <b>SubTurtles</b>\n\nNo SubTurtles running", { parse_mode: "HTML" });
-    return;
-  }
-
-  const turtles = parseCtlListOutput(output);
-
-  if (turtles.length === 0) {
-    await ctx.reply("📋 <b>SubTurtles</b>\n\nNo SubTurtles found", { parse_mode: "HTML" });
-    return;
-  }
-
-  // If a specific name was given, show that SubTurtle's detail view directly
-  if (argName) {
-    const match = turtles.find((t) => t.name === argName);
-    if (!match) {
-      await ctx.reply(`❌ SubTurtle <b>${escapeHtml(argName)}</b> not found`, { parse_mode: "HTML" });
-      return;
-    }
-    await replySubturtleDetail(ctx, match, false);
-    return;
-  }
-
-  const menu = await buildSubturtleMenuMessage(turtles);
-  await ctx.reply(menu.text, {
-    parse_mode: "HTML",
-    reply_markup: menu.replyMarkup,
-  });
-}
-
-export async function buildSubturtleMenuMessage(
+async function buildSubturtleOverviewLines(
   turtles: ListedSubTurtle[],
-  page = 0
-): Promise<{ text: string; replyMarkup?: InlineKeyboardMarkup }> {
+  options: { includeRunningPicker?: boolean; page?: number } = {}
+): Promise<string[]> {
+  const includeRunningPicker = options.includeRunningPicker ?? true;
+  const page = options.page ?? 0;
   const runningTurtles = turtles.filter((t) => t.status === "running");
   const rootStatePath = `${WORKING_DIR}/CLAUDE.md`;
   const [rootSummary, turtleStateEntries] = await Promise.all([
@@ -2136,7 +2332,6 @@ export async function buildSubturtleMenuMessage(
   ]);
   const turtleStateMap = new Map(turtleStateEntries);
 
-  // Build message and inline keyboard
   const messageLines: string[] = ["🐢 <b>SubTurtles</b>\n"];
 
   if (rootSummary) {
@@ -2145,8 +2340,6 @@ export async function buildSubturtleMenuMessage(
     messageLines.push(`   📌 ${escapeHtml(truncateText(formatBacklogSummary(rootSummary), 140))}`);
     messageLines.push("");
   }
-
-  const keyboard: InlineKeyboardButton[][] = [];
 
   for (const turtle of turtles) {
     const stateSummary = turtleStateMap.get(turtle.name) || null;
@@ -2176,6 +2369,466 @@ export async function buildSubturtleMenuMessage(
       messageLines.push(`   🔗 ${escapeHtml(turtle.tunnelUrl)}`);
     }
   }
+
+  if (includeRunningPicker && runningTurtles.length > 0) {
+    const totalPages = Math.ceil(runningTurtles.length / SUBTURTLE_MENU_PAGE_SIZE);
+    const safePage = Math.max(0, Math.min(page, totalPages - 1));
+    if (totalPages > 1) {
+      messageLines.push("");
+      messageLines.push(
+        `📚 <b>Running picker:</b> page ${safePage + 1}/${totalPages} (${runningTurtles.length} running)`
+      );
+    }
+  }
+
+  return messageLines;
+}
+
+function buildSubturtleDetailMessage(
+  turtle: ListedSubTurtle,
+  options: {
+    stopCallbackData?: string;
+    backlogCallbackData?: string;
+    logsCallbackData?: string;
+    backButton?: InlineKeyboardButton | null;
+  } = {}
+): Promise<{ text: string; replyMarkup: InlineKeyboardMarkup }> {
+  const stopCallbackData = options.stopCallbackData || `subturtle_stop:${turtle.name}`;
+  const backlogCallbackData = options.backlogCallbackData || `sub_bl:${turtle.name}:0`;
+  const logsCallbackData = options.logsCallbackData || `sub_lg:${turtle.name}:0`;
+  return (async () => {
+    const statePath = `${SUPERTURTLE_SUBTURTLES_DIR}/${turtle.name}/CLAUDE.md`;
+    const summary = await readClaudeStateSummary(statePath);
+
+    const statusEmoji = turtle.status === "running" ? "🟢" : "⚫";
+    let timeStr = "";
+    if (turtle.timeRemaining) {
+      const suffix = turtle.timeRemaining === "OVERDUE" || turtle.timeRemaining === "no timeout"
+        ? ""
+        : " left";
+      timeStr = ` • ${turtle.timeRemaining}${suffix}`;
+    }
+
+    const taskSource = summary?.currentTask || turtle.task || "No current task";
+    const lines: string[] = [
+      `${statusEmoji} <b>${escapeHtml(turtle.name)}</b>${escapeHtml(timeStr)}`,
+      `🧩 ${convertMarkdownToHtml(taskSource)}`,
+    ];
+
+    if (summary) {
+      lines.push(`📌 ${convertMarkdownToHtml(formatBacklogSummary(summary))}`);
+    }
+
+    if (turtle.tunnelUrl) {
+      lines.push(`🔗 ${escapeHtml(turtle.tunnelUrl)}`);
+    }
+
+    const keyboard: InlineKeyboardButton[][] = [
+      [{ text: "🛑 Stop", callback_data: stopCallbackData }],
+      [
+        { text: "📝 Backlog", callback_data: backlogCallbackData },
+        { text: "📜 Logs", callback_data: logsCallbackData },
+      ],
+    ];
+
+    if (options.backButton) {
+      keyboard.push([options.backButton]);
+    }
+
+    return {
+      text: lines.join("\n"),
+      replyMarkup: { inline_keyboard: keyboard },
+    };
+  })();
+}
+
+export async function buildSubturtleBacklogMessage(
+  name: string,
+  page: number,
+  options: {
+    callbackPrefix?: string;
+    backButton?: InlineKeyboardButton | null;
+  } = {}
+): Promise<{ text: string; replyMarkup: InlineKeyboardMarkup } | null> {
+  const callbackPrefix = options.callbackPrefix || "sub_bl:";
+  const statePath = `${SUPERTURTLE_SUBTURTLES_DIR}/${name}/CLAUDE.md`;
+  const [summary, backlog] = await Promise.all([
+    readClaudeStateSummary(statePath),
+    readClaudeBacklogItems(statePath),
+  ]);
+
+  if (!summary || backlog.length === 0) {
+    return null;
+  }
+
+  const totalPages = Math.ceil(backlog.length / BACKLOG_PAGE_SIZE);
+  const safePage = Math.max(0, Math.min(page, totalPages - 1));
+  const start = safePage * BACKLOG_PAGE_SIZE;
+  const pageItems = backlog.slice(start, start + BACKLOG_PAGE_SIZE);
+  const doneCount = backlog.filter((item) => item.done).length;
+  const lines: string[] = [
+    `📝 <b>Backlog for ${escapeHtml(name)}</b>`,
+    `${doneCount}/${backlog.length} done — page ${safePage + 1}/${totalPages}`,
+    "",
+  ];
+
+  for (let i = 0; i < pageItems.length; i++) {
+    const item = pageItems[i]!;
+    const status = item.done ? "✅" : "⬜";
+    const currentTag = item.current ? " ← current" : "";
+    const idx = start + i + 1;
+    lines.push(`${idx}. ${status} ${convertMarkdownToHtml(item.text)}${currentTag}`);
+  }
+
+  const keyboard: InlineKeyboardButton[][] = [];
+  const navButtons: InlineKeyboardButton[] = [];
+  if (safePage > 0) {
+    navButtons.push({ text: "◀ Prev", callback_data: `${callbackPrefix}${name}:${safePage - 1}` });
+  }
+  if (safePage < totalPages - 1) {
+    navButtons.push({ text: "▶ Next", callback_data: `${callbackPrefix}${name}:${safePage + 1}` });
+  }
+  if (navButtons.length > 0) {
+    keyboard.push(navButtons);
+  }
+  if (options.backButton) {
+    keyboard.push([options.backButton]);
+  }
+
+  return {
+    text: lines.join("\n"),
+    replyMarkup: { inline_keyboard: keyboard },
+  };
+}
+
+export async function buildSubturtleLogMessage(
+  name: string,
+  page: number,
+  options: {
+    callbackPrefix?: string;
+    backButton?: InlineKeyboardButton | null;
+  } = {}
+): Promise<{ text: string; replyMarkup: InlineKeyboardMarkup } | null> {
+  const callbackPrefix = options.callbackPrefix || "sub_lg:";
+  const logPath = `${SUPERTURTLE_SUBTURTLES_DIR}/${name}/subturtle.log`;
+  const logFile = Bun.file(logPath);
+  if (!(await logFile.exists())) {
+    return null;
+  }
+
+  const content = await logFile.text();
+  const allLines = content.split("\n").filter((line) => line.trim().length > 0);
+  if (allLines.length === 0) {
+    return null;
+  }
+
+  const reversed = [...allLines].reverse();
+  const totalPages = Math.ceil(reversed.length / LOG_LINES_PER_PAGE);
+  const safePage = Math.max(0, Math.min(page, totalPages - 1));
+  const start = safePage * LOG_LINES_PER_PAGE;
+  const pageLines = reversed.slice(start, start + LOG_LINES_PER_PAGE);
+  pageLines.reverse();
+
+  const header = `📜 <b>Logs for ${escapeHtml(name)}</b> — page ${safePage + 1}/${totalPages}\n`;
+  const logText = pageLines.map((line) => escapeHtml(line)).join("\n");
+  const maxLogLength = 4000 - header.length - 100;
+  const truncatedLog = logText.length > maxLogLength
+    ? `${logText.slice(0, maxLogLength)}\n...`
+    : logText;
+  const body = `${header}<pre>${truncatedLog}</pre>`;
+
+  const keyboard: InlineKeyboardButton[][] = [];
+  const navButtons: InlineKeyboardButton[] = [];
+  if (safePage < totalPages - 1) {
+    navButtons.push({ text: "◀ Older", callback_data: `${callbackPrefix}${name}:${safePage + 1}` });
+  }
+  if (safePage > 0) {
+    navButtons.push({ text: "▶ Newer", callback_data: `${callbackPrefix}${name}:${safePage - 1}` });
+  }
+  if (navButtons.length > 0) {
+    keyboard.push(navButtons);
+  }
+  if (options.backButton) {
+    keyboard.push([options.backButton]);
+  }
+
+  return {
+    text: body,
+    replyMarkup: { inline_keyboard: keyboard },
+  };
+}
+
+async function buildLiveSubturtleBoardPayload(
+  turtles: ListedSubTurtle[],
+  view: LiveSubturtleBoardView
+): Promise<{ text: string; replyMarkup?: InlineKeyboardMarkup; view: LiveSubturtleBoardView }> {
+  if (view.kind === "detail") {
+    const turtle = turtles.find((item) => item.name === view.name);
+    if (turtle) {
+      const payload = await buildSubturtleDetailMessage(turtle, {
+        stopCallbackData: `sub_board_stop:${view.name}`,
+        backlogCallbackData: `sub_board_bl:${view.name}:0`,
+        logsCallbackData: `sub_board_lg:${view.name}:0`,
+        backButton: { text: "↩ Board", callback_data: "sub_board_home" },
+      });
+      return { ...payload, view };
+    }
+  }
+
+  if (view.kind === "backlog") {
+    const payload = await buildSubturtleBacklogMessage(view.name, view.page, {
+      callbackPrefix: "sub_board_bl:",
+      backButton: { text: "↩ Worker", callback_data: `sub_board_pick:${view.name}` },
+    });
+    if (payload) {
+      return { ...payload, view };
+    }
+  }
+
+  if (view.kind === "logs") {
+    const payload = await buildSubturtleLogMessage(view.name, view.page, {
+      callbackPrefix: "sub_board_lg:",
+      backButton: { text: "↩ Worker", callback_data: `sub_board_pick:${view.name}` },
+    });
+    if (payload) {
+      return { ...payload, view };
+    }
+  }
+
+  if (turtles.length === 0) {
+    return { ...noSubturtlesMessage(), view: { kind: "board" } };
+  }
+
+  const runningTurtles = turtles.filter((t) => t.status === "running");
+  if (runningTurtles.length === 0) {
+    return { ...noSubturtlesMessage(), view: { kind: "board" } };
+  }
+
+  const messageLines = await buildLiveSubturtleBoardHomeLines(turtles);
+  const keyboard: InlineKeyboardButton[][] = [];
+
+  for (const turtle of runningTurtles.slice(0, LIVE_SUBTURTLE_BOARD_MAX_BUTTONS)) {
+    keyboard.push([
+      { text: `🐢 ${turtle.name}`, callback_data: `sub_board_pick:${turtle.name}` },
+    ]);
+  }
+
+  if (runningTurtles.length > LIVE_SUBTURTLE_BOARD_MAX_BUTTONS) {
+    messageLines.push("");
+    messageLines.push(
+      `…and ${runningTurtles.length - LIVE_SUBTURTLE_BOARD_MAX_BUTTONS} more running workers. Use /sub for the full picker.`
+    );
+  }
+
+  return {
+    text: messageLines.join("\n"),
+    replyMarkup: keyboard.length > 0 ? { inline_keyboard: keyboard } : undefined,
+    view: { kind: "board" },
+  };
+}
+
+export async function buildLiveSubturtleBoardMessage(
+  turtles: ListedSubTurtle[]
+): Promise<{ text: string; replyMarkup?: InlineKeyboardMarkup }> {
+  const payload = await buildLiveSubturtleBoardPayload(turtles, { kind: "board" });
+  return { text: payload.text, replyMarkup: payload.replyMarkup };
+}
+
+export async function syncLiveSubturtleBoard(
+  api: LiveSubturtleBoardApi,
+  chatId: number,
+  options: {
+    force?: boolean;
+    pin?: boolean;
+    disableNotification?: boolean;
+    view?: LiveSubturtleBoardView;
+    createIfMissing?: boolean;
+  } = {}
+): Promise<{ status: "created" | "updated" | "unchanged" | "skipped"; messageId: number | null; view: LiveSubturtleBoardView }> {
+  const turtles = listSubturtles();
+  const hasActiveWorkers = turtles.some((turtle) => turtle.status === "running");
+  const record = readLiveSubturtleBoardRecord(chatId);
+  const targetView = normalizeLiveSubturtleBoardView(options.view || record?.current_view || { kind: "board" });
+  const shouldCreateIfMissing = options.createIfMissing ?? hasActiveWorkers;
+
+  if (!record && !shouldCreateIfMissing) {
+    return { status: "skipped", messageId: null, view: { kind: "board" } };
+  }
+
+  const payload = await buildLiveSubturtleBoardPayload(turtles, targetView);
+  const renderHash = computeLiveSubturtleBoardHash(payload.text, payload.replyMarkup);
+  const now = nowIso();
+
+  if (record && !options.force) {
+    const ageMs = Date.now() - Date.parse(record.updated_at);
+    if (
+      record.last_render_hash === renderHash &&
+      Number.isFinite(ageMs) &&
+      ageMs < LIVE_SUBTURTLE_BOARD_REFRESH_MIN_MS
+    ) {
+      return { status: "unchanged", messageId: record.message_id, view: record.current_view || payload.view };
+    }
+  }
+
+  const saveRecord = (messageId: number, createdAt?: string) => {
+    writeLiveSubturtleBoardRecord({
+      chat_id: chatId,
+      message_id: messageId,
+      last_render_hash: renderHash,
+      last_rendered_at: now,
+      created_at: createdAt || record?.created_at || now,
+      updated_at: now,
+      current_view: payload.view,
+    });
+  };
+
+  const pinMessage = async (messageId: number) => {
+    if (!options.pin || !api.pinChatMessage) return;
+    try {
+      await api.pinChatMessage(chatId, messageId, { disable_notification: true });
+    } catch (error) {
+      const summary = String(error).toLowerCase();
+      if (
+        !summary.includes("message is already pinned") &&
+        !summary.includes("not enough rights") &&
+        !summary.includes("chat not modified")
+      ) {
+        throw error;
+      }
+    }
+  };
+
+  const unpinMessage = async (messageId: number) => {
+    if (!api.unpinChatMessage) return;
+    try {
+      await api.unpinChatMessage(chatId, messageId);
+    } catch (error) {
+      const summary = String(error).toLowerCase();
+      if (
+        !summary.includes("message to unpin not found") &&
+        !summary.includes("message is not pinned") &&
+        !summary.includes("chat not modified") &&
+        !summary.includes("not enough rights")
+      ) {
+        throw error;
+      }
+    }
+  };
+
+  if (record) {
+    try {
+      await api.editMessageText(chatId, record.message_id, payload.text, {
+        parse_mode: "HTML",
+        reply_markup: payload.replyMarkup,
+      });
+      if (hasActiveWorkers) {
+        await pinMessage(record.message_id);
+      } else {
+        await unpinMessage(record.message_id);
+      }
+      saveRecord(record.message_id);
+      return { status: "updated", messageId: record.message_id, view: payload.view };
+    } catch (error) {
+      if (shouldIgnoreUnchangedMessageError(error)) {
+        if (hasActiveWorkers) {
+          await pinMessage(record.message_id);
+        } else {
+          await unpinMessage(record.message_id);
+        }
+        saveRecord(record.message_id);
+        return { status: "unchanged", messageId: record.message_id, view: payload.view };
+      }
+      if (!shouldRecreateLiveBoard(error)) {
+        throw error;
+      }
+    }
+  }
+
+  const message = await api.sendMessage(chatId, payload.text, {
+    parse_mode: "HTML",
+    reply_markup: payload.replyMarkup,
+    disable_notification: options.disableNotification ?? true,
+  });
+  const messageId = typeof message.message_id === "number" ? message.message_id : null;
+  if (messageId === null) {
+    return { status: "created", messageId: null, view: payload.view };
+  }
+  if (hasActiveWorkers) {
+    await pinMessage(messageId);
+  } else {
+    await unpinMessage(messageId);
+  }
+  saveRecord(messageId, now);
+  return { status: "created", messageId, view: payload.view };
+}
+
+export async function handleSubturtle(ctx: Context): Promise<void> {
+  const userId = ctx.from?.id;
+  const chatId = ctx.chat?.id;
+
+  if (!isAuthorized(userId, ALLOWED_USERS)) {
+    await ctx.reply("Unauthorized.");
+    return;
+  }
+
+  // Check if a specific SubTurtle name was given (e.g. "/sub texting-page")
+  const messageText = ctx.message?.text || "";
+  const argName = messageText.split(/\s+/).slice(1).join(" ").trim();
+  const turtles = listSubturtles();
+
+  if (turtles.length === 0) {
+    if (chatId) {
+      await syncLiveSubturtleBoard(ctx.api, chatId, {
+        force: true,
+        pin: true,
+        createIfMissing: true,
+      });
+      return;
+    }
+    const empty = noSubturtlesMessage();
+    await ctx.reply(empty.text, { parse_mode: "HTML", reply_markup: empty.replyMarkup });
+    return;
+  }
+
+  // If a specific name was given, show that SubTurtle's detail view directly
+  if (argName) {
+    const match = turtles.find((t) => t.name === argName);
+    if (!match) {
+      await ctx.reply(`❌ SubTurtle <b>${escapeHtml(argName)}</b> not found`, { parse_mode: "HTML" });
+      return;
+    }
+    await replySubturtleDetail(ctx, match, false);
+    return;
+  }
+
+  if (!chatId) {
+    const menu = await buildSubturtleMenuMessage(turtles);
+    await ctx.reply(menu.text, {
+      parse_mode: "HTML",
+      reply_markup: menu.replyMarkup,
+    });
+    return;
+  }
+
+  await syncLiveSubturtleBoard(ctx.api, chatId, {
+    force: true,
+    pin: true,
+    disableNotification: true,
+    createIfMissing: true,
+  });
+}
+
+export async function buildSubturtleMenuMessage(
+  turtles: ListedSubTurtle[],
+  page = 0
+): Promise<{ text: string; replyMarkup?: InlineKeyboardMarkup }> {
+  const runningTurtles = turtles.filter((t) => t.status === "running");
+  const messageLines = await buildSubturtleOverviewLines(turtles, {
+    includeRunningPicker: true,
+    page,
+  });
+
+  const keyboard: InlineKeyboardButton[][] = [];
 
   if (runningTurtles.length > 0) {
     const totalPages = Math.ceil(runningTurtles.length / SUBTURTLE_MENU_PAGE_SIZE);
@@ -2228,57 +2881,20 @@ export async function replySubturtleDetail(
   mode: "reply" | "edit" = "reply",
   menuPage = 0
 ): Promise<void> {
-  const statePath = `${SUPERTURTLE_SUBTURTLES_DIR}/${turtle.name}/CLAUDE.md`;
-  const summary = await readClaudeStateSummary(statePath);
-
-  const statusEmoji = turtle.status === "running" ? "🟢" : "⚫";
-  let timeStr = "";
-  if (turtle.timeRemaining) {
-    const suffix = turtle.timeRemaining === "OVERDUE" || turtle.timeRemaining === "no timeout"
-      ? ""
-      : " left";
-    timeStr = ` • ${turtle.timeRemaining}${suffix}`;
-  }
-
-  const taskSource = summary?.currentTask || turtle.task || "No current task";
-  const lines: string[] = [
-    `${statusEmoji} <b>${escapeHtml(turtle.name)}</b>${escapeHtml(timeStr)}`,
-    `🧩 ${convertMarkdownToHtml(taskSource)}`,
-  ];
-
-  if (summary) {
-    lines.push(`📌 ${convertMarkdownToHtml(formatBacklogSummary(summary))}`);
-  }
-
-  if (turtle.tunnelUrl) {
-    lines.push(`🔗 ${escapeHtml(turtle.tunnelUrl)}`);
-  }
-
-  const keyboard: Array<Array<{ text: string; callback_data: string }>> = [
-    [
-      { text: "🛑 Stop", callback_data: `subturtle_stop:${turtle.name}` },
-    ],
-    [
-      { text: "📝 Backlog", callback_data: `sub_bl:${turtle.name}:0` },
-      { text: "📜 Logs", callback_data: `sub_lg:${turtle.name}:0` },
-    ],
-  ];
-
-  if (showMenu) {
-    keyboard.push([{ text: "↩ Menu", callback_data: `sub_menu:${menuPage}` }]);
-  }
-
+  const message = await buildSubturtleDetailMessage(turtle, {
+    backButton: showMenu ? { text: "↩ Menu", callback_data: `sub_menu:${menuPage}` } : null,
+  });
   const payload = {
     parse_mode: "HTML" as const,
-    reply_markup: { inline_keyboard: keyboard },
+    reply_markup: message.replyMarkup,
   };
 
   if (mode === "edit") {
-    await ctx.editMessageText(lines.join("\n"), payload);
+    await ctx.editMessageText(message.text, payload);
     return;
   }
 
-  await ctx.reply(lines.join("\n"), payload);
+  await ctx.reply(message.text, payload);
 }
 
 /**

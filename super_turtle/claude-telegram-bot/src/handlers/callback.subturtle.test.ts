@@ -30,6 +30,21 @@ function makeCallbackCtx(callbackData: string, chatId = 912345678) {
     answerCallbackQuery: async (payload?: { text?: string }) => {
       callbackAnswers.push(payload?.text || "");
     },
+    api: {
+      sendMessage: async (_chatId: number, text: string, extra?: { parse_mode?: string }) => {
+        replies.push({ text, extra });
+        return { message_id: 1, chat: { id: chatId } };
+      },
+      editMessageText: async (
+        _chatId: number,
+        _messageId: number,
+        text: string,
+        extra?: { parse_mode?: string }
+      ) => {
+        edits.push({ text, extra });
+      },
+      pinChatMessage: async () => {},
+    },
     reply: async (text: string, extra?: { parse_mode?: string }) => {
       replies.push({ text, extra });
     },
@@ -58,6 +73,15 @@ describe("subturtle callback actions", () => {
         } as ReturnType<typeof Bun.spawnSync>;
       }
 
+      if (parts[1] === "list") {
+        return {
+          stdout: Buffer.from("No SubTurtles found."),
+          stderr: Buffer.from(""),
+          success: true,
+          exitCode: 0,
+        } as ReturnType<typeof Bun.spawnSync>;
+      }
+
       return originalSpawnSync(
         cmd as Parameters<typeof Bun.spawnSync>[0],
         opts as Parameters<typeof Bun.spawnSync>[1]
@@ -73,6 +97,13 @@ describe("subturtle callback actions", () => {
       {
         text: "✅ <b>worker-a</b> stopped",
         extra: { parse_mode: "HTML" },
+      },
+      {
+        text: "🐢 <b>SubTurtles</b>\n\nNo SubTurtles running",
+        extra: {
+          parse_mode: "HTML",
+          reply_markup: undefined,
+        },
       },
     ]);
     expect(callbackAnswers).toEqual(["worker-a stopped"]);
@@ -227,6 +258,78 @@ describe("subturtle callback actions", () => {
     expect(keyboard.flat().some((button: any) => button.callback_data === `sub_pick:${turtleName}:1`)).toBe(true);
     expect(keyboard.flat().some((button: any) => button.callback_data === "sub_menu:0")).toBe(true);
   });
+
+  it("keeps live board detail navigation in the same tracked message", async () => {
+    const chatId = 923456781;
+    const turtleName = "live-board-sub";
+    const turtleDir = join(SUPERTURTLE_SUBTURTLES_DIR, turtleName);
+    const boardPath = join(
+      WORKING_DIR,
+      ".superturtle/state/telegram/subturtle-boards",
+      `${chatId}.json`
+    );
+    mkdirSync(turtleDir, { recursive: true });
+    writeFileSync(
+      join(turtleDir, "CLAUDE.md"),
+      [
+        "## Current Task",
+        "Inspect the live board detail flow.",
+        "",
+        "## Backlog",
+        "- [ ] Keep everything in one message <- current",
+      ].join("\n")
+    );
+    mkdirSync(join(WORKING_DIR, ".superturtle/state/telegram/subturtle-boards"), { recursive: true });
+    writeFileSync(
+      boardPath,
+      JSON.stringify({
+        chat_id: chatId,
+        message_id: 77,
+        last_render_hash: "old",
+        last_rendered_at: "2026-03-19T00:00:00Z",
+        created_at: "2026-03-19T00:00:00Z",
+        updated_at: "2026-03-19T00:00:00Z",
+        current_view: { kind: "board" },
+      })
+    );
+
+    Bun.spawnSync = ((cmd: unknown, opts?: unknown) => {
+      const parts = Array.isArray(cmd) ? cmd.map((part) => String(part)) : [String(cmd)];
+      if (parts[0]?.endsWith("/subturtle/ctl") && parts[1] === "list") {
+        return {
+          stdout: Buffer.from(
+            `  ${turtleName}      running  yolo-codex   (PID 12345)   9m left       Placeholder task`
+          ),
+          stderr: Buffer.from(""),
+          success: true,
+          exitCode: 0,
+        } as ReturnType<typeof Bun.spawnSync>;
+      }
+
+      return originalSpawnSync(
+        cmd as Parameters<typeof Bun.spawnSync>[0],
+        opts as Parameters<typeof Bun.spawnSync>[1]
+      );
+    }) as typeof Bun.spawnSync;
+
+    const { ctx, callbackAnswers, replies, edits } = makeCallbackCtx(`sub_board_pick:${turtleName}`, chatId);
+
+    try {
+      await handleCallback(ctx);
+    } finally {
+      rmSync(turtleDir, { recursive: true, force: true });
+      rmSync(boardPath, { force: true });
+    }
+
+    expect(callbackAnswers).toEqual([""]);
+    expect(replies).toHaveLength(0);
+    expect(edits).toHaveLength(1);
+    expect(edits[0]?.text).toContain(`<b>${turtleName}</b>`);
+    const keyboard = (edits[0]?.extra as any)?.reply_markup?.inline_keyboard || [];
+    expect(keyboard.flat().some((button: any) => button.callback_data === `sub_board_bl:${turtleName}:0`)).toBe(true);
+    expect(keyboard.flat().some((button: any) => button.callback_data === `sub_board_lg:${turtleName}:0`)).toBe(true);
+    expect(keyboard.flat().some((button: any) => button.callback_data === "sub_board_home")).toBe(true);
+  });
 });
 
 describe("backlog pagination", () => {
@@ -363,6 +466,67 @@ describe("log pagination", () => {
 
     expect(callbackAnswers).toEqual(["Log file not found"]);
     expect(edits).toHaveLength(0);
+  });
+
+  it("keeps live board log navigation in the same tracked message", async () => {
+    const chatId = 923456782;
+    const turtleName = "live-board-logs";
+    const turtleDir = join(SUPERTURTLE_SUBTURTLES_DIR, turtleName);
+    const boardPath = join(
+      WORKING_DIR,
+      ".superturtle/state/telegram/subturtle-boards",
+      `${chatId}.json`
+    );
+    mkdirSync(turtleDir, { recursive: true });
+    writeFileSync(join(turtleDir, "subturtle.log"), Array.from({ length: 35 }, (_, i) => `Log line ${i + 1}`).join("\n"));
+    mkdirSync(join(WORKING_DIR, ".superturtle/state/telegram/subturtle-boards"), { recursive: true });
+    writeFileSync(
+      boardPath,
+      JSON.stringify({
+        chat_id: chatId,
+        message_id: 88,
+        last_render_hash: "old",
+        last_rendered_at: "2026-03-19T00:00:00Z",
+        created_at: "2026-03-19T00:00:00Z",
+        updated_at: "2026-03-19T00:00:00Z",
+        current_view: { kind: "detail", name: turtleName },
+      })
+    );
+
+    Bun.spawnSync = ((cmd: unknown, opts?: unknown) => {
+      const parts = Array.isArray(cmd) ? cmd.map((part) => String(part)) : [String(cmd)];
+      if (parts[0]?.endsWith("/subturtle/ctl") && parts[1] === "list") {
+        return {
+          stdout: Buffer.from(
+            `  ${turtleName}      running  yolo-codex   (PID 12345)   9m left       Placeholder task`
+          ),
+          stderr: Buffer.from(""),
+          success: true,
+          exitCode: 0,
+        } as ReturnType<typeof Bun.spawnSync>;
+      }
+
+      return originalSpawnSync(
+        cmd as Parameters<typeof Bun.spawnSync>[0],
+        opts as Parameters<typeof Bun.spawnSync>[1]
+      );
+    }) as typeof Bun.spawnSync;
+
+    const { ctx, callbackAnswers, replies, edits } = makeCallbackCtx(`sub_board_lg:${turtleName}:0`, chatId);
+
+    try {
+      await handleCallback(ctx);
+    } finally {
+      rmSync(turtleDir, { recursive: true, force: true });
+      rmSync(boardPath, { force: true });
+    }
+
+    expect(callbackAnswers).toEqual([""]);
+    expect(replies).toHaveLength(0);
+    expect(edits).toHaveLength(1);
+    expect(edits[0]?.text).toContain(`Logs for ${turtleName}`);
+    const keyboard = (edits[0]?.extra as any)?.reply_markup?.inline_keyboard || [];
+    expect(keyboard.flat().some((button: any) => button.callback_data === `sub_board_pick:${turtleName}`)).toBe(true);
   });
 });
 
