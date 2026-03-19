@@ -195,11 +195,14 @@ describe("subturtle callback actions", () => {
     expect(callbackAnswers).toEqual([""]);
     expect(replies).toHaveLength(0);
     expect(edits).toHaveLength(1);
-    expect(edits[0]?.text).toContain(`<b>${turtleName}</b>`);
+    expect(edits[0]?.text).toContain(`🟢 <b>${turtleName}</b>`);
     expect(edits[0]?.text).toContain("Review pagination callbacks.");
-    expect(edits[0]?.text).not.toContain("🟢");
+    expect(edits[0]?.text).toContain("9m left");
     expect(edits[0]?.text).not.toContain("Current:");
     const keyboard = (edits[0]?.extra as any)?.reply_markup?.inline_keyboard || [];
+    expect(keyboard.flat().some((button: any) => button.text === "📝 Tasks")).toBe(true);
+    expect(keyboard.flat().some((button: any) => button.text === "📜 Logs")).toBe(true);
+    expect(keyboard.flat().some((button: any) => button.text === "🛑 Stop")).toBe(true);
     expect(keyboard.flat().some((button: any) => button.callback_data === "sub_menu:1")).toBe(true);
   });
 
@@ -527,6 +530,7 @@ describe("log pagination", () => {
     expect(replies).toHaveLength(0);
     expect(edits).toHaveLength(1);
     expect(edits[0]?.text).toContain(`Logs for ${turtleName}`);
+    expect(edits[0]?.text).toContain("⏱️ Timeout: 9m left");
     const keyboard = (edits[0]?.extra as any)?.reply_markup?.inline_keyboard || [];
     expect(keyboard.flat().some((button: any) => button.callback_data === `sub_board_pick:${turtleName}`)).toBe(true);
   });

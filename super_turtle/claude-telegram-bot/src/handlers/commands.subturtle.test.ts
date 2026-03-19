@@ -120,8 +120,8 @@ describe("/subturtle", () => {
     expect(replies).toHaveLength(1);
 
     const text = replies[0]!.text;
-    expect(text).toContain(`<b>${turtleName}</b>`);
-    expect(text).toContain("9m left");
+    expect(text).toContain(`🟢 <b>${turtleName}</b>`);
+    expect(text).not.toContain("9m left");
     expect(text).toContain("Add /subs aliases and summarize backlog state.");
     expect(text).toContain("1/3 done");
     expect(text).not.toContain("Tail raw logs here");
@@ -133,6 +133,9 @@ describe("/subturtle", () => {
 
     const keyboard = (replies[0]!.extra?.reply_markup as { inline_keyboard?: Array<Array<{ callback_data?: string }>> })?.inline_keyboard;
     expect(Array.isArray(keyboard)).toBe(true);
+    expect(keyboard?.flat().some((button) => button.text === "📝 Tasks")).toBe(true);
+    expect(keyboard?.flat().some((button) => button.text === "📜 Logs")).toBe(true);
+    expect(keyboard?.flat().some((button) => button.text === "🛑 Stop")).toBe(true);
     expect(keyboard?.flat().some((button) => button.callback_data === "sub_board_refresh")).toBe(false);
     expect(keyboard?.flat().some((button) => button.callback_data === `sub_board_pick:${turtleName}`)).toBe(false);
     expect(keyboard?.flat().some((button) => button.callback_data === `sub_board_bl:${turtleName}:0`)).toBe(true);
@@ -404,6 +407,68 @@ describe("/subturtle", () => {
 
       expect(result.status).toBe("updated");
       expect(unpinned).toEqual([{ chatId, messageId: 901 }]);
+    } finally {
+      Bun.spawnSync = originalSpawnSync;
+      rmSync(boardPath, { force: true });
+    }
+  });
+
+  it("unpins the old tracked board before recreating it", async () => {
+    const workdir = WORKING_DIR;
+    const chatId = authorizedUserId + 6;
+    const boardPath = join(
+      workdir,
+      ".superturtle/state/telegram/subturtle-boards",
+      `${chatId}.json`
+    );
+    rmSync(boardPath, { force: true });
+    mkdirSync(dirname(boardPath), { recursive: true });
+    writeFileSync(
+      boardPath,
+      JSON.stringify({
+        chat_id: chatId,
+        message_id: 951,
+        last_render_hash: "old",
+        last_rendered_at: "2026-03-19T00:00:00Z",
+        created_at: "2026-03-19T00:00:00Z",
+        updated_at: "2026-03-19T00:00:00Z",
+        current_view: { kind: "board" },
+      })
+    );
+
+    const originalSpawnSync = Bun.spawnSync;
+    const pins: Array<{ chatId: number; messageId: number }> = [];
+    const unpinned: Array<{ chatId: number; messageId?: number }> = [];
+
+    Bun.spawnSync = ((cmd: unknown, opts?: unknown) => {
+      if (Array.isArray(cmd) && String(cmd[0]).endsWith("/subturtle/ctl") && cmd[1] === "list") {
+        return {
+          stdout: Buffer.from("  worker-a      running  yolo-codex   (PID 12345)   9m left       Same task"),
+          stderr: Buffer.from(""),
+          success: true,
+          exitCode: 0,
+        } as ReturnType<typeof Bun.spawnSync>;
+      }
+      return originalSpawnSync(cmd as Parameters<typeof Bun.spawnSync>[0], opts as Parameters<typeof Bun.spawnSync>[1]);
+    }) as typeof Bun.spawnSync;
+
+    try {
+      const result = await syncLiveSubturtleBoard({
+        sendMessage: async () => ({ message_id: 952, chat: { id: chatId } }),
+        editMessageText: async () => {
+          throw new Error("message can't be edited");
+        },
+        pinChatMessage: async (targetChatId: number, messageId: number) => {
+          pins.push({ chatId: targetChatId, messageId });
+        },
+        unpinChatMessage: async (targetChatId: number, messageId?: number) => {
+          unpinned.push({ chatId: targetChatId, messageId });
+        },
+      }, chatId, { force: true, pin: true, disableNotification: true });
+
+      expect(result.status).toBe("created");
+      expect(unpinned).toEqual([{ chatId, messageId: 951 }]);
+      expect(pins).toEqual([{ chatId, messageId: 952 }]);
     } finally {
       Bun.spawnSync = originalSpawnSync;
       rmSync(boardPath, { force: true });

@@ -691,9 +691,29 @@ function noSubturtlesMessage(): { text: string; replyMarkup?: InlineKeyboardMark
   };
 }
 
+function subturtleStatusEmoji(status: ListedSubTurtle["status"]): string {
+  return status === "running" ? "🟢" : "⚫";
+}
+
+function formatSubturtleTimeout(turtle: ListedSubTurtle): string | null {
+  if (!turtle.timeRemaining) {
+    return null;
+  }
+
+  const suffix = turtle.timeRemaining === "OVERDUE" || turtle.timeRemaining === "no timeout"
+    ? ""
+    : " left";
+  return `${escapeHtml(turtle.timeRemaining)}${suffix}`;
+}
+
+function findListedSubturtle(name: string): ListedSubTurtle | null {
+  return listSubturtles().find((turtle) => turtle.name === name) || null;
+}
+
 function formatLiveBoardMetaLine(
   turtle: ListedSubTurtle,
-  summary: ClaudeStateSummary | null
+  summary: ClaudeStateSummary | null,
+  options: { includeTimeout?: boolean } = {}
 ): string | null {
   const parts: string[] = [];
 
@@ -701,11 +721,11 @@ function formatLiveBoardMetaLine(
     parts.push(`${summary.backlogDone}/${summary.backlogTotal} done`);
   }
 
-  if (turtle.timeRemaining) {
-    const suffix = turtle.timeRemaining === "OVERDUE" || turtle.timeRemaining === "no timeout"
-      ? ""
-      : " left";
-    parts.push(`${escapeHtml(turtle.timeRemaining)}${suffix}`);
+  if (options.includeTimeout) {
+    const timeout = formatSubturtleTimeout(turtle);
+    if (timeout) {
+      parts.push(timeout);
+    }
   }
 
   if (parts.length === 0) {
@@ -735,7 +755,7 @@ async function buildLiveSubturtleBoardHomeLines(turtles: ListedSubTurtle[]): Pro
     const metaLine = formatLiveBoardMetaLine(turtle, summary);
 
     messageLines.push("");
-    messageLines.push(`<b>${escapeHtml(turtle.name)}</b>`);
+    messageLines.push(`${subturtleStatusEmoji(turtle.status)} <b>${escapeHtml(turtle.name)}</b>`);
     messageLines.push(convertMarkdownToHtml(taskLine));
     if (metaLine) {
       messageLines.push(metaLine);
@@ -2401,8 +2421,12 @@ function buildSubturtleDetailMessage(
     const summary = await readClaudeStateSummary(statePath);
 
     const taskSource = summary?.currentTask || turtle.task || "No current task";
-    const metaLine = formatLiveBoardMetaLine(turtle, summary);
-    const lines: string[] = [`<b>${escapeHtml(turtle.name)}</b>`, "", convertMarkdownToHtml(taskSource)];
+    const metaLine = formatLiveBoardMetaLine(turtle, summary, { includeTimeout: true });
+    const lines: string[] = [
+      `${subturtleStatusEmoji(turtle.status)} <b>${escapeHtml(turtle.name)}</b>`,
+      "",
+      convertMarkdownToHtml(taskSource),
+    ];
 
     if (metaLine) {
       lines.push("", metaLine);
@@ -2414,10 +2438,10 @@ function buildSubturtleDetailMessage(
 
     const keyboard: InlineKeyboardButton[][] = [
       [
-        { text: "Tasks", callback_data: backlogCallbackData },
-        { text: "Logs", callback_data: logsCallbackData },
+        { text: "📝 Tasks", callback_data: backlogCallbackData },
+        { text: "📜 Logs", callback_data: logsCallbackData },
       ],
-      [{ text: "Stop", callback_data: stopCallbackData }],
+      [{ text: "🛑 Stop", callback_data: stopCallbackData }],
     ];
 
     if (options.backButton) {
@@ -2445,6 +2469,7 @@ export async function buildSubturtleBacklogMessage(
     readClaudeStateSummary(statePath),
     readClaudeBacklogItems(statePath),
   ]);
+  const turtle = findListedSubturtle(name);
 
   if (!summary || backlog.length === 0) {
     return null;
@@ -2458,8 +2483,12 @@ export async function buildSubturtleBacklogMessage(
   const lines: string[] = [
     `📝 <b>Tasks for ${escapeHtml(name)}</b>`,
     `${doneCount}/${backlog.length} done — page ${safePage + 1}/${totalPages}`,
-    "",
   ];
+  const timeout = turtle ? formatSubturtleTimeout(turtle) : null;
+  if (timeout) {
+    lines.push(`⏱️ Timeout: ${timeout}`);
+  }
+  lines.push("");
 
   for (let i = 0; i < pageItems.length; i++) {
     const item = pageItems[i]!;
@@ -2500,6 +2529,7 @@ export async function buildSubturtleLogMessage(
 ): Promise<{ text: string; replyMarkup: InlineKeyboardMarkup } | null> {
   const callbackPrefix = options.callbackPrefix || "sub_lg:";
   const logPath = `${SUPERTURTLE_SUBTURTLES_DIR}/${name}/subturtle.log`;
+  const turtle = findListedSubturtle(name);
   const logFile = Bun.file(logPath);
   if (!(await logFile.exists())) {
     return null;
@@ -2518,7 +2548,12 @@ export async function buildSubturtleLogMessage(
   const pageLines = reversed.slice(start, start + LOG_LINES_PER_PAGE);
   pageLines.reverse();
 
-  const header = `📜 <b>Logs for ${escapeHtml(name)}</b> — page ${safePage + 1}/${totalPages}\n`;
+  const timeout = turtle ? formatSubturtleTimeout(turtle) : null;
+  const headerLines = [`📜 <b>Logs for ${escapeHtml(name)}</b> — page ${safePage + 1}/${totalPages}`];
+  if (timeout) {
+    headerLines.push(`⏱️ Timeout: ${timeout}`);
+  }
+  const header = `${headerLines.join("\n")}\n`;
   const logText = pageLines.map((line) => escapeHtml(line)).join("\n");
   const maxLogLength = 4000 - header.length - 100;
   const truncatedLog = logText.length > maxLogLength
@@ -2599,10 +2634,10 @@ async function buildLiveSubturtleBoardPayload(
   if (runningTurtles.length === 1) {
     const turtle = runningTurtles[0]!;
     keyboard.push([
-      { text: "Tasks", callback_data: `sub_board_bl:${turtle.name}:0` },
-      { text: "Logs", callback_data: `sub_board_lg:${turtle.name}:0` },
+      { text: "📝 Tasks", callback_data: `sub_board_bl:${turtle.name}:0` },
+      { text: "📜 Logs", callback_data: `sub_board_lg:${turtle.name}:0` },
     ]);
-    keyboard.push([{ text: "Stop", callback_data: `sub_board_stop:${turtle.name}` }]);
+    keyboard.push([{ text: "🛑 Stop", callback_data: `sub_board_stop:${turtle.name}` }]);
   } else {
     for (const turtle of runningTurtles.slice(0, LIVE_SUBTURTLE_BOARD_MAX_BUTTONS)) {
       keyboard.push([
@@ -2739,6 +2774,7 @@ export async function syncLiveSubturtleBoard(
       if (!shouldRecreateLiveBoard(error)) {
         throw error;
       }
+      await unpinMessage(record.message_id);
     }
   }
 
