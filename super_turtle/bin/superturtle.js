@@ -273,6 +273,39 @@ function getLogPaths(cwd, env) {
   };
 }
 
+function shellCommandExists(commandName) {
+  const check = spawnSync("bash", ["-lc", `command -v ${JSON.stringify(commandName)} >/dev/null 2>&1`], {
+    stdio: "pipe",
+  });
+  return check.status === 0;
+}
+
+function getKeepAwakeCommand(platform = os.platform(), commandExists = shellCommandExists) {
+  if (platform === "darwin") {
+    return commandExists("caffeinate") ? "caffeinate -s" : "";
+  }
+  if (platform === "linux") {
+    return commandExists("systemd-inhibit")
+      ? "systemd-inhibit --what=idle --who=superturtle --why='Bot running' --mode=block"
+      : "";
+  }
+  return "";
+}
+
+function buildServiceCommand({ cwd, logPath, restartOnCrash, keepAwakeCommand = "" }) {
+  const keepAwakePrefix = keepAwakeCommand ? `${keepAwakeCommand} ` : "";
+  return (
+    `set -o pipefail` +
+    ` && cd "${BOT_DIR}"` +
+    ` && export CLAUDE_WORKING_DIR="${cwd}"` +
+    ` && export SUPER_TURTLE_DIR="${PACKAGE_ROOT}"` +
+    ` && export SUPERTURTLE_RUN_LOOP=1` +
+    ` && export SUPERTURTLE_LOOP_LOG_PATH="${logPath}"` +
+    ` && export SUPERTURTLE_RESTART_ON_CRASH="${restartOnCrash}"` +
+    ` && exec ${keepAwakePrefix}./run-loop.sh 2>&1 | tee -a "${logPath}"`
+  );
+}
+
 function getCloudLeaseStatePath(cwd) {
   return resolve(cwd, ".superturtle", "cloud-runtime-lease.json");
 }
@@ -1057,15 +1090,19 @@ async function serviceRun() {
   fs.mkdirSync(dirname(logPaths.loop), { recursive: true });
   fs.closeSync(fs.openSync(logPaths.loop, "a"));
 
-  const serviceCommand =
-    `set -o pipefail` +
-    ` && cd "${BOT_DIR}"` +
-    ` && export CLAUDE_WORKING_DIR="${cwd}"` +
-    ` && export SUPER_TURTLE_DIR="${PACKAGE_ROOT}"` +
-    ` && export SUPERTURTLE_RUN_LOOP=1` +
-    ` && export SUPERTURTLE_LOOP_LOG_PATH="${logPaths.loop}"` +
-    ` && export SUPERTURTLE_RESTART_ON_CRASH="${serviceEnv.SUPERTURTLE_RESTART_ON_CRASH}"` +
-    ` && exec ./run-loop.sh 2>&1 | tee -a "${logPaths.loop}"`;
+  const keepAwakeCommand = getKeepAwakeCommand(process.platform);
+  if (process.platform === "darwin" && !keepAwakeCommand) {
+    console.warn("Warning: caffeinate not found on macOS. System may sleep during long runs.");
+  } else if (process.platform === "linux" && !keepAwakeCommand) {
+    console.warn("Warning: systemd-inhibit not found. Running without sleep prevention.");
+  }
+
+  const serviceCommand = buildServiceCommand({
+    cwd,
+    logPath: logPaths.loop,
+    restartOnCrash: serviceEnv.SUPERTURTLE_RESTART_ON_CRASH,
+    keepAwakeCommand,
+  });
 
   console.log(`Starting SuperTurtle ${serviceModeLabel(env)} runner...`);
   console.log(`Loop log: ${logPaths.loop}`);
@@ -1959,93 +1996,94 @@ function printManagedAuthUnavailable(commandName) {
   process.exit(1);
 }
 
-// Dispatch command
-const command = process.argv[2];
+if (require.main === module) {
+  // Dispatch command
+  const command = process.argv[2];
 
-switch (command) {
-  case "init":
-    init().catch((err) => { console.error(err); process.exit(1); });
-    break;
-  case "start":
-    start().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
-    break;
-  case "service":
-    if (process.argv[3] === "run") {
-      serviceRun().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
+  switch (command) {
+    case "init":
+      init().catch((err) => { console.error(err); process.exit(1); });
       break;
-    }
-    console.error("Usage: superturtle service run");
-    process.exit(1);
-    break;
-  case "stop":
-    stop().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
-    break;
-  case "status":
-    status();
-    break;
-  case "doctor":
-    doctor();
-    break;
-  case "logs":
-    logs();
-    break;
-  case "login":
-    printManagedAuthUnavailable("superturtle login");
-    break;
-  case "whoami":
-    printManagedAuthUnavailable("superturtle whoami");
-    break;
-  case "cloud":
-    if (process.argv[3] === "claude") {
-      if (process.argv[4] === "status") {
-        cloudClaudeStatus().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
+    case "start":
+      start().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
+      break;
+    case "service":
+      if (process.argv[3] === "run") {
+        serviceRun().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
         break;
       }
-      if (process.argv[4] === "setup") {
-        cloudClaudeSetup().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
-        break;
-      }
-      if (process.argv[4] === "revoke") {
-        cloudClaudeRevoke().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
-        break;
-      }
-      console.error("Usage: superturtle cloud claude <status|setup|revoke>");
+      console.error("Usage: superturtle service run");
       process.exit(1);
       break;
-    }
-    if (process.argv[3] === "status") {
-      cloudStatus().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
+    case "stop":
+      stop().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
       break;
-    }
-    if (process.argv[3] === "checkout") {
-      cloudCheckout().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
+    case "status":
+      status();
       break;
-    }
-    if (process.argv[3] === "portal") {
-      cloudPortal().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
+    case "doctor":
+      doctor();
       break;
-    }
-    if (process.argv[3] === "resume") {
-      cloudResume().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
+    case "logs":
+      logs();
       break;
-    }
-    console.error("Usage: superturtle cloud <status|resume|checkout|portal|claude>");
-    process.exit(1);
-    break;
-  case "logout":
-    printManagedAuthUnavailable("superturtle logout");
-    break;
-  case "--version":
-  case "-v":
-    try {
-      const pkg = JSON.parse(fs.readFileSync(resolve(PACKAGE_ROOT, "package.json"), "utf-8"));
-      console.log(`superturtle v${pkg.version}`);
-    } catch {
-      console.log("superturtle (unknown version)");
-    }
-    break;
-  default:
-    console.log(`superturtle - Code from anywhere
+    case "login":
+      printManagedAuthUnavailable("superturtle login");
+      break;
+    case "whoami":
+      printManagedAuthUnavailable("superturtle whoami");
+      break;
+    case "cloud":
+      if (process.argv[3] === "claude") {
+        if (process.argv[4] === "status") {
+          cloudClaudeStatus().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
+          break;
+        }
+        if (process.argv[4] === "setup") {
+          cloudClaudeSetup().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
+          break;
+        }
+        if (process.argv[4] === "revoke") {
+          cloudClaudeRevoke().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
+          break;
+        }
+        console.error("Usage: superturtle cloud claude <status|setup|revoke>");
+        process.exit(1);
+        break;
+      }
+      if (process.argv[3] === "status") {
+        cloudStatus().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
+        break;
+      }
+      if (process.argv[3] === "checkout") {
+        cloudCheckout().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
+        break;
+      }
+      if (process.argv[3] === "portal") {
+        cloudPortal().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
+        break;
+      }
+      if (process.argv[3] === "resume") {
+        cloudResume().catch((err) => { console.error(err instanceof Error ? err.message : err); process.exit(1); });
+        break;
+      }
+      console.error("Usage: superturtle cloud <status|resume|checkout|portal|claude>");
+      process.exit(1);
+      break;
+    case "logout":
+      printManagedAuthUnavailable("superturtle logout");
+      break;
+    case "--version":
+    case "-v":
+      try {
+        const pkg = JSON.parse(fs.readFileSync(resolve(PACKAGE_ROOT, "package.json"), "utf-8"));
+        console.log(`superturtle v${pkg.version}`);
+      } catch {
+        console.log("superturtle (unknown version)");
+      }
+      break;
+    default:
+      console.log(`superturtle - Code from anywhere
 
 Usage: superturtle <command>
 
@@ -2084,7 +2122,15 @@ Cloud:
   superturtle cloud claude status
   superturtle cloud claude setup
   superturtle cloud claude revoke`);
-    if (command && command !== "help" && command !== "--help" && command !== "-h") {
-      process.exit(1);
-    }
+      if (command && command !== "help" && command !== "--help" && command !== "-h") {
+        process.exit(1);
+      }
+  }
 }
+
+module.exports = {
+  __test__: {
+    buildServiceCommand,
+    getKeepAwakeCommand,
+  },
+};

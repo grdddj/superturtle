@@ -8,7 +8,8 @@
     "test:init-safe": "bash tests/init-non-destructive.sh",
     "test:init-git-binding": "bash tests/init-git-binding.sh",
     "test:legacy-env-import": "bash tests/legacy-env-import.sh",
-    "test:e2b-webhook-poc": "node tests/e2b-webhook-poc.test.js"
+    "test:e2b-webhook-poc": "node tests/e2b-webhook-poc.test.js",
+    "test:sleep-prevention": "node tests/sleep-prevention.test.js"
   },
   "dependencies": {
     "@e2b/code-interpreter": "^2.0.0",
