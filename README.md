@@ -200,8 +200,6 @@ node super_turtle/bin/superturtle.js stop
 
 If you have the npm package installed globally, use the explicit `node super_turtle/bin/superturtle.js ...` form while developing this repo so you run the source version, not the global install.
 
-For `launchd`, `systemd`, and E2B supervisors, use `node super_turtle/bin/superturtle.js service run`.
-
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=Rigos0/superturtle&type=Date)](https://star-history.com/#Rigos0/superturtle&Date)
