@@ -266,7 +266,7 @@ export async function checkPendingSendTurtleRequests(
             disable_notification: state ? true : undefined,
           });
           const stickerFileId = (stickerMsg as Message & { sticker?: { file_id?: string } }).sticker?.file_id;
-          if (state && stickerFileId) {
+          if (state && stickerFileId && shouldSetMediaNotifiableOutput(state)) {
             setLastNotifiableOutput(
               state,
               [stickerMsg],
@@ -289,7 +289,7 @@ export async function checkPendingSendTurtleRequests(
           const fallbackMsg = state
             ? await replySilently(ctx, fallbackText)
             : await ctx.reply(fallbackText);
-          if (state) {
+          if (state && shouldSetMediaNotifiableOutput(state)) {
             setLastNotifiableOutput(
               state,
               [fallbackMsg],
@@ -369,7 +369,7 @@ export async function checkPendingSendImageRequests(
             const photoFileId = Array.isArray(photoSizes) && photoSizes.length > 0
               ? photoSizes[photoSizes.length - 1]?.file_id
               : undefined;
-            if (state && photoFileId) {
+            if (state && photoFileId && shouldSetMediaNotifiableOutput(state)) {
               setLastNotifiableOutput(
                 state,
                 [photoMsg],
@@ -399,7 +399,7 @@ export async function checkPendingSendImageRequests(
             const photoFileId = Array.isArray(photoSizes) && photoSizes.length > 0
               ? photoSizes[photoSizes.length - 1]?.file_id
               : undefined;
-            if (state && photoFileId) {
+            if (state && photoFileId && shouldSetMediaNotifiableOutput(state)) {
               setLastNotifiableOutput(
                 state,
                 [photoMsg],
@@ -425,7 +425,7 @@ export async function checkPendingSendImageRequests(
           const fallbackMsg = state
             ? await replySilently(ctx, fallbackText)
             : await ctx.reply(fallbackText);
-          if (state) {
+          if (state && shouldSetMediaNotifiableOutput(state)) {
             setLastNotifiableOutput(
               state,
               [fallbackMsg],
@@ -873,6 +873,7 @@ export class StreamingState {
   toolMessages: Message[] = []; // ephemeral tool status messages
   lastEditTimes = new Map<number, number>(); // segment_id -> last edit time
   lastContent = new Map<number, string>(); // segment_id -> last sent content
+  hasTextSegmentOutput = false;
   lastNotifiableOutput: {
     messages: Message[];
     resend: (ctx: Context, notify: boolean) => Promise<Message[]>;
@@ -1028,6 +1029,10 @@ function setLastNotifiableOutput(
     resend,
     replaceExisting: options.replaceExisting === true,
   };
+}
+
+function shouldSetMediaNotifiableOutput(state: StreamingState): boolean {
+  return !state.hasTextSegmentOutput;
 }
 
 function startHeartbeat(ctx: Context, state: StreamingState): void {
@@ -1352,6 +1357,7 @@ export function createStatusCallback(
         }
       } else if (statusType === "segment_end" && segmentId !== undefined) {
         if (content) {
+          state.hasTextSegmentOutput = true;
           const formatted = convertMarkdownToHtml(content);
 
           if (state.textMessages.has(segmentId)) {

@@ -579,6 +579,89 @@ describe("streaming notifications", () => {
     expect(replyCalls.every((call) => call.extra?.disable_notification === true)).toBe(true);
   });
 
+  it("keeps the final text reply as the notifying message when an image is sent later", async () => {
+    const customIpcDir = `/tmp/streaming-text-wins-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const previousIpcDir = process.env.SUPERTURTLE_IPC_DIR;
+    mkdirSync(customIpcDir, { recursive: true });
+    process.env.SUPERTURTLE_IPC_DIR = customIpcDir;
+
+    try {
+      const requestId = `streaming-send-image-text-wins-${Date.now()}`;
+      const requestFile = `${customIpcDir}/send-image-${requestId}.json`;
+      const deleteMessageMock = mock(async () => {});
+      let nextReplyMessageId = 1;
+      const replyMock = mock(async (text: string, extra?: Record<string, unknown>) => ({
+        chat: { id: 123 },
+        message_id: nextReplyMessageId++,
+        text,
+        extra,
+      }));
+      const replyWithPhotoMock = mock(async () => ({
+        chat: { id: 123 },
+        message_id: 99,
+        photo: [{ file_id: "photo-file-id" }],
+      }));
+
+      await Bun.write(
+        requestFile,
+        JSON.stringify({
+          request_id: requestId,
+          source: "https://example.com/final-image.png",
+          caption: "Late image",
+          status: "pending",
+          chat_id: "123",
+          created_at: new Date().toISOString(),
+        })
+      );
+
+      const ctx = {
+        chat: { id: 123 },
+        reply: replyMock,
+        replyWithPhoto: replyWithPhotoMock,
+        api: {
+          deleteMessage: deleteMessageMock,
+          editMessageText: mock(async () => {}),
+        },
+      } as unknown as Context;
+
+      const state = new StreamingState();
+      const statusCallback = createStatusCallback(ctx, state);
+
+      await statusCallback("segment_end", "Hello from Super Turtle", 0);
+      expect(state.hasTextSegmentOutput).toBe(true);
+
+      const handled = await checkPendingSendImageRequests(ctx, 123);
+      expect(handled).toBe(true);
+      expect(replyWithPhotoMock).toHaveBeenCalledTimes(1);
+      expect(replyWithPhotoMock.mock.calls[0]?.[1]).toMatchObject({
+        caption: "Late image",
+        disable_notification: true,
+      });
+      expect(state.lastNotifiableOutput?.messages[0]?.message_id).toBe(1);
+
+      await statusCallback("done", "");
+
+      expect(replyMock).toHaveBeenCalledTimes(2);
+      expect(replyMock.mock.calls[0]?.[0]).toBe("Hello from Super Turtle");
+      expect(replyMock.mock.calls[0]?.[1]).toMatchObject({
+        disable_notification: true,
+        parse_mode: "HTML",
+      });
+      expect(replyMock.mock.calls[1]?.[0]).toBe("Hello from Super Turtle");
+      expect(replyMock.mock.calls[1]?.[1]).toMatchObject({
+        parse_mode: "HTML",
+      });
+      expect(replyMock.mock.calls[1]?.[1]?.disable_notification).toBeUndefined();
+      expect(deleteMessageMock).toHaveBeenCalledTimes(1);
+      expect(deleteMessageMock).toHaveBeenCalledWith(123, 1);
+      expect(deleteMessageMock).not.toHaveBeenCalledWith(123, 99);
+    } finally {
+      process.env.SUPERTURTLE_IPC_DIR = previousIpcDir || IPC_DIR;
+      rmSync(customIpcDir, { recursive: true, force: true });
+      clearStreamingState(123);
+    }
+  });
+
   it("promotes a final image reply as the notifying message", async () => {
     const customIpcDir = `/tmp/streaming-image-notify-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const previousIpcDir = process.env.SUPERTURTLE_IPC_DIR;
@@ -629,6 +712,7 @@ describe("streaming notifications", () => {
 
       const handled = await checkPendingSendImageRequests(ctx, 123);
       expect(handled).toBe(true);
+      expect(state.lastNotifiableOutput?.messages[0]?.message_id).toBe(1);
       expect(replyWithPhotoMock).toHaveBeenCalledTimes(1);
       expect(replyWithPhotoMock.mock.calls[0]?.[1]).toMatchObject({
         caption: "Final image",
