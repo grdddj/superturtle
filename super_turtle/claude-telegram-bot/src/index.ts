@@ -940,9 +940,6 @@ const startCronTimer = () => {
 
 // ============== Startup ==============
 
-botLog.info("=".repeat(50));
-botLog.info("Claude Telegram Bot - TypeScript Edition");
-botLog.info("=".repeat(50));
 botLog.info({ workingDir: WORKING_DIR }, `Working directory: ${WORKING_DIR}`);
 botLog.info({ allowedUsers: ALLOWED_USERS.length }, `Allowed users: ${ALLOWED_USERS.length}`);
 botLog.info(
