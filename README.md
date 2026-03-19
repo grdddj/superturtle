@@ -13,7 +13,7 @@
 
 ---
 
-SuperTurtle is an autonomous coding agent you control from Telegram. Send a voice message or text from your phone, and it runs [Claude Code](https://claude.ai/code) (or [Codex](https://openai.com/index/introducing-codex/), beta) on your machine to write code, run tests, fix bugs, and ship features. You can be on the couch, on a walk, or on a completely different machine. For bigger tasks it spins up parallel workers called SubTurtles and supervises them to completion. You get milestone updates as things land, not a wall of logs.
+SuperTurtle is an autonomous coding agent you control from Telegram. Send a voice message or text from your phone, and it combines [Codex](https://openai.com/index/introducing-codex/) with [Claude Code](https://claude.ai/code) on your machine to write code, run tests, fix bugs, and ship features. You can be on the couch, on a walk, or on a completely different machine. For bigger tasks it spins up parallel workers called SubTurtles and supervises them to completion. You get milestone updates as things land, not a wall of logs.
 
 ## Install
 
@@ -37,7 +37,7 @@ superturtle init --token <BOT_TOKEN> --user <TELEGRAM_USER_ID> --openai-key <KEY
 
 - [Bun](https://bun.sh) ≥ 1.0
 - [tmux](https://github.com/tmux/tmux) — `brew install tmux`
-- [Claude Code](https://claude.ai/code) CLI — uses your existing subscription, no extra API keys
+- [Codex](https://openai.com/index/introducing-codex/) CLI and [Claude Code](https://claude.ai/code) CLI — both recommended; Codex is currently the stronger default
 
 <p align="center">
   <img src="assets/readme-stickers/setup-save-turtle.png" width="108" alt="Setup" />
@@ -45,53 +45,11 @@ superturtle init --token <BOT_TOKEN> --user <TELEGRAM_USER_ID> --openai-key <KEY
 
 ## Why superturtle
 
-1. **Uses your Claude Code subscription** — no extra API-token workflow.
-2. **Mobile + voice first** via Telegram.
-3. **Long-running, multi-step work** — spawns parallel SubTurtles.
-4. **Milestone updates** — you get progress, not noise.
-5. **Works from anywhere** — phone, tablet, another machine.
-
-## SuperTurtle vs OpenClaw
-
-OpenClaw is broader across channels. SuperTurtle is narrower on purpose: a phone-first coding agent focused on Telegram, voice, and getting work done on your own machine.
-
-| Feature | SuperTurtle | OpenClaw |
-|---------|-------------|----------|
-| Telegram control from your phone | ✅ | ✅ |
-| Telegram voice-message workflow | ✅ | ✅ |
-| Self-hosted on your own machine | ✅ | ✅ |
-| Built for coding-agent workflows | ✅ | ✅ |
-| Parallel worker agents | ✅ | ✅ |
-| Built-in web dashboard | ✅ | ✅ |
-| WhatsApp support | ❌ | ✅ |
-| Discord support | ❌ | ✅ |
-| iMessage support | ❌ | ✅ |
-| Plugin channel ecosystem | ❌ | ✅ |
-| Paired iOS/Android device nodes | ❌ | ✅ |
-| macOS companion app / menu bar app | ❌ | ✅ |
-
-Comparison based on SuperTurtle docs and OpenClaw public docs as of 2026-03-19: [SuperTurtle docs](https://www.superturtle.dev/docs), [OpenClaw docs](https://docs.openclaw.ai/).
-
-## What it looks like
-
-<p align="center">
-  <img src="assets/readme-screenshots/chat-example.jpg" width="360" alt="SuperTurtle Telegram chat example" />
-  &nbsp;&nbsp;
-  <img src="assets/readme-screenshots/chat-example-2.jpg" width="360" alt="SuperTurtle committing code and sending a GitHub screenshot" />
-</p>
-
-## SubTurtles
-
-SubTurtles are autonomous worker agents that run in isolated loops. The Meta Agent spawns them for bounded tasks, while the conductor owns durable worker lifecycle state and recovery. Each SubTurtle gets its own working directory under `.subturtles/` with a task file, `CLAUDE.md`, and logs, while canonical orchestration state lives under `.superturtle/state/`.
-
-Workers emit checkpoints, completion requests, and fatal-error facts. The conductor reconciles those facts into lifecycle states such as `running`, `completion_pending`, `completed`, `failed`, `timed_out`, and `archived`, then drives wakeups and inbox delivery from that persisted state instead of chat history.
-
-Loop types:
-
-- **yolo** — single Claude Code call per iteration. Fast, autonomous ralph loop. The default for most tasks.
-- **slow** — plan, groom, execute, review. Four agent calls per iteration. More careful, better for complex or risky work.
-- **yolo-codex** — same as yolo but runs Codex instead of Claude.
-- **yolo-codex-spark** — same as yolo-codex but with Codex Spark for faster iterations.
+1. **Codex + Claude Code in one runtime** — one Telegram-native workflow across both.
+2. **Phone-first remote coding** — text or voice from Telegram.
+3. **Parallel SubTurtles** — long-running work split into autonomous workers.
+4. **Spec-driven loops** — enforced `CLAUDE.md` backlog structure with auto-stop to avoid drift.
+5. **Progress, not log spam** — milestone updates instead of a wall of output.
 
 ## Architecture
 
@@ -99,10 +57,73 @@ Loop types:
 - **SubTurtles** — autonomous workers running in ralph loops (yolo, slow, yolo-codex, yolo-codex-spark).
 - **Conductor state** — durable worker lifecycle/event state in `.superturtle/state/` with wakeup/inbox delivery.
 - **MCP servers** — stickers, bot-control, ask-user (inline buttons).
-- **Drivers** — Claude Code (primary), Codex (optional).
+- **Drivers** — Codex and Claude Code, combined in one runtime.
 
 <p align="center">
   <img src="assets/readme-stickers/architecture-gear-turtle.png" width="108" alt="Architecture" />
+</p>
+
+## SuperTurtle vs OpenClaw
+
+OpenClaw is broader across channels. SuperTurtle is intentionally narrower: Telegram-first, built around the headless coding CLI pattern, with a roadmap toward native sandboxing and native remote session mobility.
+
+| Feature | SuperTurtle | OpenClaw |
+|---------|-------------|----------|
+| Telegram control | ✅ | ✅ |
+| More chat apps: WhatsApp, iMessage, Discord | ❌ | ✅ |
+| Self-hosted | ✅ | ✅ |
+| Runs coding agents on your own machine | ✅ | ✅ |
+| Custom skills, connectors, and MCPs | ✅ | ✅ |
+| Persistent remote VM in one command | 🔜 | ❌ |
+| Plugin / channel ecosystem | ❌ | ✅ |
+
+## Headless CLI Pattern
+
+SuperTurtle uses the headless CLI pattern for everything.
+
+Under the hood, that looks like:
+
+```bash
+claude -p "fix the failing test" --output-format stream-json
+codex exec --full-auto "fix the failing test"
+```
+
+## SubTurtles
+
+SubTurtles are autonomous worker agents that run in isolated loops. The Meta Agent spawns them for bounded tasks, while the conductor owns durable worker lifecycle state and recovery. Each SubTurtle gets its own working directory under `.subturtles/` with a task file, `CLAUDE.md`, and logs, while canonical orchestration state lives under `.superturtle/state/`.
+
+SubTurtles are spec-driven through an enforced `CLAUDE.md` backlog structure, and they auto-stop when the work is done to avoid drift.
+
+Loop types:
+
+- **yolo** — single Claude Code call per iteration. Fast, autonomous ralph loop.
+- **slow** — plan, groom, execute, review. Four agent calls per iteration. More careful, better for complex or risky work.
+- **yolo-codex** — same as yolo but runs Codex instead of Claude. The default for straightforward coding tasks.
+- **yolo-codex-spark** — same as yolo-codex but with Codex Spark for faster iterations.
+
+`yolo-codex` is the closest SubTurtle loop to the ralph loop pattern:
+
+```python
+while not finished:
+    codex.execute()
+```
+
+`slow` is the more structured loop type:
+
+```python
+while not finished:
+    plan = claude.plan()
+    claude.groom(plan)
+    codex.execute(plan)
+    claude.review(plan)
+```
+
+## What it looks like
+
+<p align="center">
+  <img src="assets/readme-screenshots/chat-example.jpg" width="360" alt="SuperTurtle Telegram chat example" />
+  &nbsp;&nbsp;
+  <img src="assets/readme-screenshots/chat-example-2.jpg" width="360" alt="SuperTurtle committing code and sending a GitHub screenshot" />
 </p>
 
 ## Dashboard
@@ -122,33 +143,33 @@ The dashboard shows active sessions, SubTurtle lanes, cron/current jobs, deferre
 | Platform | Status |
 |----------|--------|
 | macOS    | Fully supported |
-| Linux    | Alpha |
-| Windows  | Not yet (WSL2 may work) |
+| Linux    | Supported |
+| Windows  | Supported via WSL |
 
 **macOS note:** Enable `System Settings → Battery → Options → Prevent automatic sleeping when the display is off` when on power adapter.
 
 ## TOS compliance
 
-Super Turtle spawns the `claude` CLI binary as a child process (`claude -p --output-format stream-json`). This is the [officially documented headless usage](https://docs.anthropic.com/en/docs/claude-code/cli-usage) — the same way CI pipelines and editor extensions invoke Claude Code.
+Super Turtle runs the local coding CLIs as child processes in their headless or non-interactive modes. In practice that means commands such as `claude -p --output-format stream-json` and `codex exec`.
 
 **What Super Turtle does:**
-- Spawns `claude` as a subprocess with standard CLI flags
+- Spawns the local `codex` and `claude` CLIs with standard headless or non-interactive entrypoints
 - Uses your existing CLI authentication (your logged-in session)
-- Reads structured output from stdout
+- Reads structured output or events from the CLIs
 
 **What Super Turtle does NOT do:**
 - Extract or reuse OAuth tokens from your keychain for model inference
 - Proxy your subscription credentials to other users or services
-- Use the Anthropic API or Agent SDK with subscription OAuth tokens
-- Circumvent Claude Code's rate limiting or usage caps
+- Use provider APIs as the default path instead of the installed CLI
+- Circumvent product rate limiting or usage caps
 
-The `/usage` bot command reads your local OAuth token solely to call Anthropic's own usage-reporting endpoint (`api.anthropic.com/api/oauth/usage`) — the same endpoint Claude Code's built-in `/usage` displays. It is read-only and never used for model inference.
+The `/usage` bot command reads local CLI usage/auth state only for usage reporting. For Claude Code, it can call Anthropic's own usage-reporting endpoint (`api.anthropic.com/api/oauth/usage`) — the same endpoint Claude Code's built-in `/usage` displays. It is read-only and never used for model inference.
 
 See the [full TOS compliance page](https://www.superturtle.dev/docs/config/tos-compliance) for details.
 
 ## Security
 
-Super Turtle runs Claude Code with `--dangerously-skip-permissions` plus an explicit `--allowedTools` allowlist for the bot's normal tool surface. Every file read, file write, and shell command happens without a confirmation prompt. This is by design — confirming each action from your phone would make the tool unusable.
+Super Turtle runs these coding CLIs in automation-oriented modes. Every file read, file write, and shell command happens without a confirmation prompt. This is by design — confirming each action from your phone would make the tool unusable.
 
 You should run Super Turtle in a sandboxed or dedicated environment (VM, container, separate user account) — it has full access to read, write, and execute within configured paths. Multiple defense layers (user allowlist, rate limiting, path validation, command blocking, audit logging) reduce risk, but the permission model is inherently open. Read the [full security model](https://www.superturtle.dev/docs/config/security) for threat model, incident response, and deployment checklist.
 
