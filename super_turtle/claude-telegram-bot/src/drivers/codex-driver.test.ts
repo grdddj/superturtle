@@ -156,4 +156,39 @@ describe("CodexDriver", () => {
       }
     }
   });
+
+  it("forwards deferred done when Codex emits done before stale-session retry throws", async () => {
+    mock.module("../handlers/streaming", () => ({
+      checkPendingAskUserRequests: async () => false,
+      checkPendingBotControlRequests: async () => false,
+      checkPendingPinoLogsRequests: async () => false,
+      checkPendingSendImageRequests: async () => false,
+      checkPendingSendTurtleRequests: async () => false,
+    }));
+
+    codexSession.sendMessage = (async (_message, statusCallback) => {
+      await statusCallback?.("done", "");
+      throw new Error("Empty response from stale session");
+    }) as typeof codexSession.sendMessage;
+
+    const statusEvents: string[] = [];
+    const { CodexDriver } = await loadCodexDriverModule();
+    const driver = new CodexDriver();
+
+    await expect(
+      driver.runMessage({
+        message: "retry the stale session",
+        source: "text",
+        username: "tester",
+        userId: 123,
+        chatId: 456,
+        ctx: {} as Context,
+        statusCallback: async (statusType) => {
+          statusEvents.push(statusType);
+        },
+      })
+    ).rejects.toThrow("Empty response from stale session");
+
+    expect(statusEvents).toEqual(["done"]);
+  });
 });

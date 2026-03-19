@@ -60,9 +60,8 @@ export class CodexDriver implements ChatDriver {
         }
       : undefined;
 
-    let response: string;
     try {
-      response = await codexSession.sendMessage(
+      return await codexSession.sendMessage(
         input.message,
         wrappedStatusCallback,
         undefined,
@@ -74,20 +73,20 @@ export class CodexDriver implements ChatDriver {
         input.chatId
       );
     } finally {
-      await pendingPump.stop();
+      try {
+        await pendingPump.stop();
+      } finally {
+        await pendingOutputs.flushAfterCompletion();
+
+        if (deferredDone && downstreamStatusCallback) {
+          await downstreamStatusCallback(
+            deferredDone[0],
+            deferredDone[1],
+            deferredDone[2]
+          );
+        }
+      }
     }
-
-    await pendingOutputs.flushAfterCompletion();
-
-    if (deferredDone && downstreamStatusCallback) {
-      await downstreamStatusCallback(
-        deferredDone[0],
-        deferredDone[1],
-        deferredDone[2]
-      );
-    }
-
-    return response;
   }
 
   async stop() {
