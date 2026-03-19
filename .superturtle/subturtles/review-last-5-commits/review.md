@@ -27,3 +27,9 @@
 ### Medium
 
 - `.superturtle/subturtles/board-poc-check/CLAUDE.md:1` and `.superturtle/subturtles/board-poc-check/board-poc-check-note.md:1` commit another worker workspace snapshot from `.superturtle/subturtles/`, even though `.gitignore:39` marks `.superturtle/` as local runtime state and `AGENTS.md:16` documents it as the live project-state directory. Once tracked, these scratch files turn ordinary SubTurtle cleanup into repository deletions/modifications and make future runtime-state commits more likely.
+
+## Commit `15e00d5b` - `Trim README development note`
+
+### Medium
+
+- `README.md:201` still tells source-checkout developers to use `node super_turtle/bin/superturtle.js ...` so they do not accidentally run a globally installed `superturtle`, but this commit removed the one sentence that applied that warning to `service run`. That leaves the repo-root docs with no source-build guidance for supervisor setups even though the shipped `launchd` and `systemd` templates still default to `${SUPERTURTLE_BIN:-superturtle}` in `super_turtle/claude-telegram-bot/launchagent/com.claude-telegram-ts.plist.template:12` and `super_turtle/claude-telegram-bot/systemd/superturtle-bot.service.template:24`. A developer testing the repo under `launchd`, `systemd`, or E2B can now follow the remaining docs and silently boot the globally installed package instead of the checkout they are editing.
