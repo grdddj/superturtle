@@ -1,6 +1,6 @@
 # Current task
 
-Write final findings and stop once the review is complete.
+Review complete. Stop.
 
 # End goal with specs
 
@@ -46,4 +46,7 @@ Acceptance criteria:
 - [x] Review `super_turtle/claude-telegram-bot/src/message-kinds.ts` and its usage for classification gaps. No additional classification bugs beyond the earlier notification-overwrite regression: the helper covers the current `DriverStatusType` union and current Codex side-effect tools (including hyphenated aliases), but its usage is still observational because `streaming.ts` does not consult message kinds before side-effect handlers replace `lastNotifiableOutput`.
 - [x] Review the related tests touched today for missing coverage or brittle assertions. `codex-driver.test.ts` covers the timeout/hang happy path but misses the stale-session retry path where `codexSession.sendMessage()` emits `done` and then throws, so the deferred-`done` teardown regression in `codex-driver.ts` would still ship unchecked; its `Promise.race(...900ms)` plus 10/25ms env timeouts also makes the stall assertion wall-clock-dependent. `message-kinds.test.ts` only checks the classifier lookup table, so it provides no integration coverage that `streaming.ts` actually uses those kinds to protect `lastNotifiableOutput` from late `send_image`/`send_turtle` side effects.
 - [x] Run focused tests or checks if they materially improve confidence. Ran `bun test src/message-kinds.test.ts src/drivers/codex-driver.test.ts`.
-- [ ] Write final findings and stop once the review is complete <- current
+- [x] Write final findings and stop once the review is complete
+
+## Loop Control
+STOP
