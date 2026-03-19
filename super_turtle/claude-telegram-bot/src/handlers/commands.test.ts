@@ -13,7 +13,6 @@ process.env.CODEX_ENABLED = "false";
 const { ALLOWED_USERS } = await import("../config");
 
 const {
-  getCommandLines,
   formatModelInfo,
   parseClaudeBacklogItems,
   parseClaudeStateSummary,
@@ -111,7 +110,15 @@ async function loadCommandsModuleWithCronJobs(jobs: Array<Record<string, unknown
   return import(`./commands.ts?commands-cron=${Date.now()}-${Math.random()}`);
 }
 
-async function loadFreshCommandsModule(tag: string) {
+async function loadFreshCommandsModule(tag: string, e2bApiKey?: string) {
+  if (typeof e2bApiKey === "string") {
+    const actualConfig = await import("../config");
+    mock.module("../config", () => ({
+      ...actualConfig,
+      E2B_API_KEY: e2bApiKey,
+      TELEPORT_COMMANDS_ENABLED: e2bApiKey.trim().length > 0,
+    }));
+  }
   return import(`./commands.ts?${tag}=${Date.now()}-${Math.random()}`);
 }
 
@@ -123,34 +130,6 @@ afterEach(() => {
   session.activeDriver = originalSessionActiveDriver;
   codexSession.kill = originalCodexKill;
   mock.restore();
-});
-
-describe("getCommandLines", () => {
-  it("returns slash commands including all known commands", () => {
-    const lines = getCommandLines();
-    const commands = lines.map((line) => line.split(/\s+/)[0]);
-
-    expect(Array.isArray(lines)).toBe(true);
-    expect(lines.length).toBeGreaterThan(0);
-    expect(lines.every((line) => line.startsWith("/"))).toBe(true);
-
-    for (const expected of [
-      "/new",
-      "/model",
-      "/switch",
-      "/usage",
-      "/context",
-      "/status",
-      "/looplogs",
-      "/pinologs",
-      "/resume",
-      "/sub",
-      "/cron",
-      "/teleport",
-    ]) {
-      expect(commands).toContain(expected);
-    }
-  });
 });
 
 function getInlineKeyboard(reply: ReplyRecord): Array<Array<{ text?: string; callback_data?: string }>> {
@@ -763,7 +742,7 @@ describe("readMainLoopLogTail", () => {
 
 describe("handlers with mock Context", () => {
   it("handleNew replies with HTML command overview and resets driver sessions", async () => {
-    const { handleNew: freshHandleNew } = await loadFreshCommandsModule("handle-new");
+    const { handleNew: freshHandleNew } = await loadFreshCommandsModule("handle-new", "");
     let stopTypingCalls = 0;
     let sessionKillCalls = 0;
     let codexKillCalls = 0;
@@ -793,11 +772,8 @@ describe("handlers with mock Context", () => {
     expect(replies).toHaveLength(1);
     expect(replies[0]!.extra?.parse_mode).toBe("HTML");
     expect(replies[0]!.text).toContain("<b>New session</b>");
-    expect(replies[0]!.text).toContain("<b>Commands:</b>");
-    expect(replies[0]!.text).toContain("/new - Fresh session");
-    expect(replies[0]!.text).toContain("/status - Detailed status");
-    expect(replies[0]!.text).toContain("/cron - Scheduled jobs");
-    expect(replies[0]!.text).toContain("/teleport - Move control to E2B");
+    expect(replies[0]!.text).not.toContain("<b>Commands:</b>");
+    expect(replies[0]!.text).not.toContain("/new - Fresh session");
     expect(stopTypingCalls).toBe(1);
     expect(sessionKillCalls).toBe(1);
     expect(codexKillCalls).toBe(1);
@@ -834,7 +810,7 @@ describe("handlers with mock Context", () => {
     expect(replies).toHaveLength(1);
     expect(replies[0]!.extra?.parse_mode).toBe("HTML");
     expect(replies[0]!.text).toContain("<b>Status</b>");
-    expect(replies[0]!.text).toContain("<b>Commands:</b>");
+    expect(replies[0]!.text).not.toContain("<b>Commands:</b>");
     expect(stopTypingCalls).toBe(0);
     expect(sessionKillCalls).toBe(0);
     expect(codexKillCalls).toBe(0);

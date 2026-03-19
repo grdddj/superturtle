@@ -7,6 +7,7 @@
 import type { Context } from "grammy";
 import type { Message } from "grammy/types";
 import { InlineKeyboard, InputFile } from "grammy";
+import { closeSync, openSync, statSync, unlinkSync } from "fs";
 import type { StatusCallback } from "../types";
 import { convertMarkdownToHtml, escapeHtml } from "../formatting";
 import {
@@ -37,6 +38,7 @@ type BotControlSession = ClaudeSession | CodexSession;
 const PENDING_REQUEST_MAX_AGE_MS = 5 * 60 * 1000;
 const HEARTBEAT_IDLE_MS = 15_000;
 const HEARTBEAT_TICK_MS = 5_000;
+const REQUEST_LOCK_STALE_MS = 60_000;
 
 function getIpcDir(): string {
   const override = process.env.SUPERTURTLE_IPC_DIR?.trim();
@@ -60,6 +62,48 @@ function isPendingRequestStale(data: Record<string, unknown>): boolean {
     return false;
   }
   return Date.now() - createdAtMs > PENDING_REQUEST_MAX_AGE_MS;
+}
+
+function tryAcquirePendingRequestLock(filepath: string): (() => void) | null {
+  const lockPath = `${filepath}.lock`;
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const fd = openSync(lockPath, "wx");
+      let released = false;
+      return () => {
+        if (released) {
+          return;
+        }
+        released = true;
+        try {
+          closeSync(fd);
+        } catch {}
+        try {
+          unlinkSync(lockPath);
+        } catch {}
+      };
+    } catch (error) {
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "EEXIST"
+      ) {
+        try {
+          const stats = statSync(lockPath);
+          if (Date.now() - stats.mtimeMs > REQUEST_LOCK_STALE_MS) {
+            unlinkSync(lockPath);
+            continue;
+          }
+        } catch {}
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  return null;
 }
 
 function codexUnavailableBotControlMessage(): string {
@@ -117,6 +161,8 @@ export async function checkPendingAskUserRequests(
 
   for await (const filename of glob.scan({ cwd: ipcDir, absolute: false })) {
     const filepath = `${ipcDir}/${filename}`;
+    const releaseLock = tryAcquirePendingRequestLock(filepath);
+    if (!releaseLock) continue;
     try {
       const file = Bun.file(filepath);
       const text = await file.text();
@@ -156,6 +202,8 @@ export async function checkPendingAskUserRequests(
       }
     } catch (error) {
       streamLog.warn({ err: error, filepath, chatId }, "Failed to process ask-user file");
+    } finally {
+      releaseLock();
     }
   }
 
@@ -175,6 +223,8 @@ export async function checkPendingSendTurtleRequests(
 
   for await (const filename of glob.scan({ cwd: ipcDir, absolute: false })) {
     const filepath = `${ipcDir}/${filename}`;
+    const releaseLock = tryAcquirePendingRequestLock(filepath);
+    if (!releaseLock) continue;
     try {
       const file = Bun.file(filepath);
       const text = await file.text();
@@ -253,6 +303,8 @@ export async function checkPendingSendTurtleRequests(
       }
     } catch (error) {
       streamLog.warn({ err: error, filepath, chatId }, "Failed to process send-turtle file");
+    } finally {
+      releaseLock();
     }
   }
 
@@ -272,6 +324,8 @@ export async function checkPendingSendImageRequests(
 
   for await (const filename of glob.scan({ cwd: ipcDir, absolute: false })) {
     const filepath = `${ipcDir}/${filename}`;
+    const releaseLock = tryAcquirePendingRequestLock(filepath);
+    if (!releaseLock) continue;
     try {
       const file = Bun.file(filepath);
       const text = await file.text();
@@ -385,6 +439,8 @@ export async function checkPendingSendImageRequests(
       }
     } catch (error) {
       streamLog.warn({ err: error, filepath, chatId }, "Failed to process send-image file");
+    } finally {
+      releaseLock();
     }
   }
 
@@ -408,6 +464,8 @@ export async function checkPendingBotControlRequests(
 
   for await (const filename of glob.scan({ cwd: ipcDir, absolute: false })) {
     const filepath = `${ipcDir}/${filename}`;
+    const releaseLock = tryAcquirePendingRequestLock(filepath);
+    if (!releaseLock) continue;
     try {
       const file = Bun.file(filepath);
       const text = await file.text();
@@ -451,6 +509,8 @@ export async function checkPendingBotControlRequests(
       handled = true;
     } catch (error) {
       streamLog.warn({ err: error, filepath, chatId }, "Failed to process bot-control file");
+    } finally {
+      releaseLock();
     }
   }
 
@@ -471,6 +531,8 @@ export async function checkPendingPinoLogsRequests(
 
   for await (const filename of glob.scan({ cwd: ipcDir, absolute: false })) {
     const filepath = `${ipcDir}/${filename}`;
+    const releaseLock = tryAcquirePendingRequestLock(filepath);
+    if (!releaseLock) continue;
     try {
       const file = Bun.file(filepath);
       const text = await file.text();
@@ -544,6 +606,8 @@ export async function checkPendingPinoLogsRequests(
       handled = true;
     } catch (error) {
       streamLog.warn({ err: error, filepath, chatId }, "Failed to process pino-logs file");
+    } finally {
+      releaseLock();
     }
   }
 

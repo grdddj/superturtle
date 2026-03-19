@@ -108,7 +108,8 @@ async function findSessionLogPath(sessionId: string): Promise<string | null> {
 
 export async function getContextReport(
   sessionId: string,
-  workingDir: string
+  workingDir: string,
+  model?: string
 ): Promise<ContextResult> {
   const sessionLogPath = await findSessionLogPath(sessionId);
   if (!sessionLogPath) {
@@ -119,7 +120,12 @@ export async function getContextReport(
   }
 
   const startedAtMs = Date.now();
-  const proc = Bun.spawnSync([CLAUDE_CLI_PATH, "-p", "-r", sessionId, "/context"], {
+  const args = [CLAUDE_CLI_PATH, "-p", "-r", sessionId];
+  if (model) {
+    args.push("--model", model);
+  }
+  args.push("/context");
+  const proc = Bun.spawnSync(args, {
     cwd: workingDir,
     stderr: "pipe",
     stdout: "pipe",

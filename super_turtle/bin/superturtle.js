@@ -376,6 +376,26 @@ function formatLeaseOwner(lease) {
   return `${ownerType} runtime ${runtimeId}${host}${pid}${expires}`;
 }
 
+function isOptionalHostedOwnershipError(error) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const message = typeof error.message === "string" ? error.message.trim() : "";
+  const payload =
+    error.payload && typeof error.payload === "object" && !Array.isArray(error.payload)
+      ? error.payload
+      : null;
+  const errorCode =
+    (payload && typeof payload.error_code === "string" && payload.error_code.trim()) ||
+    (payload && typeof payload.code === "string" && payload.code.trim()) ||
+    "";
+
+  return [message, errorCode].some((value) =>
+    /^(managed_cloud_surface_disabled|runtime_lease_unsupported)$/i.test(value)
+  );
+}
+
 function formatBytes(bytes) {
   if (!Number.isFinite(bytes) || bytes < 0) return "0 B";
   if (bytes < 1024) return `${bytes} B`;
@@ -921,7 +941,7 @@ async function serviceRun() {
           env
         );
       } catch (error) {
-        if (!isRetryableCloudError(error)) {
+        if (!isRetryableCloudError(error) && !isOptionalHostedOwnershipError(error)) {
           console.error(
             `Warning: failed to release hosted runtime ownership: ${error instanceof Error ? error.message : String(error)}`
           );
@@ -1009,7 +1029,11 @@ async function serviceRun() {
         process.exit(1);
       }
 
-      if (isRetryableCloudError(error)) {
+      if (isOptionalHostedOwnershipError(error)) {
+        console.error(
+          `Warning: hosted runtime ownership is unavailable (${error instanceof Error ? error.message : String(error)}). Starting without ownership checks.`
+        );
+      } else if (isRetryableCloudError(error)) {
         console.error(
           `Warning: control plane could not verify runtime ownership. Starting anyway because ownership could not be checked (${error.message || String(error)}).`
         );
@@ -1051,7 +1075,6 @@ async function serviceRun() {
 
   child = spawn("bash", ["-lc", serviceCommand], {
     cwd: BOT_DIR,
-    detached: process.platform !== "win32",
     env: serviceEnv,
     stdio: "inherit",
   });
@@ -1257,7 +1280,7 @@ async function stop() {
         );
       }
     } catch (error) {
-      if (!isRetryableCloudError(error)) {
+      if (!isRetryableCloudError(error) && !isOptionalHostedOwnershipError(error)) {
         console.error(
           `Warning: failed to release hosted runtime ownership: ${error instanceof Error ? error.message : String(error)}`
         );

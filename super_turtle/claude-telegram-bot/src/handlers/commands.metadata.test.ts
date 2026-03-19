@@ -1,9 +1,24 @@
-import { describe, expect, it } from "bun:test";
-import { TELEGRAM_COMMANDS } from "./commands";
+import { afterEach, describe, expect, it, mock } from "bun:test";
+
+async function loadCommandsModule(e2bApiKey: string) {
+  const actualConfig = await import("../config");
+  mock.module("../config", () => ({
+    ...actualConfig,
+    E2B_API_KEY: e2bApiKey,
+    TELEPORT_COMMANDS_ENABLED: e2bApiKey.trim().length > 0,
+  }));
+
+  return import(`./commands.ts?commands-metadata=${e2bApiKey || "none"}-${Date.now()}-${Math.random()}`);
+}
+
+afterEach(() => {
+  mock.restore();
+});
 
 describe("TELEGRAM_COMMANDS", () => {
-  it("publishes unique canonical slash commands for Telegram autocomplete", () => {
-    const names = TELEGRAM_COMMANDS.map((entry) => entry.command);
+  it("hides teleport commands when E2B is not configured", async () => {
+    const { TELEGRAM_COMMANDS } = await loadCommandsModule("");
+    const names = TELEGRAM_COMMANDS.map((entry: { command: string }) => entry.command);
 
     expect(names).toEqual([
       "new",
@@ -19,10 +34,18 @@ describe("TELEGRAM_COMMANDS", () => {
       "sub",
       "cron",
       "debug",
-      "teleport",
       "restart",
     ]);
     expect(new Set(names).size).toBe(names.length);
-    expect(TELEGRAM_COMMANDS.every((entry) => entry.description.trim().length > 0)).toBe(true);
+    expect(TELEGRAM_COMMANDS.every((entry: { description: string }) => entry.description.trim().length > 0)).toBe(true);
+  });
+
+  it("publishes teleport when E2B is configured", async () => {
+    const { TELEGRAM_COMMANDS } = await loadCommandsModule("test-e2b-key");
+    const names = TELEGRAM_COMMANDS.map((entry: { command: string }) => entry.command);
+
+    expect(names).toContain("teleport");
+    expect(new Set(names).size).toBe(names.length);
+    expect(TELEGRAM_COMMANDS.every((entry: { description: string }) => entry.description.trim().length > 0)).toBe(true);
   });
 });

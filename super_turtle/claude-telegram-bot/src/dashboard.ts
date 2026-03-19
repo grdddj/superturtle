@@ -47,7 +47,6 @@ export type { MetaFileData } from "./dashboard/helpers";
 
 // Thin dashboard entrypoint: auth/bootstrap stays here, data/rendering lives under src/dashboard/.
 const dashboardLog = logger.child({ module: "dashboard" });
-
 export const routes = createDashboardRoutes({
   buildCurrentJobDetail,
   buildProcessDetail,

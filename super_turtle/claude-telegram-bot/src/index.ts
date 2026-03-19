@@ -6,6 +6,7 @@
 
 import type { Context } from "grammy";
 import { sequentialize } from "@grammyjs/runner";
+import { basename } from "path";
 import {
   WORKING_DIR,
   CTL_PATH,
@@ -47,7 +48,6 @@ import {
   handleVideo,
   handleCallback,
 } from "./handlers";
-import { buildSessionOverviewLines } from "./handlers/commands";
 import { resetAllDriverSessions } from "./handlers/commands";
 import { handlePinologs } from "./handlers/commands";
 import { TELEGRAM_COMMANDS } from "./handlers/commands";
@@ -90,6 +90,7 @@ import {
 } from "./conductor-snapshot";
 import { botLog, cronLog, eventLog } from "./logger";
 import { getSequentializationKey } from "./update-sequencing";
+import { buildStartupNotificationMessage } from "./startup-notifications";
 import {
   shouldSuppressHandledWebhookConflict,
   startTelegramTransport,
@@ -178,6 +179,27 @@ function summarizeCronError(error: unknown): string {
     .replace(/\s+/g, " ")
     .trim();
   return message.length > 300 ? `${message.slice(0, 297)}...` : message;
+}
+
+async function sendStartupNotifications(): Promise<void> {
+  if (ALLOWED_USERS.length === 0 || SUPERTURTLE_RUNTIME_ROLE === "teleport-remote") {
+    return;
+  }
+
+  const projectName = basename(WORKING_DIR);
+  const text = buildStartupNotificationMessage({
+    projectName,
+    driver: session.activeDriver,
+  });
+  const uniqueChatIds = [...new Set(ALLOWED_USERS)];
+
+  await Promise.all(uniqueChatIds.map(async (chatId) => {
+    try {
+      await bot.api.sendMessage(chatId, text);
+    } catch (error) {
+      botLog.warn({ err: error, chatId }, "Failed to send startup notification");
+    }
+  }));
 }
 
 function isAllowedInteractiveUpdate(ctx: import("grammy").Context): boolean {
@@ -1055,9 +1077,6 @@ if (existsSync(RESTART_FILE)) {
         }
       }
 
-      // Send startup message with the same standardized overview format (same as /new)
-      const lines = await buildSessionOverviewLines("Bot restarted");
-      await bot.api.sendMessage(data.chat_id, lines.join("\n"), { parse_mode: "HTML" });
     }
     unlinkSync(RESTART_FILE);
   } catch (e) {
@@ -1066,6 +1085,8 @@ if (existsSync(RESTART_FILE)) {
     try { unlinkSync(RESTART_FILE); } catch {}
   }
 }
+
+await sendStartupNotifications();
 
 if (SUPERTURTLE_RUNTIME_ROLE !== "teleport-remote") {
   await runConductorMaintenancePass({ recoverInFlightWakeups: true });

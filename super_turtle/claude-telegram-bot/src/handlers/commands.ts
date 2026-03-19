@@ -21,6 +21,7 @@ import {
   BOT_DIR,
   TOKEN_PREFIX,
   DEFAULT_CODEX_EFFORT,
+  TELEPORT_COMMANDS_ENABLED,
   SUPERTURTLE_REMOTE_MODE,
   SUPERTURTLE_RUNTIME_ROLE,
   SUPERTURTLE_SUBTURTLES_DIR,
@@ -86,16 +87,25 @@ const TELEPORT_REMOTE_AGENT_COMMANDS = [
   ...TELEPORT_REMOTE_CONTROL_COMMANDS,
 ] as const;
 
+function getVisibleTelegramCommands(commands: readonly BotCommand[]): readonly BotCommand[] {
+  if (TELEPORT_COMMANDS_ENABLED) {
+    return commands;
+  }
+  return commands.filter((entry) => entry.command !== "teleport" && entry.command !== "home");
+}
+
 export function getTelegramCommandsForRuntime(
   runtimeRole: "local" | "teleport-remote" = SUPERTURTLE_RUNTIME_ROLE,
   remoteMode: "control" | "agent" = SUPERTURTLE_REMOTE_MODE
 ): readonly BotCommand[] {
   if (runtimeRole === "teleport-remote") {
-    return remoteMode === "agent"
-      ? TELEPORT_REMOTE_AGENT_COMMANDS
-      : TELEPORT_REMOTE_CONTROL_COMMANDS;
+    return getVisibleTelegramCommands(
+      remoteMode === "agent"
+        ? TELEPORT_REMOTE_AGENT_COMMANDS
+        : TELEPORT_REMOTE_CONTROL_COMMANDS
+    );
   }
-  return LOCAL_TELEGRAM_COMMANDS;
+  return getVisibleTelegramCommands(LOCAL_TELEGRAM_COMMANDS);
 }
 
 export const TELEGRAM_COMMANDS: readonly BotCommand[] =
@@ -221,47 +231,6 @@ function summarizeTeleportUserError(error: unknown, fallback: string): string {
 /**
  * Shared command list for display in /new and /status, and new_session bot-control.
  */
-export function getCommandLines(): string[] {
-  if (SUPERTURTLE_RUNTIME_ROLE === "teleport-remote") {
-    return SUPERTURTLE_REMOTE_MODE === "agent"
-      ? [
-          `/stop - Stop current work`,
-          `/home - Return control to PC`,
-          `/status - Detailed status`,
-          `/looplogs - Main loop logs`,
-          `/pinologs - Pino logs`,
-          `/debug - Debug state`,
-          `/restart - Restart the bot`,
-        ]
-      : [
-          `/home - Return control to PC`,
-          `/status - Detailed status`,
-          `/looplogs - Main loop logs`,
-          `/pinologs - Pino logs`,
-          `/debug - Debug state`,
-          `/restart - Restart the bot`,
-        ];
-  }
-  const switchLine = CODEX_AVAILABLE
-    ? `/switch - Claude ↔ Codex`
-    : `/switch - Driver controls (Codex unavailable)`;
-  return [
-    `/new - Fresh session`,
-    `/stop - Stop current work`,
-    `/model - Switch model/effort`,
-    switchLine,
-    `/usage - Subscription usage`,
-    `/context - Context usage`,
-    `/status - Detailed status`,
-    `/looplogs - Main loop logs`,
-    `/pinologs - Pino logs`,
-    `/resume - Resume a session`,
-    `/sub - SubTurtles`,
-    `/cron - Scheduled jobs`,
-    `/teleport - Move control to E2B`,
-  ];
-}
-
 /**
  * /stop command — explicit slash command to stop current foreground work.
  * Same behavior as typing "stop" or saying "stop" via voice.
@@ -326,7 +295,6 @@ export async function buildSessionOverviewLines(title: string): Promise<string[]
         CODEX_ENABLED ? getCodexQuotaLines() : Promise.resolve<string[]>([]),
       ]);
   lines.push(formatUnifiedUsage(usageLines, codexQuotaLines, CODEX_ENABLED), "");
-  lines.push(`<b>Commands:</b>`, ...getCommandLines());
   return lines;
 }
 
@@ -2001,7 +1969,7 @@ export async function handleContext(ctx: Context): Promise<void> {
   const progress = await ctx.reply("📊 Fetching context usage...");
 
   try {
-    const result = await getContextReport(session.sessionId, WORKING_DIR);
+    const result = await getContextReport(session.sessionId, WORKING_DIR, session.model);
     if (!result.ok) {
       await ctx.reply(`❌ ${result.error}`);
       return;

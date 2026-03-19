@@ -44,6 +44,8 @@ async function loadCommandsModuleForRole(
   mock.module("../config", () => ({
     ...actualConfig,
     ALLOWED_USERS: [123],
+    E2B_API_KEY: "test-e2b-key",
+    TELEPORT_COMMANDS_ENABLED: true,
     SUPERTURTLE_RUNTIME_ROLE: role,
   }));
 

@@ -221,6 +221,76 @@ describe("checkPendingSendImageRequests()", () => {
   });
 });
 
+describe("pending media request locking", () => {
+  it("prevents duplicate send_turtle delivery when pollers race on the same request", async () => {
+    const customIpcDir = `/tmp/streaming-send-turtle-lock-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const previousIpcDir = process.env.SUPERTURTLE_IPC_DIR;
+    mkdirSync(customIpcDir, { recursive: true });
+    process.env.SUPERTURTLE_IPC_DIR = customIpcDir;
+
+    const originalFetch = globalThis.fetch;
+    let releaseStickerSend!: () => void;
+    const stickerSendStarted = new Promise<void>((resolve) => {
+      releaseStickerSend = resolve;
+    });
+
+    globalThis.fetch = mock(
+      async () => new Response(new Uint8Array([1, 2, 3]), { status: 200 })
+    ) as unknown as typeof fetch;
+
+    try {
+      const requestId = `streaming-send-turtle-lock-${Date.now()}`;
+      const requestFile = `${customIpcDir}/send-turtle-${requestId}.json`;
+      await Bun.write(
+        requestFile,
+        JSON.stringify({
+          request_id: requestId,
+          url: "https://example.com/turtle.webp",
+          status: "pending",
+          chat_id: "777",
+          created_at: new Date().toISOString(),
+        })
+      );
+
+      let stickerCalls = 0;
+      const replyWithStickerMock = mock(async () => {
+        stickerCalls += 1;
+        if (stickerCalls === 1) {
+          await stickerSendStarted;
+        }
+        return {
+          chat: { id: 777 },
+          message_id: stickerCalls,
+          sticker: { file_id: "sticker-file-id" },
+        };
+      });
+
+      const ctx = {
+        chat: { id: 777 },
+        replyWithSticker: replyWithStickerMock,
+        reply: mock(async () => ({ chat: { id: 777 }, message_id: 99 })),
+      } as unknown as Context;
+
+      const first = checkPendingSendTurtleRequests(ctx, 777);
+      await Promise.resolve();
+      const second = checkPendingSendTurtleRequests(ctx, 777);
+      releaseStickerSend();
+
+      const [firstHandled, secondHandled] = await Promise.all([first, second]);
+
+      expect(stickerCalls).toBe(1);
+      expect([firstHandled, secondHandled].filter(Boolean)).toHaveLength(1);
+
+      const updated = JSON.parse(await Bun.file(requestFile).text());
+      expect(updated.status).toBe("sent");
+    } finally {
+      globalThis.fetch = originalFetch;
+      process.env.SUPERTURTLE_IPC_DIR = previousIpcDir || IPC_DIR;
+      rmSync(customIpcDir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("checkPendingPinoLogsRequests()", () => {
   it("filters by minimum level and returns formatted entries", async () => {
     const logLines = [
