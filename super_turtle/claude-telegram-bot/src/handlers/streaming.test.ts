@@ -10,6 +10,8 @@ const {
   checkPendingAskUserRequests,
   checkPendingBotControlRequests,
   checkPendingPinoLogsRequests,
+  checkPendingSendImageRequests,
+  checkPendingSendTurtleRequests,
   cleanupToolMessages,
   clearStreamingState,
   createAskUserKeyboard,
@@ -440,6 +442,214 @@ describe("bot-control dynamic import", () => {
       } catch {
         /* best-effort cleanup */
       }
+    }
+  });
+});
+
+describe("streaming notifications", () => {
+  it("keeps interim streamed replies silent and promotes the final segment as the notifying message", async () => {
+    const replyCalls: Array<{ text: string; extra?: Record<string, unknown> }> = [];
+    const deleteMessageMock = mock(async () => {});
+    let nextMessageId = 1;
+
+    const ctx = {
+      chat: { id: 123 },
+      reply: mock(async (text: string, extra?: Record<string, unknown>) => {
+        replyCalls.push({ text, extra });
+        return {
+          chat: { id: 123 },
+          message_id: nextMessageId++,
+        };
+      }),
+      api: {
+        editMessageText: mock(async () => {}),
+        deleteMessage: deleteMessageMock,
+      },
+    } as unknown as Context;
+
+    const state = new StreamingState();
+    const statusCallback = createStatusCallback(ctx, state);
+
+    await statusCallback("text", "Hello from Super Turtle", 0);
+    await statusCallback("segment_end", "Hello from Super Turtle", 0);
+    await statusCallback("done", "");
+
+    expect(replyCalls).toHaveLength(2);
+    expect(replyCalls[0]?.extra?.disable_notification).toBe(true);
+    expect(replyCalls[1]?.extra?.disable_notification).toBeUndefined();
+    expect(deleteMessageMock).toHaveBeenCalledTimes(1);
+    expect(deleteMessageMock).toHaveBeenCalledWith(123, 1);
+  });
+
+  it("sends thinking/tool progress messages with push notifications disabled", async () => {
+    const replyCalls: Array<{ text: string; extra?: Record<string, unknown> }> = [];
+
+    const ctx = {
+      chat: { id: 456 },
+      reply: mock(async (text: string, extra?: Record<string, unknown>) => {
+        replyCalls.push({ text, extra });
+        return {
+          chat: { id: 456 },
+          message_id: replyCalls.length,
+        };
+      }),
+      api: {
+        deleteMessage: mock(async () => {}),
+        editMessageText: mock(async () => {}),
+      },
+    } as unknown as Context;
+
+    const state = new StreamingState();
+    const statusCallback = createStatusCallback(ctx, state, { showToolStatus: true });
+
+    await statusCallback("thinking", "Planning the answer");
+    await statusCallback("tool", "Error: command failed");
+
+    expect(replyCalls).toHaveLength(2);
+    expect(replyCalls.every((call) => call.extra?.disable_notification === true)).toBe(true);
+  });
+
+  it("promotes a final image reply as the notifying message", async () => {
+    const customIpcDir = `/tmp/streaming-image-notify-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const previousIpcDir = process.env.SUPERTURTLE_IPC_DIR;
+    mkdirSync(customIpcDir, { recursive: true });
+    process.env.SUPERTURTLE_IPC_DIR = customIpcDir;
+
+    try {
+      const requestId = `streaming-send-image-notify-${Date.now()}`;
+      const requestFile = `${customIpcDir}/send-image-${requestId}.json`;
+      const deleteMessageMock = mock(async () => {});
+      const replyMock = mock(async (text: string, extra?: Record<string, unknown>) => ({
+        chat: { id: 123 },
+        message_id: extra?.disable_notification === true ? 3 : 4,
+        text,
+      }));
+      const replyWithPhotoMock = mock(
+        async (_source: unknown, extra?: Record<string, unknown>) => ({
+          chat: { id: 123 },
+          message_id: 1,
+          photo: [{ file_id: "photo-file-id" }],
+        })
+      );
+
+      await Bun.write(
+        requestFile,
+        JSON.stringify({
+          request_id: requestId,
+          source: "https://example.com/test.png",
+          caption: "Final image",
+          status: "pending",
+          chat_id: "123",
+          created_at: new Date().toISOString(),
+        })
+      );
+
+      const ctx = {
+        chat: { id: 123 },
+        reply: replyMock,
+        replyWithPhoto: replyWithPhotoMock,
+        api: {
+          deleteMessage: deleteMessageMock,
+          editMessageText: mock(async () => {}),
+        },
+      } as unknown as Context;
+
+      const state = new StreamingState();
+      const statusCallback = createStatusCallback(ctx, state);
+
+      const handled = await checkPendingSendImageRequests(ctx, 123);
+      expect(handled).toBe(true);
+      expect(replyWithPhotoMock).toHaveBeenCalledTimes(1);
+      expect(replyWithPhotoMock.mock.calls[0]?.[1]).toMatchObject({
+        caption: "Final image",
+        disable_notification: true,
+      });
+
+      await statusCallback("done", "");
+
+      expect(deleteMessageMock).not.toHaveBeenCalledWith(123, 1);
+      expect(replyWithPhotoMock).toHaveBeenCalledTimes(1);
+      expect(replyMock).toHaveBeenCalledTimes(1);
+      expect(replyMock.mock.calls[0]?.[0]).toBe("🖼️ Final image");
+      expect(replyMock.mock.calls[0]?.[1]).toBeUndefined();
+    } finally {
+      process.env.SUPERTURTLE_IPC_DIR = previousIpcDir || IPC_DIR;
+      rmSync(customIpcDir, { recursive: true, force: true });
+      clearStreamingState(123);
+    }
+  });
+
+  it("promotes a final sticker reply as the notifying message", async () => {
+    const customIpcDir = `/tmp/streaming-sticker-notify-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const previousIpcDir = process.env.SUPERTURTLE_IPC_DIR;
+    mkdirSync(customIpcDir, { recursive: true });
+    process.env.SUPERTURTLE_IPC_DIR = customIpcDir;
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = mock(
+      async () => new Response(new Uint8Array([1, 2, 3]), { status: 200 })
+    ) as unknown as typeof fetch;
+
+    try {
+      const requestId = `streaming-send-turtle-notify-${Date.now()}`;
+      const requestFile = `${customIpcDir}/send-turtle-${requestId}.json`;
+      const deleteMessageMock = mock(async () => {});
+      const replyMock = mock(async (text: string, extra?: Record<string, unknown>) => ({
+        chat: { id: 321 },
+        message_id: extra?.disable_notification === true ? 13 : 14,
+        text,
+      }));
+      const replyWithStickerMock = mock(
+        async (_source: unknown, extra?: Record<string, unknown>) => ({
+          chat: { id: 321 },
+          message_id: 11,
+          sticker: { file_id: "sticker-file-id" },
+        })
+      );
+
+      await Bun.write(
+        requestFile,
+        JSON.stringify({
+          request_id: requestId,
+          url: "https://example.com/turtle.webp",
+          status: "pending",
+          chat_id: "321",
+          created_at: new Date().toISOString(),
+        })
+      );
+
+      const ctx = {
+        chat: { id: 321 },
+        reply: replyMock,
+        replyWithSticker: replyWithStickerMock,
+        api: {
+          deleteMessage: deleteMessageMock,
+          editMessageText: mock(async () => {}),
+        },
+      } as unknown as Context;
+
+      const state = new StreamingState();
+      const statusCallback = createStatusCallback(ctx, state);
+
+      const handled = await checkPendingSendTurtleRequests(ctx, 321);
+      expect(handled).toBe(true);
+      expect(replyWithStickerMock).toHaveBeenCalledTimes(1);
+      expect(replyWithStickerMock.mock.calls[0]?.[1]).toMatchObject({
+        disable_notification: true,
+      });
+
+      await statusCallback("done", "");
+
+      expect(deleteMessageMock).not.toHaveBeenCalledWith(321, 11);
+      expect(replyWithStickerMock).toHaveBeenCalledTimes(1);
+      expect(replyMock).toHaveBeenCalledTimes(1);
+      expect(replyMock.mock.calls[0]?.[0]).toBe("🐢 Turtle sent.");
+      expect(replyMock.mock.calls[0]?.[1]).toBeUndefined();
+    } finally {
+      globalThis.fetch = originalFetch;
+      process.env.SUPERTURTLE_IPC_DIR = previousIpcDir || IPC_DIR;
+      rmSync(customIpcDir, { recursive: true, force: true });
+      clearStreamingState(321);
     }
   });
 });

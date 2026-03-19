@@ -159,11 +159,25 @@ export class CodexDriver implements ChatDriver {
       }
     })();
 
+    const downstreamStatusCallback = input.statusCallback;
+    type DeferredDoneArgs = Parameters<NonNullable<typeof downstreamStatusCallback>>;
+    let deferredDone: DeferredDoneArgs | null = null;
+    const wrappedStatusCallback = downstreamStatusCallback
+      ? async (...args: DeferredDoneArgs) => {
+          const [statusType] = args;
+          if (statusType === "done") {
+            deferredDone = args;
+            return;
+          }
+          await downstreamStatusCallback(...args);
+        }
+      : undefined;
+
     let response: string;
     try {
       response = await codexSession.sendMessage(
         input.message,
-        input.statusCallback,
+        wrappedStatusCallback,
         undefined,
         undefined,
         mcpCompletionCallback,
@@ -189,6 +203,14 @@ export class CodexDriver implements ChatDriver {
       if (attempt < 2) {
         await wait(100);
       }
+    }
+
+    if (deferredDone && downstreamStatusCallback) {
+      await downstreamStatusCallback(
+        deferredDone[0],
+        deferredDone[1],
+        deferredDone[2]
+      );
     }
 
     return response;

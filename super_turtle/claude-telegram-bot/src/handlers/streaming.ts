@@ -199,6 +199,7 @@ export async function checkPendingSendTurtleRequests(
 
       const url = data.url || "";
       const caption = data.caption || undefined;
+      const state = getStreamingState(chatId);
 
       if (url) {
         try {
@@ -207,14 +208,42 @@ export async function checkPendingSendTurtleRequests(
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           const buffer = Buffer.from(await response.arrayBuffer());
           const inputFile = new InputFile(buffer, "turtle.webp");
-          await ctx.replyWithSticker(inputFile);
+          const stickerMsg = await ctx.replyWithSticker(inputFile, {
+            disable_notification: state ? true : undefined,
+          });
+          const stickerFileId = (stickerMsg as Message & { sticker?: { file_id?: string } }).sticker?.file_id;
+          if (state && stickerFileId) {
+            setLastNotifiableOutput(
+              state,
+              [stickerMsg],
+              async (targetCtx, notify) => [
+                await sendTextMessage(
+                  targetCtx,
+                  caption ? `🐢 ${caption}` : "🐢 Turtle sent.",
+                  { notify }
+                ),
+              ]
+            );
+          }
         } catch (photoError) {
           // Photo send failed — try sending as a link instead
           streamLog.warn(
             { err: photoError, filepath, url, chatId },
             "Failed to send turtle photo, falling back to link"
           );
-          await ctx.reply(`🐢 ${url}${caption ? `\n${caption}` : ""}`);
+          const fallbackText = `🐢 ${url}${caption ? `\n${caption}` : ""}`;
+          const fallbackMsg = state
+            ? await replySilently(ctx, fallbackText)
+            : await ctx.reply(fallbackText);
+          if (state) {
+            setLastNotifiableOutput(
+              state,
+              [fallbackMsg],
+              async (targetCtx, notify) => [
+                await sendTextMessage(targetCtx, fallbackText, { notify }),
+              ]
+            );
+          }
         }
         photoSent = true;
 
@@ -266,6 +295,7 @@ export async function checkPendingSendImageRequests(
 
       const source: string = data.source || "";
       const caption: string = data.caption || undefined;
+      const state = getStreamingState(chatId);
 
       if (source) {
         try {
@@ -273,7 +303,27 @@ export async function checkPendingSendImageRequests(
 
           if (isUrl) {
             // Send URL directly — Telegram can fetch it
-            await ctx.replyWithPhoto(source, { caption });
+            const photoMsg = await ctx.replyWithPhoto(source, {
+              caption,
+              disable_notification: state ? true : undefined,
+            });
+            const photoSizes = (photoMsg as Message & { photo?: Array<{ file_id?: string }> }).photo;
+            const photoFileId = Array.isArray(photoSizes) && photoSizes.length > 0
+              ? photoSizes[photoSizes.length - 1]?.file_id
+              : undefined;
+            if (state && photoFileId) {
+              setLastNotifiableOutput(
+                state,
+                [photoMsg],
+                async (targetCtx, notify) => [
+                  await sendTextMessage(
+                    targetCtx,
+                    caption ? `🖼️ ${caption}` : "🖼️ Image sent.",
+                    { notify }
+                  ),
+                ]
+              );
+            }
           } else {
             // Local file path — read and send as InputFile
             const fileData = Bun.file(source);
@@ -283,7 +333,27 @@ export async function checkPendingSendImageRequests(
             const buffer = Buffer.from(await fileData.arrayBuffer());
             const fileName = source.split("/").pop() || "image.png";
             const inputFile = new InputFile(buffer, fileName);
-            await ctx.replyWithPhoto(inputFile, { caption });
+            const photoMsg = await ctx.replyWithPhoto(inputFile, {
+              caption,
+              disable_notification: state ? true : undefined,
+            });
+            const photoSizes = (photoMsg as Message & { photo?: Array<{ file_id?: string }> }).photo;
+            const photoFileId = Array.isArray(photoSizes) && photoSizes.length > 0
+              ? photoSizes[photoSizes.length - 1]?.file_id
+              : undefined;
+            if (state && photoFileId) {
+              setLastNotifiableOutput(
+                state,
+                [photoMsg],
+                async (targetCtx, notify) => [
+                  await sendTextMessage(
+                    targetCtx,
+                    caption ? `🖼️ ${caption}` : "🖼️ Image sent.",
+                    { notify }
+                  ),
+                ]
+              );
+            }
           }
           imageSent = true;
         } catch (sendError) {
@@ -293,7 +363,19 @@ export async function checkPendingSendImageRequests(
           );
           // Fallback: send as text
           const fallback = source.startsWith("http") ? source : `📎 ${source}`;
-          await ctx.reply(`${fallback}${caption ? `\n${caption}` : ""}`);
+          const fallbackText = `${fallback}${caption ? `\n${caption}` : ""}`;
+          const fallbackMsg = state
+            ? await replySilently(ctx, fallbackText)
+            : await ctx.reply(fallbackText);
+          if (state) {
+            setLastNotifiableOutput(
+              state,
+              [fallbackMsg],
+              async (targetCtx, notify) => [
+                await sendTextMessage(targetCtx, fallbackText, { notify }),
+              ]
+            );
+          }
           imageSent = true;
         }
 
@@ -719,9 +801,15 @@ async function executeBotControlAction(
  */
 export class StreamingState {
   textMessages = new Map<number, Message>(); // segment_id -> telegram message
+  renderedTextMessages = new Map<number, Message[]>(); // segment_id -> all visible telegram messages for the segment
   toolMessages: Message[] = []; // ephemeral tool status messages
   lastEditTimes = new Map<number, number>(); // segment_id -> last edit time
   lastContent = new Map<number, string>(); // segment_id -> last sent content
+  lastNotifiableOutput: {
+    messages: Message[];
+    resend: (ctx: Context, notify: boolean) => Promise<Message[]>;
+    replaceExisting: boolean;
+  } | null = null;
   silentSegments = new Map<number, string>(); // segment_id -> captured text for silent mode
   sawToolUse = false; // used to avoid replaying side-effectful tool runs on retries
   sawSpawnOrchestration = false; // true when streamed tool activity indicates `ctl spawn` orchestration
@@ -804,6 +892,76 @@ async function clearHeartbeatMessage(ctx: Context, state: StreamingState): Promi
   }
 }
 
+type ReplyExtra = NonNullable<Parameters<Context["reply"]>[1]>;
+
+function withSilentNotification(extra?: ReplyExtra): ReplyExtra {
+  return {
+    ...(extra || {}),
+    disable_notification: true,
+  } as ReplyExtra;
+}
+
+async function replySilently(
+  ctx: Context,
+  text: string,
+  extra?: ReplyExtra
+): Promise<Message> {
+  return ctx.reply(text, withSilentNotification(extra));
+}
+
+function getNotificationExtra(notify: boolean, extra?: ReplyExtra): ReplyExtra | undefined {
+  return notify ? extra : withSilentNotification(extra);
+}
+
+async function sendTextMessage(
+  ctx: Context,
+  text: string,
+  options: { parseModeHtml?: boolean; notify?: boolean } = {}
+): Promise<Message> {
+  if (options.parseModeHtml) {
+    return ctx.reply(
+      text,
+      getNotificationExtra(options.notify ?? false, { parse_mode: "HTML" })
+    );
+  }
+  return ctx.reply(text, getNotificationExtra(options.notify ?? false));
+}
+
+async function sendRenderedContent(
+  ctx: Context,
+  formatted: string,
+  notify: boolean
+): Promise<Message[]> {
+  if (formatted.length <= TELEGRAM_MESSAGE_LIMIT) {
+    try {
+      return [await sendTextMessage(ctx, formatted, { parseModeHtml: true, notify })];
+    } catch (htmlError) {
+      streamLog.debug({ err: htmlError }, "HTML content send failed, using plain text");
+      try {
+        return [await sendTextMessage(ctx, formatted, { notify })];
+      } catch (plainError) {
+        streamLog.debug({ err: plainError }, "Plain content send failed");
+        return [];
+      }
+    }
+  }
+
+  return sendChunkedMessages(ctx, formatted, { notifyFinalChunk: notify });
+}
+
+function setLastNotifiableOutput(
+  state: StreamingState,
+  messages: Message[],
+  resend: (ctx: Context, notify: boolean) => Promise<Message[]>,
+  options: { replaceExisting?: boolean } = {}
+): void {
+  state.lastNotifiableOutput = {
+    messages,
+    resend,
+    replaceExisting: options.replaceExisting === true,
+  };
+}
+
 function startHeartbeat(ctx: Context, state: StreamingState): void {
   if (state.heartbeatTimer) return;
   state.statusStartedAt = Date.now();
@@ -825,7 +983,7 @@ function startHeartbeat(ctx: Context, state: StreamingState): void {
           { parse_mode: "HTML" }
         );
       } else {
-        const msg = await ctx.reply(text, { parse_mode: "HTML" });
+        const msg = await replySilently(ctx, text, { parse_mode: "HTML" });
         state.heartbeatMessage = msg;
         state.toolMessages.push(msg);
       }
@@ -943,21 +1101,69 @@ function formatWithinLimit(
  */
 async function sendChunkedMessages(
   ctx: Context,
-  content: string
-): Promise<void> {
+  content: string,
+  options: { notifyFinalChunk?: boolean } = {}
+): Promise<Message[]> {
+  const messages: Message[] = [];
+  const chunks: string[] = [];
+
   // Split on markdown content first, then format each chunk
   for (let i = 0; i < content.length; i += TELEGRAM_SAFE_LIMIT) {
-    const chunk = content.slice(i, i + TELEGRAM_SAFE_LIMIT);
+    chunks.push(content.slice(i, i + TELEGRAM_SAFE_LIMIT));
+  }
+
+  for (let idx = 0; idx < chunks.length; idx += 1) {
+    const chunk = chunks[idx]!;
+    const notifyThisChunk = options.notifyFinalChunk === true && idx === chunks.length - 1;
     try {
-      await ctx.reply(chunk, { parse_mode: "HTML" });
+      const msg = notifyThisChunk
+        ? await ctx.reply(chunk, { parse_mode: "HTML" })
+        : await replySilently(ctx, chunk, { parse_mode: "HTML" });
+      messages.push(msg);
     } catch {
       // HTML failed (possibly broken tags from split) - try plain text
       try {
-        await ctx.reply(chunk);
+        const msg = notifyThisChunk
+          ? await ctx.reply(chunk)
+          : await replySilently(ctx, chunk);
+        messages.push(msg);
       } catch (plainError) {
         streamLog.debug({ err: plainError }, "Failed to send chunk");
       }
     }
+  }
+
+  return messages;
+}
+
+async function promoteFinalSegmentNotification(
+  ctx: Context,
+  state: StreamingState
+): Promise<void> {
+  const output = state.lastNotifiableOutput;
+  if (!output) {
+    return;
+  }
+
+  if (output.replaceExisting) {
+    for (const msg of output.messages) {
+      try {
+        await ctx.api.deleteMessage(msg.chat.id, msg.message_id);
+      } catch (error) {
+        if (!isIgnorableDeleteMessageError(error)) {
+          streamLog.debug(
+            { errorSummary: describeError(error), chatId: msg.chat.id, messageId: msg.message_id },
+            "Failed to delete last notifiable output before promotion"
+          );
+        }
+      }
+    }
+  }
+
+  try {
+    output.messages = await output.resend(ctx, true);
+  } catch (error) {
+    streamLog.debug({ err: error }, "Failed to promote last notifiable output");
   }
 }
 
@@ -994,7 +1200,7 @@ export function createStatusCallback(
         const preview =
           content.length > 500 ? content.slice(0, 500) + "..." : content;
         const escaped = escapeHtml(preview);
-        const thinkingMsg = await ctx.reply(`<i>${escaped}</i>`, {
+        const thinkingMsg = await replySilently(ctx, `<i>${escaped}</i>`, {
           parse_mode: "HTML",
         });
         state.toolMessages.push(thinkingMsg);
@@ -1009,12 +1215,12 @@ export function createStatusCallback(
         // Tool status content is pre-formatted HTML (from formatToolStatus
         // or formatCodexToolStatus) — do NOT double-escape.
         try {
-          const toolMsg = await ctx.reply(content, { parse_mode: "HTML" });
+          const toolMsg = await replySilently(ctx, content, { parse_mode: "HTML" });
           state.toolMessages.push(toolMsg);
         } catch (htmlError) {
           // HTML parse failed (unexpected entity edge case) - try plain text
           streamLog.debug({ err: htmlError }, "HTML tool status failed, using plain text");
-          const toolMsg = await ctx.reply(escapeHtml(content));
+          const toolMsg = await replySilently(ctx, escapeHtml(content));
           state.toolMessages.push(toolMsg);
         }
       } else if (statusType === "text" && segmentId !== undefined) {
@@ -1025,14 +1231,16 @@ export function createStatusCallback(
           // New segment - create message
           const formatted = formatWithinLimit(content);
           try {
-            const msg = await ctx.reply(formatted, { parse_mode: "HTML" });
+            const msg = await replySilently(ctx, formatted, { parse_mode: "HTML" });
             state.textMessages.set(segmentId, msg);
+            state.renderedTextMessages.set(segmentId, [msg]);
             state.lastContent.set(segmentId, formatted);
           } catch (htmlError) {
             // HTML parse failed, fall back to plain text
             streamLog.debug({ err: htmlError }, "HTML reply failed, using plain text");
-            const msg = await ctx.reply(formatted);
+            const msg = await replySilently(ctx, formatted);
             state.textMessages.set(segmentId, msg);
+            state.renderedTextMessages.set(segmentId, [msg]);
             state.lastContent.set(segmentId, formatted);
           }
           state.lastEditTimes.set(segmentId, now);
@@ -1084,6 +1292,12 @@ export function createStatusCallback(
 
             // Skip if content unchanged
             if (formatted === state.lastContent.get(segmentId)) {
+              setLastNotifiableOutput(
+                state,
+                state.renderedTextMessages.get(segmentId) || [msg],
+                async (targetCtx, notify) => sendRenderedContent(targetCtx, formatted, notify),
+                { replaceExisting: true }
+              );
               return;
             }
 
@@ -1097,6 +1311,8 @@ export function createStatusCallback(
                     parse_mode: "HTML",
                   }
                 );
+                state.renderedTextMessages.set(segmentId, [msg]);
+                state.lastContent.set(segmentId, formatted);
               } catch (error) {
                 const errorStr = String(error);
                 if (errorStr.includes("MESSAGE_TOO_LONG")) {
@@ -1106,7 +1322,13 @@ export function createStatusCallback(
                   } catch (delError) {
                     streamLog.debug({ err: delError }, "Failed to delete for chunking");
                   }
-                  await sendChunkedMessages(ctx, formatted);
+                  const messages = await sendChunkedMessages(ctx, formatted);
+                  state.renderedTextMessages.set(segmentId, messages);
+                  if (messages.length > 0) {
+                    const lastMsg = messages[messages.length - 1]!;
+                    state.textMessages.set(segmentId, lastMsg);
+                    state.lastContent.set(segmentId, formatted);
+                  }
                 } else {
                   streamLog.debug({ err: error }, "Failed to edit final message");
                 }
@@ -1118,27 +1340,53 @@ export function createStatusCallback(
               } catch (error) {
                 streamLog.debug({ err: error }, "Failed to delete message for splitting");
               }
-              await sendChunkedMessages(ctx, formatted);
+              const messages = await sendChunkedMessages(ctx, formatted);
+              state.renderedTextMessages.set(segmentId, messages);
+              if (messages.length > 0) {
+                const lastMsg = messages[messages.length - 1]!;
+                state.textMessages.set(segmentId, lastMsg);
+                state.lastContent.set(segmentId, formatted);
+              }
             }
           } else {
             // No streaming message was created (response was too short to trigger
             // the throttled text callback). Send the final content as a new message.
             if (formatted.length <= TELEGRAM_MESSAGE_LIMIT) {
               try {
-                await ctx.reply(formatted, { parse_mode: "HTML" });
+                const msg = await replySilently(ctx, formatted, { parse_mode: "HTML" });
+                state.textMessages.set(segmentId, msg);
+                state.renderedTextMessages.set(segmentId, [msg]);
+                state.lastContent.set(segmentId, formatted);
               } catch {
                 try {
-                  await ctx.reply(formatted);
+                  const msg = await replySilently(ctx, formatted);
+                  state.textMessages.set(segmentId, msg);
+                  state.renderedTextMessages.set(segmentId, [msg]);
+                  state.lastContent.set(segmentId, formatted);
                 } catch (plainError) {
                   streamLog.debug({ err: plainError }, "Failed to send short segment");
                 }
               }
             } else {
-              await sendChunkedMessages(ctx, formatted);
+              const messages = await sendChunkedMessages(ctx, formatted);
+              state.renderedTextMessages.set(segmentId, messages);
+              if (messages.length > 0) {
+                const lastMsg = messages[messages.length - 1]!;
+                state.textMessages.set(segmentId, lastMsg);
+                state.lastContent.set(segmentId, formatted);
+              }
             }
           }
+
+          setLastNotifiableOutput(
+            state,
+            state.renderedTextMessages.get(segmentId) || [],
+            async (targetCtx, notify) => sendRenderedContent(targetCtx, formatted, notify),
+            { replaceExisting: true }
+          );
         }
       } else if (statusType === "done") {
+        await promoteFinalSegmentNotification(ctx, state);
         await teardownStreamingState(ctx, state, {
           chatId,
           clearRegisteredState: true,
