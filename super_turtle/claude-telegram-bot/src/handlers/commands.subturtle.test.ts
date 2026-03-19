@@ -134,7 +134,10 @@ describe("/subturtle", () => {
     const keyboard = (replies[0]!.extra?.reply_markup as { inline_keyboard?: Array<Array<{ callback_data?: string }>> })?.inline_keyboard;
     expect(Array.isArray(keyboard)).toBe(true);
     expect(keyboard?.flat().some((button) => button.callback_data === "sub_board_refresh")).toBe(false);
-    expect(keyboard?.flat().some((button) => button.callback_data === `sub_board_pick:${turtleName}`)).toBe(true);
+    expect(keyboard?.flat().some((button) => button.callback_data === `sub_board_pick:${turtleName}`)).toBe(false);
+    expect(keyboard?.flat().some((button) => button.callback_data === `sub_board_bl:${turtleName}:0`)).toBe(true);
+    expect(keyboard?.flat().some((button) => button.callback_data === `sub_board_lg:${turtleName}:0`)).toBe(true);
+    expect(keyboard?.flat().some((button) => button.callback_data === `sub_board_stop:${turtleName}`)).toBe(true);
     expect(keyboard?.flat().some((button) => button.callback_data === `subturtle_stop:${turtleName}`)).toBe(false);
     expect(keyboard?.flat().some((button) => button.callback_data === `subturtle_logs:${turtleName}`)).toBe(false);
     expect(keyboard?.flat().some((button) => button.callback_data === `sub_bl:${turtleName}:0`)).toBe(false);

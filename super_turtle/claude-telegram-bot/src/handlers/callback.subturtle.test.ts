@@ -197,6 +197,8 @@ describe("subturtle callback actions", () => {
     expect(edits).toHaveLength(1);
     expect(edits[0]?.text).toContain(`<b>${turtleName}</b>`);
     expect(edits[0]?.text).toContain("Review pagination callbacks.");
+    expect(edits[0]?.text).not.toContain("🟢");
+    expect(edits[0]?.text).not.toContain("Current:");
     const keyboard = (edits[0]?.extra as any)?.reply_markup?.inline_keyboard || [];
     expect(keyboard.flat().some((button: any) => button.callback_data === "sub_menu:1")).toBe(true);
   });
@@ -358,7 +360,7 @@ describe("backlog pagination", () => {
     expect(callbackAnswers).toEqual([""]);
     expect(edits).toHaveLength(1);
     const text = edits[0]!.text;
-    expect(text).toContain(`Backlog for ${turtleName}`);
+    expect(text).toContain(`Tasks for ${turtleName}`);
     expect(text).toContain("3/8 done");
     expect(text).toContain("page 1/2");
     expect(text).toContain("Done item 1");

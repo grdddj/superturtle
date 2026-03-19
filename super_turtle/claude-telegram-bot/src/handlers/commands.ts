@@ -2400,35 +2400,24 @@ function buildSubturtleDetailMessage(
     const statePath = `${SUPERTURTLE_SUBTURTLES_DIR}/${turtle.name}/CLAUDE.md`;
     const summary = await readClaudeStateSummary(statePath);
 
-    const statusEmoji = turtle.status === "running" ? "🟢" : "⚫";
-    let timeStr = "";
-    if (turtle.timeRemaining) {
-      const suffix = turtle.timeRemaining === "OVERDUE" || turtle.timeRemaining === "no timeout"
-        ? ""
-        : " left";
-      timeStr = ` • ${turtle.timeRemaining}${suffix}`;
-    }
-
     const taskSource = summary?.currentTask || turtle.task || "No current task";
-    const lines: string[] = [
-      `${statusEmoji} <b>${escapeHtml(turtle.name)}</b>${escapeHtml(timeStr)}`,
-      `🧩 ${convertMarkdownToHtml(taskSource)}`,
-    ];
+    const metaLine = formatLiveBoardMetaLine(turtle, summary);
+    const lines: string[] = [`<b>${escapeHtml(turtle.name)}</b>`, "", convertMarkdownToHtml(taskSource)];
 
-    if (summary) {
-      lines.push(`📌 ${convertMarkdownToHtml(formatBacklogSummary(summary))}`);
+    if (metaLine) {
+      lines.push("", metaLine);
     }
 
     if (turtle.tunnelUrl) {
-      lines.push(`🔗 ${escapeHtml(turtle.tunnelUrl)}`);
+      lines.push("", escapeHtml(turtle.tunnelUrl));
     }
 
     const keyboard: InlineKeyboardButton[][] = [
-      [{ text: "🛑 Stop", callback_data: stopCallbackData }],
       [
-        { text: "📝 Backlog", callback_data: backlogCallbackData },
-        { text: "📜 Logs", callback_data: logsCallbackData },
+        { text: "Tasks", callback_data: backlogCallbackData },
+        { text: "Logs", callback_data: logsCallbackData },
       ],
+      [{ text: "Stop", callback_data: stopCallbackData }],
     ];
 
     if (options.backButton) {
@@ -2467,7 +2456,7 @@ export async function buildSubturtleBacklogMessage(
   const pageItems = backlog.slice(start, start + BACKLOG_PAGE_SIZE);
   const doneCount = backlog.filter((item) => item.done).length;
   const lines: string[] = [
-    `📝 <b>Backlog for ${escapeHtml(name)}</b>`,
+    `📝 <b>Tasks for ${escapeHtml(name)}</b>`,
     `${doneCount}/${backlog.length} done — page ${safePage + 1}/${totalPages}`,
     "",
   ];
@@ -2569,7 +2558,7 @@ async function buildLiveSubturtleBoardPayload(
         stopCallbackData: `sub_board_stop:${view.name}`,
         backlogCallbackData: `sub_board_bl:${view.name}:0`,
         logsCallbackData: `sub_board_lg:${view.name}:0`,
-        backButton: { text: "↩ Board", callback_data: "sub_board_home" },
+        backButton: { text: "Back", callback_data: "sub_board_home" },
       });
       return { ...payload, view };
     }
@@ -2578,7 +2567,7 @@ async function buildLiveSubturtleBoardPayload(
   if (view.kind === "backlog") {
     const payload = await buildSubturtleBacklogMessage(view.name, view.page, {
       callbackPrefix: "sub_board_bl:",
-      backButton: { text: "↩ Worker", callback_data: `sub_board_pick:${view.name}` },
+      backButton: { text: "Back", callback_data: `sub_board_pick:${view.name}` },
     });
     if (payload) {
       return { ...payload, view };
@@ -2588,7 +2577,7 @@ async function buildLiveSubturtleBoardPayload(
   if (view.kind === "logs") {
     const payload = await buildSubturtleLogMessage(view.name, view.page, {
       callbackPrefix: "sub_board_lg:",
-      backButton: { text: "↩ Worker", callback_data: `sub_board_pick:${view.name}` },
+      backButton: { text: "Back", callback_data: `sub_board_pick:${view.name}` },
     });
     if (payload) {
       return { ...payload, view };
@@ -2607,10 +2596,19 @@ async function buildLiveSubturtleBoardPayload(
   const messageLines = await buildLiveSubturtleBoardHomeLines(turtles);
   const keyboard: InlineKeyboardButton[][] = [];
 
-  for (const turtle of runningTurtles.slice(0, LIVE_SUBTURTLE_BOARD_MAX_BUTTONS)) {
+  if (runningTurtles.length === 1) {
+    const turtle = runningTurtles[0]!;
     keyboard.push([
-      { text: `🐢 ${turtle.name}`, callback_data: `sub_board_pick:${turtle.name}` },
+      { text: "Tasks", callback_data: `sub_board_bl:${turtle.name}:0` },
+      { text: "Logs", callback_data: `sub_board_lg:${turtle.name}:0` },
     ]);
+    keyboard.push([{ text: "Stop", callback_data: `sub_board_stop:${turtle.name}` }]);
+  } else {
+    for (const turtle of runningTurtles.slice(0, LIVE_SUBTURTLE_BOARD_MAX_BUTTONS)) {
+      keyboard.push([
+        { text: `🐢 ${turtle.name}`, callback_data: `sub_board_pick:${turtle.name}` },
+      ]);
+    }
   }
 
   if (runningTurtles.length > LIVE_SUBTURTLE_BOARD_MAX_BUTTONS) {
