@@ -56,3 +56,15 @@ These touched nearby files but look secondary to the retained-progress / streami
 - `bd78702e` `Isolate subturtle handler tests from config mock leaks` -> `super_turtle/claude-telegram-bot/src/handlers/callback.ts`, `super_turtle/claude-telegram-bot/src/handlers/commands.ts`, subturtle handler tests
 - `9399ab84` `Fix subturtle board pin lifecycle` -> `super_turtle/claude-telegram-bot/src/handlers/commands.ts`, `super_turtle/claude-telegram-bot/src/handlers/commands.subturtle.test.ts`
 - `d664d182` `Stabilize Telegram bot CI tests` -> mixed test-harness stabilization with incidental `streaming.test.ts`, `session.ts`, and `session.ask-user.test.ts` changes
+
+## Findings
+
+1. High: `createStatusCallback()` can leak a new progress message after the run has already been torn down. `createStatusCallback()` kicks off the initial `Starting` render via a fire-and-forget `void applyProgressStateUpdate(...)` at `super_turtle/claude-telegram-bot/src/handlers/streaming.ts:1842-1849`, but `teardownStreamingState()` at `super_turtle/claude-telegram-bot/src/handlers/streaming.ts:1653-1672` neither waits for nor cancels `state.progressUpdateChain`. `updateProgressMessage()` at `super_turtle/claude-telegram-bot/src/handlers/streaming.ts:1355-1454` also has no `state.teardownCompleted` guard before falling back to `ctx.reply(...)`. That makes late progress sends reachable from `handleText()` cancellation/error teardown paths at `super_turtle/claude-telegram-bot/src/handlers/text.ts:282-313`: if the driver exits before the initial progress send resolves, teardown runs first and the queued update still posts a fresh blank progress bubble afterward. I reproduced this with a probe that called `createStatusCallback()`, immediately `teardownStreamingState()`, then awaited `state.progressUpdateChain`; it still emitted a silent zero-width progress reply after teardown.
+
+2. Medium: the snapshot filter now drops the required `Still working` history entry, so the retained viewer loses heartbeat-state navigation. `startHeartbeat()` explicitly asks to store a snapshot when entering `Still working` at `super_turtle/claude-telegram-bot/src/handlers/streaming.ts:1626-1632`, but `recordProgressSnapshot()` now returns early for every non-terminal state except `Writing answer` at `super_turtle/claude-telegram-bot/src/handlers/streaming.ts:1169-1173`. That contradicts the active UX spec, which still requires storing the heartbeat transition into `Still working` in the snapshot history (`super_turtle/docs/TELEGRAM_PROGRESS_UX_SPEC.md:136-143`). A simple probe (`thinking` -> 20s idle heartbeat -> `done`) produced only a terminal `Done` snapshot, so the viewer can no longer page back to the idle-state transition, and the updated tests no longer cover that regression.
+
+## Verification
+
+- `bun test super_turtle/claude-telegram-bot/src/handlers/streaming.test.ts super_turtle/claude-telegram-bot/src/handlers/text.progress.test.ts`
+- Manual repro probe for the post-teardown progress-send race in `streaming.ts`
+- Manual repro probe for missing `Still working` snapshot retention

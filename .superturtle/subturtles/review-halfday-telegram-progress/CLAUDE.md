@@ -1,6 +1,6 @@
 # Current task
 
-Review `src/handlers/streaming.ts` and `src/handlers/text.ts` from the scoped Telegram progress lane for state and sequencing regressions.
+Review `src/handlers/stop.ts`, `src/handlers/commands.ts`, and `src/handlers/callback.ts` for retained-progress edge cases.
 
 # End goal with specs
 
@@ -25,8 +25,8 @@ Review `src/handlers/streaming.ts` and `src/handlers/text.ts` from the scoped Te
 # Backlog
 
 - [x] Collect the exact commit list and touched files for the Telegram progress lane
-- [ ] Review `src/handlers/streaming.ts` and `src/handlers/text.ts` for state and sequencing regressions <- current
-- [ ] Review `src/handlers/stop.ts`, `src/handlers/commands.ts`, and `src/handlers/callback.ts` for retained-progress edge cases
+- [x] Review `src/handlers/streaming.ts` and `src/handlers/text.ts` for state and sequencing regressions
+- [ ] Review `src/handlers/stop.ts`, `src/handlers/commands.ts`, and `src/handlers/callback.ts` for retained-progress edge cases <- current
 - [ ] Review supporting helpers such as `src/message-kinds.ts`, `src/types.ts`, and `src/session.ts`
 - [ ] Audit the new and modified tests for missing scenarios or false confidence
 - [ ] Write prioritized findings in `review.md` with concrete file references and residual risks
