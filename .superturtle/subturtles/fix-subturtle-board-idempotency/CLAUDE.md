@@ -1,6 +1,6 @@
 # Current task
 
-Run the relevant bot test slice and fix any failures caused by the changes. Targeted coverage in `src/handlers/commands.subturtle.test.ts` already passes with the new recovery and dedupe regressions.
+All backlog items are complete. Stop the loop.
 
 # End goal with specs
 
@@ -28,5 +28,8 @@ Run the relevant bot test slice and fix any failures caused by the changes. Targ
 - [x] Rewrite or remove the unsafe board-record test behavior in `src/handlers/commands.subturtle.test.ts` using a temp working/data dir fixture so tests never touch the live tracking file
 - [x] Implement idempotent live-board reconciliation by reusing the callback target message when present and otherwise recovering the currently pinned SubTurtle board before creating a new one
 - [x] Add regression tests for record deletion / stale record / recreate paths and pinned-message dedupe behavior, including pinned-board recovery when the record is missing
-- [ ] Run the relevant bot test slice and fix any failures caused by the changes <- current
-- [ ] Update this state file to reflect progress and stop only when the backlog is complete
+- [x] Run the relevant bot test slice and fix any failures caused by the changes
+- [x] Update this state file to reflect progress and stop only when the backlog is complete
+
+## Loop Control
+STOP
