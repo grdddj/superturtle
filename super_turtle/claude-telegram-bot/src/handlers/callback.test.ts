@@ -120,13 +120,113 @@ describe("handleCallback Codex switching and controls", () => {
     expect(result.exitCode).toBe(0);
     expect(result.payload).not.toBeNull();
     expect(result.payload?.callbackAnswers).toEqual([{}]);
-    expect(result.payload?.lastEdit?.text || "").toContain("3 / 4");
+    expect(result.payload?.lastEdit?.text || "").toContain("2 / 3");
     expect(result.payload?.lastEdit?.text || "").toContain("Tool step completed");
     expect(
       result.payload?.lastEdit?.extra?.reply_markup?.inline_keyboard?.flat().map(
         (button) => button.callback_data || ""
       )
     ).toEqual(["progress_nav:back", "progress_nav:next"]);
+  });
+
+  it("silently answers retained progress navigation at the history boundary", async () => {
+    const result = await runCallbackProbe<{
+      callbackAnswers: Array<{ text?: string }>;
+      editCountBeforeBoundaryTap: number;
+      editCountAfterBoundaryTap: number;
+      lastEditText?: string;
+    }>(`
+      const { handleCallback } = await import(callbackPath);
+      const {
+        StreamingState,
+        createStatusCallback,
+        navigateRetainedProgressViewer,
+      } = await import(streamingPath);
+
+      const callbackAnswers = [];
+      const editCalls = [];
+      const ctx = {
+        from: { id: 123, username: "tester" },
+        chat: { id: 123, type: "private" },
+        callbackQuery: {
+          data: "progress_nav:back",
+          message: { message_id: 1 },
+        },
+        answerCallbackQuery: async (payload) => {
+          callbackAnswers.push(payload || {});
+        },
+        reply: async () => ({
+          chat: { id: 123 },
+          message_id: 1,
+        }),
+        api: {
+          editMessageText: async (_chatId, _messageId, text, extra) => {
+            editCalls.push({ text: String(text), extra: extra || {} });
+          },
+          deleteMessage: async () => {},
+        },
+      };
+
+      const state = new StreamingState();
+      const statusCallback = createStatusCallback(ctx, state, { showToolStatus: true });
+      await state.progressUpdateChain;
+      await statusCallback("thinking", "Planning the answer");
+      await statusCallback("tool", "Tool step completed");
+      await statusCallback("done", "");
+
+      await navigateRetainedProgressViewer(ctx, "back");
+      await navigateRetainedProgressViewer(ctx, "back");
+
+      const editCountBeforeBoundaryTap = editCalls.length;
+      await handleCallback(ctx);
+
+      console.log(marker + JSON.stringify({
+        callbackAnswers,
+        editCountBeforeBoundaryTap,
+        editCountAfterBoundaryTap: editCalls.length,
+        lastEditText: editCalls[editCalls.length - 1]?.text,
+      }));
+    `);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.payload).not.toBeNull();
+    expect(result.payload?.callbackAnswers).toEqual([{}]);
+    expect(result.payload?.editCountAfterBoundaryTap).toBe(
+      result.payload?.editCountBeforeBoundaryTap
+    );
+    expect(result.payload?.lastEditText || "").toContain("1 / 3");
+    expect(result.payload?.lastEditText || "").toContain("Planning the answer");
+  });
+
+  it("reports missing retained progress history when no viewer is registered", async () => {
+    const result = await runCallbackProbe<{
+      callbackAnswers: Array<{ text?: string }>;
+    }>(`
+      const { handleCallback } = await import(callbackPath);
+
+      const callbackAnswers = [];
+      const ctx = {
+        from: { id: 123, username: "tester" },
+        chat: { id: 123, type: "private" },
+        callbackQuery: {
+          data: "progress_nav:next",
+          message: { message_id: 99 },
+        },
+        answerCallbackQuery: async (payload) => {
+          callbackAnswers.push(payload || {});
+        },
+      };
+
+      await handleCallback(ctx);
+
+      console.log(marker + JSON.stringify({ callbackAnswers }));
+    `);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.payload).not.toBeNull();
+    expect(result.payload?.callbackAnswers).toEqual([
+      { text: "Progress history unavailable" },
+    ]);
   });
 
   it("claude model callback re-renders the picker keyboard after selection", async () => {
