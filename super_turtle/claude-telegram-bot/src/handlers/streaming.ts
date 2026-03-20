@@ -44,6 +44,7 @@ const HEARTBEAT_IDLE_MS = 20_000;
 const HEARTBEAT_REFRESH_MS = 30_000;
 const HEARTBEAT_TICK_MS = 1_000;
 const REQUEST_LOCK_STALE_MS = 60_000;
+const MAX_PROGRESS_SNAPSHOTS = 12;
 
 type CanonicalProgressState =
   | "Starting"
@@ -67,6 +68,16 @@ const DEFAULT_PROGRESS_SUMMARY: Record<CanonicalProgressState, string> = {
   Done: "Reply ready.",
   Failed: "The run failed.",
 };
+
+interface ProgressSnapshot {
+  progressState: CanonicalProgressState;
+  summary: string;
+  toolHint: string | null;
+  elapsedMs: number;
+  terminal: boolean;
+}
+
+const retainedProgressViewers = new Map<string, StreamingState>();
 
 function getIpcDir(): string {
   const override = process.env.SUPERTURTLE_IPC_DIR?.trim();
@@ -899,6 +910,7 @@ export class StreamingState {
   lastContent = new Map<number, string>(); // segment_id -> last sent content
   progressMessage: Message | null = null; // retained silent progress message for foreground runs
   lastProgressContent: string | null = null;
+  lastProgressControlsKey: string | null = null;
   progressUpdateChain: Promise<void> = Promise.resolve();
   hasTextSegmentOutput = false;
   lastNotifiableOutput: {
@@ -916,6 +928,10 @@ export class StreamingState {
   progressState: CanonicalProgressState = "Starting";
   progressSummary = DEFAULT_PROGRESS_SUMMARY.Starting;
   progressToolHint: string | null = null;
+  progressSnapshots: ProgressSnapshot[] = [];
+  progressViewerCompleted = false;
+  selectedProgressSnapshotIndex: number | null = null;
+  retainedProgressViewerKey: string | null = null;
   lastAnswerPreview: string | null = null;
   lastHeartbeatAt = 0;
   teardownCompleted = false;
@@ -930,6 +946,35 @@ export class StreamingState {
 
 const activeStreamingStates = new Map<number, StreamingState>();
 
+function getRetainedProgressViewerKey(chatId: number, messageId: number): string {
+  return `${chatId}:${messageId}`;
+}
+
+function unregisterRetainedProgressViewer(state: StreamingState): void {
+  if (!state.retainedProgressViewerKey) {
+    return;
+  }
+  retainedProgressViewers.delete(state.retainedProgressViewerKey);
+  state.retainedProgressViewerKey = null;
+}
+
+function registerRetainedProgressViewer(state: StreamingState): void {
+  if (!state.progressViewerCompleted || !state.progressMessage) {
+    unregisterRetainedProgressViewer(state);
+    return;
+  }
+
+  const nextKey = getRetainedProgressViewerKey(
+    state.progressMessage.chat.id,
+    state.progressMessage.message_id
+  );
+  if (state.retainedProgressViewerKey && state.retainedProgressViewerKey !== nextKey) {
+    retainedProgressViewers.delete(state.retainedProgressViewerKey);
+  }
+  retainedProgressViewers.set(nextKey, state);
+  state.retainedProgressViewerKey = nextKey;
+}
+
 export function getStreamingState(chatId: number): StreamingState | undefined {
   return activeStreamingStates.get(chatId);
 }
@@ -940,6 +985,35 @@ export function clearStreamingState(chatId: number): void {
     stopHeartbeat(existing);
   }
   activeStreamingStates.delete(chatId);
+}
+
+export async function navigateRetainedProgressViewer(
+  ctx: Context,
+  direction: "back" | "next"
+): Promise<"updated" | "boundary" | "missing"> {
+  const chatId = ctx.chat?.id;
+  const messageId = ctx.callbackQuery?.message?.message_id;
+  if (typeof chatId !== "number" || typeof messageId !== "number") {
+    return "missing";
+  }
+
+  const viewer = retainedProgressViewers.get(
+    getRetainedProgressViewerKey(chatId, messageId)
+  );
+  if (!viewer || viewer.progressSnapshots.length < 2) {
+    return "missing";
+  }
+
+  const currentIndex =
+    viewer.selectedProgressSnapshotIndex ?? viewer.progressSnapshots.length - 1;
+  const nextIndex = direction === "back" ? currentIndex - 1 : currentIndex + 1;
+  if (nextIndex < 0 || nextIndex >= viewer.progressSnapshots.length) {
+    return "boundary";
+  }
+
+  viewer.selectedProgressSnapshotIndex = nextIndex;
+  await queueRenderedProgressMessageUpdate(ctx, viewer);
+  return "updated";
 }
 
 function describeError(error: unknown): string {
@@ -978,8 +1052,10 @@ export async function cleanupToolMessages(ctx: Context, state: StreamingState): 
 async function clearProgressMessage(ctx: Context, state: StreamingState): Promise<void> {
   if (!state.progressMessage) return;
   const msg = state.progressMessage;
+  unregisterRetainedProgressViewer(state);
   state.progressMessage = null;
   state.lastProgressContent = null;
+  state.lastProgressControlsKey = null;
   try {
     await ctx.api.deleteMessage(msg.chat.id, msg.message_id);
   } catch (error) {
@@ -1065,17 +1141,120 @@ function formatElapsed(ms: number): string {
   return `${minutes}m ${seconds}s`;
 }
 
-function renderProgressMessage(state: StreamingState): string {
-  const footerParts = [`Elapsed ${formatElapsed(Date.now() - state.statusStartedAt)}`];
-  if (state.progressToolHint) {
-    footerParts.push(state.progressToolHint);
+function getSelectedProgressSnapshot(state: StreamingState): ProgressSnapshot | null {
+  if (
+    !state.progressViewerCompleted ||
+    state.selectedProgressSnapshotIndex === null
+  ) {
+    return null;
+  }
+  return state.progressSnapshots[state.selectedProgressSnapshotIndex] || null;
+}
+
+function trimProgressSnapshots(state: StreamingState): void {
+  while (state.progressSnapshots.length > MAX_PROGRESS_SNAPSHOTS) {
+    const removalIndex = state.progressSnapshots.findIndex((snapshot) => !snapshot.terminal);
+    const safeIndex = removalIndex === -1 ? 0 : removalIndex;
+    state.progressSnapshots.splice(safeIndex, 1);
+    if (
+      state.selectedProgressSnapshotIndex !== null &&
+      state.selectedProgressSnapshotIndex >= safeIndex
+    ) {
+      state.selectedProgressSnapshotIndex = Math.max(
+        0,
+        state.selectedProgressSnapshotIndex - 1
+      );
+    }
+  }
+}
+
+function recordProgressSnapshot(
+  state: StreamingState,
+  options: { force?: boolean; terminal?: boolean } = {}
+): void {
+  const snapshot: ProgressSnapshot = {
+    progressState: state.progressState,
+    summary: state.progressSummary,
+    toolHint: state.progressToolHint,
+    elapsedMs: Math.max(0, Date.now() - state.statusStartedAt),
+    terminal: options.terminal === true,
+  };
+  const previous = state.progressSnapshots[state.progressSnapshots.length - 1];
+  const isDuplicate =
+    previous &&
+    previous.progressState === snapshot.progressState &&
+    previous.summary === snapshot.summary &&
+    previous.toolHint === snapshot.toolHint;
+
+  if (!options.force && isDuplicate) {
+    if (options.terminal === true && previous) {
+      previous.terminal = true;
+    }
+    return;
   }
 
-  return [
-    `<b>${escapeHtml(state.progressState)}</b>`,
-    escapeHtml(state.progressSummary),
-    `<i>${escapeHtml(footerParts.join(" • "))}</i>`,
-  ].join("\n");
+  state.progressSnapshots.push(snapshot);
+  trimProgressSnapshots(state);
+}
+
+function buildProgressKeyboard(state: StreamingState): InlineKeyboard | undefined {
+  if (!state.progressViewerCompleted || state.progressSnapshots.length < 2) {
+    return undefined;
+  }
+
+  const selectedIndex =
+    state.selectedProgressSnapshotIndex ?? state.progressSnapshots.length - 1;
+  const keyboard = new InlineKeyboard();
+  if (selectedIndex > 0) {
+    keyboard.text("Back", "progress_nav:back");
+  }
+  if (selectedIndex < state.progressSnapshots.length - 1) {
+    keyboard.text("Next", "progress_nav:next");
+  }
+
+  return (keyboard as { inline_keyboard?: unknown[] }).inline_keyboard?.length
+    ? keyboard
+    : undefined;
+}
+
+function renderProgressMessage(state: StreamingState): {
+  text: string;
+  replyMarkup?: InlineKeyboard;
+  controlsKey: string;
+} {
+  const snapshot = getSelectedProgressSnapshot(state);
+  const progressState = snapshot?.progressState ?? state.progressState;
+  const progressSummary = snapshot?.summary ?? state.progressSummary;
+  const progressToolHint = snapshot?.toolHint ?? state.progressToolHint;
+  const elapsedMs = snapshot?.elapsedMs ?? Date.now() - state.statusStartedAt;
+  const footerParts = [`Elapsed ${formatElapsed(elapsedMs)}`];
+  if (progressToolHint) {
+    footerParts.push(progressToolHint);
+  }
+  if (
+    state.progressViewerCompleted &&
+    state.progressSnapshots.length > 1 &&
+    state.selectedProgressSnapshotIndex !== null
+  ) {
+    footerParts.push(
+      `${state.selectedProgressSnapshotIndex + 1} / ${state.progressSnapshots.length}`
+    );
+  }
+
+  const replyMarkup = buildProgressKeyboard(state);
+
+  return {
+    text: [
+      `<b>${escapeHtml(progressState)}</b>`,
+      escapeHtml(progressSummary),
+      `<i>${escapeHtml(footerParts.join(" • "))}</i>`,
+    ].join("\n"),
+    replyMarkup,
+    controlsKey:
+      state.progressViewerCompleted && state.selectedProgressSnapshotIndex !== null
+        ? `${state.selectedProgressSnapshotIndex}:${state.progressSnapshots.length}`
+        : "live",
+  };
 }
 
 async function queueRenderedProgressMessageUpdate(
@@ -1093,8 +1272,16 @@ async function applyProgressStateUpdate(
     summary?: string;
     toolHint?: string | null;
     trackActivity?: boolean;
+    storeSnapshot?: boolean;
+    terminalSnapshot?: boolean;
   } = {}
 ): Promise<void> {
+  if (options.terminalSnapshot === true) {
+    state.progressViewerCompleted = true;
+  } else if (!state.progressViewerCompleted) {
+    state.selectedProgressSnapshotIndex = null;
+  }
+
   const nextSummary = options.summary ?? DEFAULT_PROGRESS_SUMMARY[progressState];
   const nextToolHint =
     options.toolHint === undefined ? state.progressToolHint : options.toolHint;
@@ -1112,15 +1299,29 @@ async function applyProgressStateUpdate(
     state.lastHeartbeatAt = 0;
   }
 
+  if (options.storeSnapshot === true) {
+    recordProgressSnapshot(state, { terminal: options.terminalSnapshot === true });
+    if (state.progressViewerCompleted) {
+      state.selectedProgressSnapshotIndex = state.progressSnapshots.length - 1;
+    }
+  }
+
   await queueRenderedProgressMessageUpdate(ctx, state);
 }
 
 async function updateProgressMessage(
   ctx: Context,
   state: StreamingState,
-  text: string
+  payload: {
+    text: string;
+    replyMarkup?: InlineKeyboard;
+    controlsKey: string;
+  }
 ): Promise<void> {
-  if (text === state.lastProgressContent) {
+  if (
+    payload.text === state.lastProgressContent &&
+    payload.controlsKey === state.lastProgressControlsKey
+  ) {
     return;
   }
 
@@ -1129,31 +1330,43 @@ async function updateProgressMessage(
       await ctx.api.editMessageText(
         state.progressMessage.chat.id,
         state.progressMessage.message_id,
-        text,
-        { parse_mode: "HTML" }
+        payload.text,
+        {
+          parse_mode: "HTML",
+          ...(payload.replyMarkup ? { reply_markup: payload.replyMarkup } : {}),
+        }
       );
-      state.lastProgressContent = text;
+      state.lastProgressContent = payload.text;
+      state.lastProgressControlsKey = payload.controlsKey;
+      registerRetainedProgressViewer(state);
       return;
     } catch (error) {
       const errorSummary = describeError(error).toLowerCase();
       if (errorSummary.includes("message is not modified")) {
-        state.lastProgressContent = text;
+        state.lastProgressContent = payload.text;
+        state.lastProgressControlsKey = payload.controlsKey;
+        registerRetainedProgressViewer(state);
         return;
       }
-      const plainText = toPlainProgressText(text);
+      const plainText = toPlainProgressText(payload.text);
       if (plainText.length > 0) {
         try {
           await ctx.api.editMessageText(
             state.progressMessage.chat.id,
             state.progressMessage.message_id,
-            plainText
+            plainText,
+            payload.replyMarkup ? { reply_markup: payload.replyMarkup } : undefined
           );
-          state.lastProgressContent = text;
+          state.lastProgressContent = payload.text;
+          state.lastProgressControlsKey = payload.controlsKey;
+          registerRetainedProgressViewer(state);
           return;
         } catch (plainError) {
           const plainErrorSummary = describeError(plainError).toLowerCase();
           if (plainErrorSummary.includes("message is not modified")) {
-            state.lastProgressContent = text;
+            state.lastProgressContent = payload.text;
+            state.lastProgressControlsKey = payload.controlsKey;
+            registerRetainedProgressViewer(state);
             return;
           }
           if (!isIgnorableDeleteMessageError(plainError)) {
@@ -1167,8 +1380,10 @@ async function updateProgressMessage(
       if (!isIgnorableDeleteMessageError(error)) {
         streamLog.debug({ err: error }, "Failed to edit retained progress message as HTML");
       }
+      unregisterRetainedProgressViewer(state);
       state.progressMessage = null;
       state.lastProgressContent = null;
+      state.lastProgressControlsKey = null;
     }
   }
 
@@ -1177,28 +1392,41 @@ async function updateProgressMessage(
   }
 
   try {
-    const msg = await replySilently(ctx, text, { parse_mode: "HTML" });
+    const msg = await replySilently(ctx, payload.text, {
+      parse_mode: "HTML",
+      ...(payload.replyMarkup ? { reply_markup: payload.replyMarkup } : {}),
+    });
     state.progressMessage = msg;
-    state.lastProgressContent = text;
+    state.lastProgressContent = payload.text;
+    state.lastProgressControlsKey = payload.controlsKey;
+    registerRetainedProgressViewer(state);
   } catch (error) {
-    const plainText = toPlainProgressText(text);
+    const plainText = toPlainProgressText(payload.text);
     if (plainText.length === 0) {
       throw error;
     }
-    const msg = await replySilently(ctx, plainText);
+    const msg = await replySilently(ctx, plainText, {
+      ...(payload.replyMarkup ? { reply_markup: payload.replyMarkup } : {}),
+    });
     state.progressMessage = msg;
-    state.lastProgressContent = text;
+    state.lastProgressContent = payload.text;
+    state.lastProgressControlsKey = payload.controlsKey;
+    registerRetainedProgressViewer(state);
   }
 }
 
 function queueProgressMessageUpdate(
   ctx: Context,
   state: StreamingState,
-  text: string
+  payload: {
+    text: string;
+    replyMarkup?: InlineKeyboard;
+    controlsKey: string;
+  }
 ): Promise<void> {
   state.progressUpdateChain = state.progressUpdateChain
     .catch(() => {})
-    .then(() => updateProgressMessage(ctx, state, text));
+    .then(() => updateProgressMessage(ctx, state, payload));
   return state.progressUpdateChain;
 }
 
@@ -1277,10 +1505,12 @@ function startHeartbeat(ctx: Context, state: StreamingState): void {
     state.heartbeatUpdating = true;
     try {
       state.lastHeartbeatAt = Date.now();
+      const enteringStillWorking = state.progressState !== "Still working";
       await applyProgressStateUpdate(ctx, state, "Still working", {
         summary: state.progressSummary,
         toolHint: state.progressToolHint,
         trackActivity: false,
+        storeSnapshot: enteringStillWorking,
       });
     } catch (error) {
       streamLog.debug({ errorSummary: describeError(error) }, "Heartbeat update skipped");
@@ -1478,10 +1708,12 @@ export function createStatusCallback(
     activeStreamingStates.set(chatId, state);
   }
   startHeartbeat(ctx, state);
+  recordProgressSnapshot(state, { force: true });
   if (typeof ctx.reply === "function") {
     void applyProgressStateUpdate(ctx, state, "Starting", {
       summary: DEFAULT_PROGRESS_SUMMARY.Starting,
       toolHint: null,
+      storeSnapshot: false,
     }).catch((error) => {
       streamLog.debug({ err: error }, "Failed to create retained progress message");
     });
@@ -1498,6 +1730,7 @@ export function createStatusCallback(
             DEFAULT_PROGRESS_SUMMARY.Thinking
           ),
           toolHint: null,
+          storeSnapshot: true,
         });
       } else if (statusType === "tool") {
         state.sawToolUse = true;
@@ -1517,6 +1750,7 @@ export function createStatusCallback(
             )
             : DEFAULT_PROGRESS_SUMMARY["Using tools"],
           toolHint: showToolDetails ? summarizeToolHint(content) : null,
+          storeSnapshot: true,
         });
       } else if (statusType === "text" && segmentId !== undefined) {
         const now = Date.now();
@@ -1534,6 +1768,7 @@ export function createStatusCallback(
           await applyProgressStateUpdate(ctx, state, "Writing answer", {
             summary: preview,
             toolHint: null,
+            storeSnapshot: true,
           });
           state.lastEditTimes.set(segmentId, now);
         }
@@ -1649,6 +1884,8 @@ export function createStatusCallback(
         await applyProgressStateUpdate(ctx, state, "Done", {
           summary: state.lastAnswerPreview || DEFAULT_PROGRESS_SUMMARY.Done,
           toolHint: null,
+          storeSnapshot: true,
+          terminalSnapshot: true,
         });
         await promoteFinalSegmentNotification(ctx, state);
         await teardownStreamingState(ctx, state, {

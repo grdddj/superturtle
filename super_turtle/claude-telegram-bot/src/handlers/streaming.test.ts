@@ -590,7 +590,12 @@ describe("streaming notifications", () => {
       "Done",
       "Hello from Super Turtle"
     );
-    expect(editMessageTextMock.mock.calls[1]?.[3]).toEqual({ parse_mode: "HTML" });
+    expect(editMessageTextMock.mock.calls[1]?.[3]).toMatchObject({
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [[{ text: "Back", callback_data: "progress_nav:back" }]],
+      },
+    });
     expect(deleteMessageMock).toHaveBeenCalledTimes(1);
     expect(deleteMessageMock).toHaveBeenCalledWith(123, 2);
   });
@@ -735,6 +740,81 @@ describe("streaming notifications", () => {
       globalThis.setInterval = originalSetInterval;
       globalThis.clearInterval = originalClearInterval;
     }
+  });
+
+  it("retains bounded snapshot history and supports back/next navigation after completion", async () => {
+    const {
+      StreamingState,
+      createStatusCallback,
+      navigateRetainedProgressViewer,
+    } = await loadFreshStreamingModule();
+    const editMessageTextMock = mock(async () => {});
+    const replyMock = mock(async (_text: string, _extra?: Record<string, unknown>) => ({
+      chat: { id: 2468 },
+      message_id: 1,
+    }));
+
+    const ctx = {
+      chat: { id: 2468 },
+      reply: replyMock,
+      api: {
+        editMessageText: editMessageTextMock,
+        deleteMessage: mock(async () => {}),
+      },
+      callbackQuery: {
+        data: "progress_nav:back",
+        message: { message_id: 1 },
+      },
+    } as unknown as Context;
+
+    const state = new StreamingState();
+    const statusCallback = createStatusCallback(ctx, state, { showToolStatus: true });
+    await state.progressUpdateChain;
+
+    for (let idx = 0; idx < 13; idx += 1) {
+      await statusCallback("tool", `Tool step ${idx + 1} completed`);
+    }
+    await statusCallback("done", "");
+
+    expect(state.progressSnapshots).toHaveLength(12);
+    expect(state.progressSnapshots[0]?.progressState).toBe("Using tools");
+    expect(state.progressSnapshots[0]?.summary).toContain("Tool step 3 completed");
+    expect(state.progressSnapshots[state.progressSnapshots.length - 1]?.progressState).toBe("Done");
+    expect(state.progressSnapshots[state.progressSnapshots.length - 1]?.terminal).toBe(true);
+    expect(state.selectedProgressSnapshotIndex).toBe(11);
+
+    const finalEdit = editMessageTextMock.mock.calls[editMessageTextMock.mock.calls.length - 1];
+    expect(String(finalEdit?.[2])).toContain("12 / 12");
+    expect((finalEdit?.[3] as any)?.reply_markup?.inline_keyboard).toEqual([
+      [{ text: "Back", callback_data: "progress_nav:back" }],
+    ]);
+
+    const backResult = await navigateRetainedProgressViewer(ctx, "back");
+    expect(backResult).toBe("updated");
+    const afterBackEdit = editMessageTextMock.mock.calls[editMessageTextMock.mock.calls.length - 1];
+    expect(String(afterBackEdit?.[2])).toContain("11 / 12");
+    expect(String(afterBackEdit?.[2])).toContain("Tool step 13 completed");
+    expect((afterBackEdit?.[3] as any)?.reply_markup?.inline_keyboard).toEqual([
+      [
+        { text: "Back", callback_data: "progress_nav:back" },
+        { text: "Next", callback_data: "progress_nav:next" },
+      ],
+    ]);
+
+    const nextResult = await navigateRetainedProgressViewer(
+      {
+        ...ctx,
+        callbackQuery: {
+          data: "progress_nav:next",
+          message: { message_id: 1 },
+        },
+      } as unknown as Context,
+      "next"
+    );
+    expect(nextResult).toBe("updated");
+    const afterNextEdit = editMessageTextMock.mock.calls[editMessageTextMock.mock.calls.length - 1];
+    expect(String(afterNextEdit?.[2])).toContain("12 / 12");
+    expect(String(afterNextEdit?.[2])).toContain("Reply ready.");
   });
 
   it("keeps the final text reply as the notifying message when an image is sent later", async () => {

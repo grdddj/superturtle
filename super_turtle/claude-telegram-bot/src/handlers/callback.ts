@@ -30,6 +30,7 @@ import {
   StreamingState,
   createStatusCallback,
   checkPendingPinoLogsRequests,
+  navigateRetainedProgressViewer,
   teardownStreamingState,
 } from "./streaming";
 import { isAnyDriverRunning, runMessageWithActiveDriver, stopActiveDriverQuery } from "./driver-routing";
@@ -429,6 +430,21 @@ export async function handleCallback(ctx: Context): Promise<void> {
   // 7c. Handle pinologs callbacks: pinologs:{level}
   if (callbackData.startsWith("pinologs:")) {
     await handlePinologsCallback(ctx, callbackData);
+    return;
+  }
+
+  if (callbackData === "progress_nav:back" || callbackData === "progress_nav:next") {
+    const result = await navigateRetainedProgressViewer(
+      ctx,
+      callbackData.endsWith(":back") ? "back" : "next"
+    );
+    if (result === "boundary") {
+      await ctx.answerCallbackQuery();
+    } else if (result === "missing") {
+      await ctx.answerCallbackQuery({ text: "Progress history unavailable" });
+    } else {
+      await ctx.answerCallbackQuery();
+    }
     return;
   }
 

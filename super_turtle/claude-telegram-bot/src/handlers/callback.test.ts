@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { resolve } from "path";
 
 const callbackPath = resolve(import.meta.dir, "callback.ts");
+const streamingPath = resolve(import.meta.dir, "streaming.ts");
 const sessionPath = resolve(import.meta.dir, "../session.ts");
 const codexPath = resolve(import.meta.dir, "../codex-session.ts");
 const marker = "__CALLBACK_PROBE__=";
@@ -30,6 +31,7 @@ async function runCallbackProbe<T>(
   const script = `
     const marker = ${JSON.stringify(marker)};
     const callbackPath = ${JSON.stringify(callbackPath)};
+    const streamingPath = ${JSON.stringify(streamingPath)};
     const sessionPath = ${JSON.stringify(sessionPath)};
     const codexPath = ${JSON.stringify(codexPath)};
     ${scriptBody}
@@ -60,6 +62,73 @@ async function runCallbackProbe<T>(
 }
 
 describe("handleCallback Codex switching and controls", () => {
+  it("routes retained progress navigation callbacks to the snapshot viewer", async () => {
+    const result = await runCallbackProbe<{
+      callbackAnswers: Array<{ text?: string }>;
+      lastEdit?: {
+        text: string;
+        extra?: {
+          parse_mode?: string;
+          reply_markup?: {
+            inline_keyboard?: Array<Array<{ callback_data?: string }>>;
+          };
+        };
+      };
+    }>(`
+      const { handleCallback } = await import(callbackPath);
+      const { StreamingState, createStatusCallback } = await import(streamingPath);
+
+      const callbackAnswers = [];
+      const editCalls = [];
+      const ctx = {
+        from: { id: 123, username: "tester" },
+        chat: { id: 123, type: "private" },
+        callbackQuery: {
+          data: "progress_nav:back",
+          message: { message_id: 1 },
+        },
+        answerCallbackQuery: async (payload) => {
+          callbackAnswers.push(payload || {});
+        },
+        reply: async () => ({
+          chat: { id: 123 },
+          message_id: 1,
+        }),
+        api: {
+          editMessageText: async (_chatId, _messageId, text, extra) => {
+            editCalls.push({ text: String(text), extra: extra || {} });
+          },
+          deleteMessage: async () => {},
+        },
+      };
+
+      const state = new StreamingState();
+      const statusCallback = createStatusCallback(ctx, state, { showToolStatus: true });
+      await state.progressUpdateChain;
+      await statusCallback("thinking", "Planning the answer");
+      await statusCallback("tool", "Tool step completed");
+      await statusCallback("done", "");
+
+      await handleCallback(ctx);
+
+      console.log(marker + JSON.stringify({
+        callbackAnswers,
+        lastEdit: editCalls[editCalls.length - 1],
+      }));
+    `);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.payload).not.toBeNull();
+    expect(result.payload?.callbackAnswers).toEqual([{}]);
+    expect(result.payload?.lastEdit?.text || "").toContain("3 / 4");
+    expect(result.payload?.lastEdit?.text || "").toContain("Tool step completed");
+    expect(
+      result.payload?.lastEdit?.extra?.reply_markup?.inline_keyboard?.flat().map(
+        (button) => button.callback_data || ""
+      )
+    ).toEqual(["progress_nav:back", "progress_nav:next"]);
+  });
+
   it("claude model callback re-renders the picker keyboard after selection", async () => {
     const result = await runCallbackProbe<{
       model: string;
