@@ -1,5 +1,5 @@
 # Current task
-Re-read all touched spec docs and remove contradictions, vague wording, and stale status language.
+Implement a single retained progress-message path for foreground text runs in `super_turtle/claude-telegram-bot/src/handlers/streaming.ts`.
 
 # End goal with specs
 Finish the Telegram progress UX work end-to-end: specs, implementation, tests, and final commit(s).
@@ -43,8 +43,8 @@ Acceptance criteria:
 - [x] Cross-check `super_turtle/docs/TELEGRAM_WEBHOOK_POC.md` and `super_turtle/docs/REPO_BOUND_TELEPORT_SPEC.md` for terms or requirements that should match
 - [x] Rewrite `super_turtle/docs/TELEGRAM_PROGRESS_UX_SPEC.md` into a concrete implementation-ready spec
 - [x] Update any other spec files only where the UX/runtime contract must stay aligned
-- [ ] Re-read all touched spec docs and remove contradictions, vague wording, and stale status language <- current
-- [ ] Implement a single retained progress-message path for foreground text runs in `super_turtle/claude-telegram-bot/src/handlers/streaming.ts`
+- [x] Re-read all touched spec docs and remove contradictions, vague wording, and stale status language
+- [ ] Implement a single retained progress-message path for foreground text runs in `super_turtle/claude-telegram-bot/src/handlers/streaming.ts` <- current
 - [ ] Update `super_turtle/claude-telegram-bot/src/handlers/streaming.test.ts` to cover retained progress updates and separate final answer delivery
 - [ ] Run the relevant streaming test file and fix regressions
 - [ ] Commit the remaining implementation changes with a clear message

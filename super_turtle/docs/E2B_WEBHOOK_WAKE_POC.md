@@ -44,14 +44,14 @@ What this does:
 - starts the existing Telegram bot in webhook mode inside the sandbox
 - waits for `GET /healthz`
 - saves local state to `.superturtle/teleport-state.json`
-
-The bot registers its own webhook on startup. The local `set-webhook` command is only for manual repair.
+- leaves Telegram webhook ownership unchanged until an explicit local cutover step runs
 
 Important:
 
 - the remote runtime setup is documented in `super_turtle/docs/E2B_REMOTE_RUNTIME_SETUP.md`
 - the helper now seeds remote `.superturtle/.env`, Claude token reuse, and Codex auth before starting the bot
 - if no local or existing sandbox Codex auth is available, remote agent launch should fail before Telegram cutover
+- the remote runtime is launched with `TELEGRAM_WEBHOOK_REGISTER=false`, so `set-webhook` is the normal ownership handoff step after launch and the repair step if ownership drifts
 
 ## Pause and wake
 
@@ -63,11 +63,17 @@ E2B_API_KEY=... node super_turtle/bin/e2b-webhook-poc.js pause
 
 Then send a Telegram message to the bot.
 
+If Telegram is not already pointed at the saved sandbox URL, run:
+
+```bash
+E2B_API_KEY=... node super_turtle/bin/e2b-webhook-poc.js set-webhook
+```
+
 Expected result:
 
 - the same sandbox resumes
 - Telegram reaches the webhook
-- if the remote runtime is fully provisioned, the bot handles the message with the same retained-progress plus separate terminal-result contract used in local polling mode
+- the launched runtime handles the message with the same retained progress message plus separate terminal result message contract used in local polling mode
 
 ## Inspect state
 
