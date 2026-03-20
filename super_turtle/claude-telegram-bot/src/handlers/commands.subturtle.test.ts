@@ -1,18 +1,26 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
 import { dirname, join } from "path";
 
 process.env.TELEGRAM_BOT_TOKEN ||= "test-token";
 process.env.TELEGRAM_ALLOWED_USERS ||= "123";
-process.env.CLAUDE_WORKING_DIR ||= process.cwd();
 
 type CommandsModule = typeof import("./commands");
 
-const workingDir = process.env.CLAUDE_WORKING_DIR || process.cwd();
+const originalWorkingDirEnv = process.env.CLAUDE_WORKING_DIR;
+let workingDir = originalWorkingDirEnv || process.cwd();
 const authorizedUserId = Number(
   (process.env.TELEGRAM_ALLOWED_USERS || "123").split(",")[0]?.trim() || "123"
 );
 const originalSpawnSync = Bun.spawnSync;
+const tempDirs: string[] = [];
+
+function makeTempWorkingDir(): string {
+  const dir = mkdtempSync(join(tmpdir(), "commands-subturtle-"));
+  tempDirs.push(dir);
+  return dir;
+}
 
 async function loadActualConfig() {
   return import(`../config.ts?commands-subturtle-config=${Date.now()}-${Math.random()}`);
@@ -33,6 +41,8 @@ async function syncLiveSubturtleBoardForTest(api: any, chatId: number, options?:
 }
 
 beforeEach(async () => {
+  workingDir = makeTempWorkingDir();
+  process.env.CLAUDE_WORKING_DIR = workingDir;
   const actualConfig = await loadActualConfig();
   mock.module("../config", () => ({
     ...actualConfig,
@@ -46,6 +56,15 @@ beforeEach(async () => {
 afterEach(() => {
   Bun.spawnSync = originalSpawnSync;
   mock.restore();
+  while (tempDirs.length > 0) {
+    const dir = tempDirs.pop();
+    if (dir) rmSync(dir, { recursive: true, force: true });
+  }
+  if (typeof originalWorkingDirEnv === "string") {
+    process.env.CLAUDE_WORKING_DIR = originalWorkingDirEnv;
+  } else {
+    delete process.env.CLAUDE_WORKING_DIR;
+  }
 });
 
 describe("/subturtle", () => {
