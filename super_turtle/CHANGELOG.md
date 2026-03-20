@@ -10,7 +10,8 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [0.2.7] - 2026-03-20
 
 ### Fixed
-- `superturtle start` again wraps the macOS runner with `caffeinate` and the Linux runner with `systemd-inhibit` when available, so an active turtle is less likely to stall after the host idles or sleeps
+- restored sleep-prevention wrapping in `superturtle start`: macOS runs under `caffeinate`, and Linux uses `systemd-inhibit` when available
+- packaged and direct runner launches are less likely to stall after the host idles or sleeps during long-lived turtle sessions
 
 ## [0.2.6] - 2026-03-19
 
