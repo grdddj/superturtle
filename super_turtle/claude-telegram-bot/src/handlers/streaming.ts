@@ -45,6 +45,7 @@ const HEARTBEAT_REFRESH_MS = 30_000;
 const HEARTBEAT_TICK_MS = 1_000;
 const REQUEST_LOCK_STALE_MS = 60_000;
 const MAX_PROGRESS_SNAPSHOTS = 12;
+const MIN_PROGRESS_VISIBLE_MS = 200;
 
 export type CanonicalProgressState =
   | "Starting"
@@ -58,7 +59,7 @@ export type CanonicalProgressState =
   | "Failed";
 
 const DEFAULT_PROGRESS_SUMMARY: Record<CanonicalProgressState, string> = {
-  Starting: "Waiting for the first step.",
+  Starting: "\u200b",
   Thinking: "Working through the request.",
   "Using tools": "Running tools.",
   "Writing answer": "Drafting the final reply.",
@@ -873,6 +874,7 @@ export class StreamingState {
   progressMessage: Message | null = null; // retained silent progress message for foreground runs
   lastProgressContent: string | null = null;
   lastProgressControlsKey: string | null = null;
+  lastProgressRenderedAt = 0;
   progressUpdateChain: Promise<void> = Promise.resolve();
   hasTextSegmentOutput = false;
   lastNotifiableOutput: {
@@ -1156,10 +1158,18 @@ function trimProgressSnapshots(state: StreamingState): void {
   }
 }
 
+function isBlankProgressSummary(text: string): boolean {
+  return text.replace(/[\u200B-\u200D\uFEFF]/g, "").trim().length === 0;
+}
+
 function recordProgressSnapshot(
   state: StreamingState,
   options: { force?: boolean; terminal?: boolean } = {}
 ): void {
+  if (!options.terminal && isBlankProgressSummary(state.progressSummary)) {
+    return;
+  }
+
   const snapshot: ProgressSnapshot = {
     progressState: state.progressState,
     summary: state.progressSummary,
@@ -1194,10 +1204,10 @@ function buildProgressKeyboard(state: StreamingState): InlineKeyboard | undefine
     state.selectedProgressSnapshotIndex ?? state.progressSnapshots.length - 1;
   const keyboard = new InlineKeyboard();
   if (selectedIndex > 0) {
-    keyboard.text("Back", "progress_nav:back");
+    keyboard.text("⬅️", "progress_nav:back");
   }
   if (selectedIndex < state.progressSnapshots.length - 1) {
-    keyboard.text("Next", "progress_nav:next");
+    keyboard.text("➡️", "progress_nav:next");
   }
 
   return (keyboard as { inline_keyboard?: unknown[] }).inline_keyboard?.length
@@ -1211,13 +1221,11 @@ function renderProgressMessage(state: StreamingState): {
   controlsKey: string;
 } {
   const snapshot = getSelectedProgressSnapshot(state);
-  const progressState = snapshot?.progressState ?? state.progressState;
   const progressSummary = snapshot?.summary ?? state.progressSummary;
-  const progressToolHint = snapshot?.toolHint ?? state.progressToolHint;
   const elapsedMs = snapshot?.elapsedMs ?? Date.now() - state.statusStartedAt;
-  const footerParts = [`Elapsed ${formatElapsed(elapsedMs)}`];
-  if (progressToolHint) {
-    footerParts.push(progressToolHint);
+  const footerParts: string[] = [];
+  if (state.progressViewerCompleted) {
+    footerParts.push(`Elapsed ${formatElapsed(elapsedMs)}`);
   }
   if (
     state.progressViewerCompleted &&
@@ -1232,17 +1240,43 @@ function renderProgressMessage(state: StreamingState): {
   const replyMarkup = buildProgressKeyboard(state);
 
   return {
-    text: [
-      `<b>${escapeHtml(progressState)}</b>`,
-      escapeHtml(progressSummary),
-      `<i>${escapeHtml(footerParts.join(" • "))}</i>`,
-    ].join("\n"),
+    text: footerParts.length
+      ? [
+        escapeHtml(progressSummary),
+        `<i>${escapeHtml(footerParts.join(" • "))}</i>`,
+      ].join("\n")
+      : escapeHtml(progressSummary),
     replyMarkup,
     controlsKey:
       state.progressViewerCompleted && state.selectedProgressSnapshotIndex !== null
         ? `${state.selectedProgressSnapshotIndex}:${state.progressSnapshots.length}`
         : "live",
   };
+}
+
+function isEffectivelyBlankProgressText(text: string | null): boolean {
+  if (!text) {
+    return true;
+  }
+  return toPlainProgressText(text).replace(/[\u200B-\u200D\uFEFF]/g, "").trim().length === 0;
+}
+
+async function waitForMinimumVisibleProgressDuration(state: StreamingState): Promise<void> {
+  if (state.progressViewerCompleted || state.lastProgressRenderedAt <= 0) {
+    return;
+  }
+  if (isEffectivelyBlankProgressText(state.lastProgressContent)) {
+    return;
+  }
+  const elapsed = Date.now() - state.lastProgressRenderedAt;
+  if (elapsed >= MIN_PROGRESS_VISIBLE_MS) {
+    return;
+  }
+  await Bun.sleep(MIN_PROGRESS_VISIBLE_MS - elapsed);
+}
+
+function markProgressRendered(state: StreamingState, payloadText: string): void {
+  state.lastProgressRenderedAt = isEffectivelyBlankProgressText(payloadText) ? 0 : Date.now();
 }
 
 async function queueRenderedProgressMessageUpdate(
@@ -1328,6 +1362,8 @@ async function updateProgressMessage(
     return;
   }
 
+  await waitForMinimumVisibleProgressDuration(state);
+
   if (state.progressMessage) {
     try {
       await ctx.api.editMessageText(
@@ -1341,6 +1377,7 @@ async function updateProgressMessage(
       );
       state.lastProgressContent = payload.text;
       state.lastProgressControlsKey = payload.controlsKey;
+      markProgressRendered(state, payload.text);
       registerRetainedProgressViewer(state);
       return;
     } catch (error) {
@@ -1348,6 +1385,7 @@ async function updateProgressMessage(
       if (errorSummary.includes("message is not modified")) {
         state.lastProgressContent = payload.text;
         state.lastProgressControlsKey = payload.controlsKey;
+        markProgressRendered(state, payload.text);
         registerRetainedProgressViewer(state);
         return;
       }
@@ -1362,6 +1400,7 @@ async function updateProgressMessage(
           );
           state.lastProgressContent = payload.text;
           state.lastProgressControlsKey = payload.controlsKey;
+          markProgressRendered(state, payload.text);
           registerRetainedProgressViewer(state);
           return;
         } catch (plainError) {
@@ -1369,6 +1408,7 @@ async function updateProgressMessage(
           if (plainErrorSummary.includes("message is not modified")) {
             state.lastProgressContent = payload.text;
             state.lastProgressControlsKey = payload.controlsKey;
+            markProgressRendered(state, payload.text);
             registerRetainedProgressViewer(state);
             return;
           }
@@ -1387,6 +1427,7 @@ async function updateProgressMessage(
       state.progressMessage = null;
       state.lastProgressContent = null;
       state.lastProgressControlsKey = null;
+      state.lastProgressRenderedAt = 0;
     }
   }
 
@@ -1402,6 +1443,7 @@ async function updateProgressMessage(
     state.progressMessage = msg;
     state.lastProgressContent = payload.text;
     state.lastProgressControlsKey = payload.controlsKey;
+    markProgressRendered(state, payload.text);
     registerRetainedProgressViewer(state);
   } catch (error) {
     const plainText = toPlainProgressText(payload.text);
@@ -1414,6 +1456,7 @@ async function updateProgressMessage(
     state.progressMessage = msg;
     state.lastProgressContent = payload.text;
     state.lastProgressControlsKey = payload.controlsKey;
+    markProgressRendered(state, payload.text);
     registerRetainedProgressViewer(state);
   }
 }
@@ -1790,7 +1833,6 @@ export function createStatusCallback(
     activeStreamingStates.set(chatId, state);
   }
   startHeartbeat(ctx, state);
-  recordProgressSnapshot(state, { force: true });
   if (typeof ctx.reply === "function") {
     void applyProgressStateUpdate(ctx, state, "Starting", {
       summary: DEFAULT_PROGRESS_SUMMARY.Starting,

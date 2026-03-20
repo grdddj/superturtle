@@ -32,7 +32,7 @@ Those are separate message classes and must not reuse the retained progress mess
 
 - `progress message`: the single Telegram message created for a foreground run and updated with `editMessageText`
 - `terminal result message`: the final Telegram message for the run; on success this is the final answer, and on failure this is the final error message
-- `progress snapshot`: one retained history entry used by the `Back` / `Next` viewer
+- `progress snapshot`: one retained history entry used by the arrow-navigation viewer
 - `attention-required message`: a separate Telegram message that requires an explicit user action, such as an ask-user prompt
 
 ## Required Run Shape
@@ -88,18 +88,20 @@ No other top-level state labels should be introduced in the first implementation
 
 The progress message must render these sections in order:
 
-1. State line
-2. Summary line or short paragraph
-3. Footer metadata line
-4. Optional history controls after completion
+1. Summary line or short paragraph
+2. Footer metadata line after completion
+3. Optional history controls after completion
 
 Required content rules:
 
-- The state line must use exactly one canonical state label.
 - The summary must contain the latest concise user-meaningful update.
-- The footer must include elapsed time.
-- The footer may include one short tool hint when useful.
-- The full message should stay glanceable and should target roughly 3 to 6 short lines.
+- The canonical state must still be tracked internally for snapshotting and transitions, but it should not render as a separate header line.
+- The initial retained progress message may be visually blank until the first meaningful update arrives.
+- Active in-flight progress updates should remain minimal and should not add decorative guide lines.
+- Live progress edits should be paced so a visible update stays on screen for at least 200ms before the next visible replacement.
+- The footer is for the completed retained viewer and should include elapsed time.
+- The completed retained viewer footer may include a page indicator when history navigation is available.
+- The full message should stay glanceable and should target roughly 1 to 3 short lines.
 
 The renderer must prefer concise summaries such as:
 
@@ -122,7 +124,7 @@ Behavior:
 
 - Enter `Still working` only after 20 seconds with no meaningful visible update.
 - While the run stays quiet, refresh the heartbeat at most once every 30 seconds.
-- Include elapsed time in the footer while in `Still working`.
+- Keep `Still working` terse while the run is still active.
 - Replace `Still working` immediately when a new meaningful update arrives.
 
 Heartbeat updates must never create a new Telegram message and must never notify.
@@ -135,13 +137,14 @@ The retained viewer must page through a bounded ordered list of progress snapsho
 
 Store a snapshot when any of the following happens:
 
-- initial `Starting` render
 - canonical state transition
 - tool start
 - tool completion
 - first visible answer preview
 - heartbeat transition into `Still working`
 - terminal transition to `Stopped`, `Done`, or `Failed`
+
+Do not store the initial blank placeholder as a snapshot.
 
 ### Deduping rules
 
@@ -161,15 +164,15 @@ Elapsed time alone must not create a new snapshot.
 
 ### Navigation contract
 
-After the run ends, the retained progress message must expose inline `Back` and `Next` buttons when more than one snapshot exists.
+After the run ends, the retained progress message must expose inline `⬅️` and `➡️` buttons when more than one snapshot exists.
 
 Minimum viewer requirements:
 
 - default to the terminal snapshot after completion
 - show the selected snapshot content in the progress message body
 - show a page indicator in the footer in `N / M` form
-- disable or omit `Back` on the first snapshot
-- disable or omit `Next` on the last snapshot
+- disable or omit the `⬅️` button on the first snapshot
+- disable or omit the `➡️` button on the last snapshot
 
 ## Delivery Contract
 
@@ -300,5 +303,5 @@ The implementation is correct when all of the following are true:
 - normal success produces one retained progress message plus one notifying terminal result message
 - user stop retains the progress message and does not emit a second terminal bubble unless stop handling fails
 - failures retain the progress message and always emit one notifying terminal result message
-- the retained viewer supports bounded `Back` / `Next` navigation with a page indicator
+- the retained viewer supports bounded arrow navigation with a page indicator
 - the user-visible behavior is unchanged across local polling and webhook transport

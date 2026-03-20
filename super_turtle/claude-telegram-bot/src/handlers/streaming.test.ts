@@ -70,12 +70,18 @@ async function loadFreshStreamingModule() {
   return import(`./streaming.ts?fresh=${Date.now()}-${Math.random()}`);
 }
 
-function expectCanonicalProgressText(
+function expectLiveProgressText(
   text: string,
-  state: string,
   summary: string
 ): void {
-  expect(text).toContain(`<b>${state}</b>`);
+  expect(text).toBe(summary);
+  expect(text).not.toContain("Elapsed ");
+}
+
+function expectCompletedProgressText(
+  text: string,
+  summary: string
+): void {
   expect(text).toContain(summary);
   expect(text).toContain("Elapsed ");
 }
@@ -561,7 +567,7 @@ describe("streaming notifications", () => {
 
     expect(replyCalls).toHaveLength(2);
     expect(replyCalls[0]).toMatchObject({
-      text: "<b>Starting</b>\nWaiting for the first step.\n<i>Elapsed 0s</i>",
+      text: "\u200b",
       extra: { disable_notification: true, parse_mode: "HTML" },
     });
     expect(replyCalls[1]).toMatchObject({
@@ -572,23 +578,21 @@ describe("streaming notifications", () => {
     expect(editMessageTextMock).toHaveBeenCalledTimes(2);
     expect(editMessageTextMock.mock.calls[0]?.[0]).toBe(123);
     expect(editMessageTextMock.mock.calls[0]?.[1]).toBe(1);
-    expectCanonicalProgressText(
+    expectLiveProgressText(
       String(editMessageTextMock.mock.calls[0]?.[2]),
-      "Writing answer",
       "Hello from Super Turtle"
     );
     expect(editMessageTextMock.mock.calls[0]?.[3]).toEqual({ parse_mode: "HTML" });
     expect(editMessageTextMock.mock.calls[1]?.[0]).toBe(123);
     expect(editMessageTextMock.mock.calls[1]?.[1]).toBe(1);
-    expectCanonicalProgressText(
+    expectCompletedProgressText(
       String(editMessageTextMock.mock.calls[1]?.[2]),
-      "Done",
       "Hello from Super Turtle"
     );
     expect(editMessageTextMock.mock.calls[1]?.[3]).toMatchObject({
       parse_mode: "HTML",
       reply_markup: {
-        inline_keyboard: [[{ text: "Back", callback_data: "progress_nav:back" }]],
+        inline_keyboard: [[{ text: "⬅️", callback_data: "progress_nav:back" }]],
       },
     });
   });
@@ -624,23 +628,20 @@ describe("streaming notifications", () => {
 
     expect(replyCalls).toHaveLength(1);
     expect(replyCalls[0]).toMatchObject({
-      text: "<b>Starting</b>\nWaiting for the first step.\n<i>Elapsed 0s</i>",
+      text: "\u200b",
       extra: { disable_notification: true, parse_mode: "HTML" },
     });
     expect(editMessageTextMock).toHaveBeenCalledTimes(3);
-    expectCanonicalProgressText(
+    expectLiveProgressText(
       String(editMessageTextMock.mock.calls[0]?.[2]),
-      "Thinking",
       "Planning the answer"
     );
-    expectCanonicalProgressText(
+    expectLiveProgressText(
       String(editMessageTextMock.mock.calls[1]?.[2]),
-      "Using tools",
       "Error: command failed"
     );
-    expectCanonicalProgressText(
+    expectCompletedProgressText(
       String(editMessageTextMock.mock.calls[2]?.[2]),
-      "Done",
       "Reply ready."
     );
     expect(deleteMessageMock).not.toHaveBeenCalled();
@@ -686,9 +687,7 @@ describe("streaming notifications", () => {
       const statusCallback = createStatusCallback(ctx, state);
       await state.progressUpdateChain;
 
-      expect(replyCalls[0]?.text).toBe(
-        "<b>Starting</b>\nWaiting for the first step.\n<i>Elapsed 0s</i>"
-      );
+      expect(replyCalls[0]?.text).toBe("\u200b");
       expect(heartbeatTick).not.toBeNull();
 
       fakeNow += 19_000;
@@ -697,37 +696,26 @@ describe("streaming notifications", () => {
 
       fakeNow += 1_000;
       await heartbeatTick?.();
-      expect(editMessageTextMock).toHaveBeenCalledTimes(1);
-      expectCanonicalProgressText(
-        String(editMessageTextMock.mock.calls[0]?.[2]),
-        "Still working",
-        "Waiting for the first step."
-      );
+      expect(editMessageTextMock).not.toHaveBeenCalled();
 
       fakeNow += 29_000;
       await heartbeatTick?.();
-      expect(editMessageTextMock).toHaveBeenCalledTimes(1);
+      expect(editMessageTextMock).not.toHaveBeenCalled();
 
       fakeNow += 1_000;
       await heartbeatTick?.();
-      expect(editMessageTextMock).toHaveBeenCalledTimes(2);
-      expectCanonicalProgressText(
-        String(editMessageTextMock.mock.calls[1]?.[2]),
-        "Still working",
-        "Waiting for the first step."
-      );
+      expect(editMessageTextMock).not.toHaveBeenCalled();
 
       await statusCallback("thinking", "Back on it");
-      expect(editMessageTextMock).toHaveBeenCalledTimes(3);
-      expectCanonicalProgressText(
-        String(editMessageTextMock.mock.calls[2]?.[2]),
-        "Thinking",
+      expect(editMessageTextMock).toHaveBeenCalledTimes(1);
+      expectLiveProgressText(
+        String(editMessageTextMock.mock.calls[0]?.[2]),
         "Back on it"
       );
 
       fakeNow += 19_000;
       await heartbeatTick?.();
-      expect(editMessageTextMock).toHaveBeenCalledTimes(3);
+      expect(editMessageTextMock).toHaveBeenCalledTimes(1);
     } finally {
       Date.now = originalDateNow;
       globalThis.setInterval = originalSetInterval;
@@ -779,18 +767,19 @@ describe("streaming notifications", () => {
     const finalEdit = editMessageTextMock.mock.calls[editMessageTextMock.mock.calls.length - 1];
     expect(String(finalEdit?.[2])).toContain("12 / 12");
     expect((finalEdit?.[3] as any)?.reply_markup?.inline_keyboard).toEqual([
-      [{ text: "Back", callback_data: "progress_nav:back" }],
+      [{ text: "⬅️", callback_data: "progress_nav:back" }],
     ]);
 
     const backResult = await navigateRetainedProgressViewer(ctx, "back");
     expect(backResult).toBe("updated");
     const afterBackEdit = editMessageTextMock.mock.calls[editMessageTextMock.mock.calls.length - 1];
     expect(String(afterBackEdit?.[2])).toContain("11 / 12");
+    expect(String(afterBackEdit?.[2])).toContain("Elapsed ");
     expect(String(afterBackEdit?.[2])).toContain("Tool step 13 completed");
     expect((afterBackEdit?.[3] as any)?.reply_markup?.inline_keyboard).toEqual([
       [
-        { text: "Back", callback_data: "progress_nav:back" },
-        { text: "Next", callback_data: "progress_nav:next" },
+        { text: "⬅️", callback_data: "progress_nav:back" },
+        { text: "➡️", callback_data: "progress_nav:next" },
       ],
     ]);
 
@@ -807,7 +796,52 @@ describe("streaming notifications", () => {
     expect(nextResult).toBe("updated");
     const afterNextEdit = editMessageTextMock.mock.calls[editMessageTextMock.mock.calls.length - 1];
     expect(String(afterNextEdit?.[2])).toContain("12 / 12");
+    expect(String(afterNextEdit?.[2])).toContain("Elapsed ");
     expect(String(afterNextEdit?.[2])).toContain("Reply ready.");
+  });
+
+  it("paces live progress edits so visible content stays on screen for at least 200ms", async () => {
+    const { StreamingState, createStatusCallback } = await loadFreshStreamingModule();
+    const sleepCalls: number[] = [];
+    const editMessageTextMock = mock(async () => {});
+    const replyMock = mock(async () => ({
+      chat: { id: 999 },
+      message_id: 1,
+    }));
+
+    const originalDateNow = Date.now;
+    const originalBunSleep = Bun.sleep;
+    let fakeNow = 1_700_000_000_000;
+    Date.now = () => fakeNow;
+    (Bun as any).sleep = mock(async (ms: number) => {
+      sleepCalls.push(ms);
+      fakeNow += ms;
+    });
+
+    try {
+      const ctx = {
+        chat: { id: 999 },
+        reply: replyMock,
+        api: {
+          editMessageText: editMessageTextMock,
+          deleteMessage: mock(async () => {}),
+        },
+      } as unknown as Context;
+
+      const state = new StreamingState();
+      const statusCallback = createStatusCallback(ctx, state, { showToolStatus: true });
+      await state.progressUpdateChain;
+
+      await statusCallback("thinking", "Planning");
+      await statusCallback("tool", "Running tool");
+      await statusCallback("done", "");
+
+      expect(sleepCalls).toEqual([200]);
+      expect(editMessageTextMock).toHaveBeenCalledTimes(3);
+    } finally {
+      Date.now = originalDateNow;
+      (Bun as any).sleep = originalBunSleep;
+    }
   });
 
   it("uses the final image as the notifying terminal result even after text output", async () => {
@@ -877,9 +911,7 @@ describe("streaming notifications", () => {
       await statusCallback("done", "");
 
       expect(replyMock).toHaveBeenCalledTimes(1);
-      expect(replyMock.mock.calls[0]?.[0]).toBe(
-        "<b>Starting</b>\nWaiting for the first step.\n<i>Elapsed 0s</i>"
-      );
+      expect(replyMock.mock.calls[0]?.[0]).toBe("\u200b");
       expect(replyMock.mock.calls[0]?.[1]).toMatchObject({
         disable_notification: true,
         parse_mode: "HTML",
@@ -969,7 +1001,7 @@ describe("streaming notifications", () => {
       expect(replyWithPhotoMock.mock.calls[0]?.[1]?.disable_notification).toBeUndefined();
       expect(replyMock).toHaveBeenCalledTimes(1);
       expect(replyMock.mock.calls[0]).toEqual([
-        "<b>Starting</b>\nWaiting for the first step.\n<i>Elapsed 0s</i>",
+        "\u200b",
         { disable_notification: true, parse_mode: "HTML" },
       ]);
       expect(deleteMessageMock).not.toHaveBeenCalled();
@@ -1050,7 +1082,7 @@ describe("streaming notifications", () => {
       expect(replyWithStickerMock.mock.calls[0]?.[1]?.disable_notification).toBeUndefined();
       expect(replyMock).toHaveBeenCalledTimes(1);
       expect(replyMock.mock.calls[0]).toEqual([
-        "<b>Starting</b>\nWaiting for the first step.\n<i>Elapsed 0s</i>",
+        "\u200b",
         { disable_notification: true, parse_mode: "HTML" },
       ]);
       expect(deleteMessageMock).not.toHaveBeenCalled();
