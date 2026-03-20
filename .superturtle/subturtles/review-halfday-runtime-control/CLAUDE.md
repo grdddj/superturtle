@@ -1,6 +1,6 @@
 # Current task
 
-Review Codex driver changes in `src/drivers/` plus `src/codex-session.ts` and `src/config.ts`.
+Review SubTurtle-related changes in `src/subturtle-board-service.ts`, command/callback handling, and lifecycle cleanup.
 
 # End goal with specs
 
@@ -26,7 +26,7 @@ Review Codex driver changes in `src/drivers/` plus `src/codex-session.ts` and `s
 
 - [x] Collect the exact commit list and touched files for the runtime/control lane
 - [x] Review `super_turtle/bin/superturtle.js` for startup, shutdown, and process ownership regressions
-- [ ] Review Codex driver changes in `src/drivers/` plus `src/codex-session.ts` and `src/config.ts` <- current
-- [ ] Review SubTurtle-related changes in `src/subturtle-board-service.ts`, command/callback handling, and lifecycle cleanup
+- [x] Review Codex driver changes in `src/drivers/` plus `src/codex-session.ts` and `src/config.ts`
+- [ ] Review SubTurtle-related changes in `src/subturtle-board-service.ts`, command/callback handling, and lifecycle cleanup <- current
 - [ ] Audit the associated tests for missing failure cases and flaky assumptions
 - [ ] Write prioritized findings in `review.md` with concrete file references and residual risks
