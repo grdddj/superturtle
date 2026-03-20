@@ -392,7 +392,7 @@ describe("handleCallback Codex switching and controls", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.payload).not.toBeNull();
-    expect(result.payload?.editCalls[0]?.text || "").toContain("Select model or effort level:");
+    expect(result.payload?.editCalls[0]?.text || "").toContain("Select driver, model, or effort level:");
     expect(
       result.payload?.editCalls[0]?.extra?.reply_markup?.inline_keyboard?.flat().map(
         (button) => button.callback_data || ""
@@ -447,7 +447,7 @@ describe("handleCallback Codex switching and controls", () => {
     expect(result.exitCode).toBe(0);
     expect(result.payload).not.toBeNull();
     expect(result.payload?.effort).toBe("low");
-    expect(result.payload?.editCalls[0]?.text || "").toContain("Select model or effort level:");
+    expect(result.payload?.editCalls[0]?.text || "").toContain("Select driver, model, or effort level:");
     expect(
       result.payload?.editCalls[0]?.extra?.reply_markup?.inline_keyboard?.flat().map(
         (button) => button.callback_data || ""
@@ -571,7 +571,7 @@ describe("handleCallback Codex switching and controls", () => {
     expect(result.payload?.sessionKillCalls).toBe(1);
     expect(result.payload?.codexKillCalls).toBe(1);
     expect(result.payload?.callbackAnswers[0]?.text).toBe("Switched to Codex");
-    expect(result.payload?.editTexts[0] || "").toContain("Switched to Codex");
+    expect(result.payload?.editTexts[0] || "").toContain("Select driver, model, or reasoning effort:");
   });
 
   it("codex_model callback with active session preserves the current thread and only updates prefs", async () => {
@@ -647,7 +647,7 @@ describe("handleCallback Codex switching and controls", () => {
       ["codex-thread-model", result.payload?.targetModel || "", "medium"],
     ]);
     expect(result.payload?.callbackAnswers[0]?.text).toBe("Codex model updated for current convo");
-    expect(result.payload?.editCalls[0]?.text || "").toContain("Select model or reasoning effort:");
+    expect(result.payload?.editCalls[0]?.text || "").toContain("Select driver, model, or reasoning effort:");
     expect(
       result.payload?.editCalls[0]?.extra?.reply_markup?.inline_keyboard?.flat().map(
         (button) => button.callback_data || ""
@@ -725,7 +725,7 @@ describe("handleCallback Codex switching and controls", () => {
       ["codex-thread-effort", result.payload?.model || "", "high"],
     ]);
     expect(result.payload?.callbackAnswers[0]?.text).toBe("Codex effort updated for current convo");
-    expect(result.payload?.editCalls[0]?.text || "").toContain("Select model or reasoning effort:");
+    expect(result.payload?.editCalls[0]?.text || "").toContain("Select driver, model, or reasoning effort:");
     expect(
       result.payload?.editCalls[0]?.extra?.reply_markup?.inline_keyboard?.flat().map(
         (button) => button.callback_data || ""
