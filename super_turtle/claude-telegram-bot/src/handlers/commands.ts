@@ -339,6 +339,8 @@ export type LiveSubturtleBoardView =
   | { kind: "backlog"; name: string; page: number }
   | { kind: "logs"; name: string; page: number };
 
+type LiveSubturtleBoardPinState = "established" | "unestablished";
+
 type LiveSubturtleBoardRecord = {
   chat_id: number;
   message_id: number;
@@ -346,6 +348,7 @@ type LiveSubturtleBoardRecord = {
   last_rendered_at: string;
   created_at: string;
   updated_at: string;
+  pin_state?: LiveSubturtleBoardPinState;
   current_view?: LiveSubturtleBoardView;
 };
 
@@ -485,6 +488,10 @@ function normalizeLiveSubturtleBoardView(value: unknown): LiveSubturtleBoardView
   return { kind: "board" };
 }
 
+function normalizeLiveSubturtleBoardPinState(value: unknown): LiveSubturtleBoardPinState {
+  return value === "unestablished" ? "unestablished" : "established";
+}
+
 function readLiveSubturtleBoardRecord(chatId: number): LiveSubturtleBoardRecord | null {
   const path = liveSubturtleBoardPath(chatId);
   if (!existsSync(path)) return null;
@@ -502,6 +509,7 @@ function readLiveSubturtleBoardRecord(chatId: number): LiveSubturtleBoardRecord 
     ) {
       return {
         ...(parsed as LiveSubturtleBoardRecord),
+        pin_state: normalizeLiveSubturtleBoardPinState(parsed?.pin_state),
         current_view: normalizeLiveSubturtleBoardView(parsed?.current_view),
       };
     }
@@ -2817,7 +2825,11 @@ export async function syncLiveSubturtleBoard(
     targetMessageId?: number;
     allowCreateOnEditFailure?: boolean;
   } = {}
-): Promise<{ status: "created" | "updated" | "unchanged" | "skipped"; messageId: number | null; view: LiveSubturtleBoardView }> {
+): Promise<{
+  status: "created" | "updated" | "unchanged" | "skipped" | "unestablished";
+  messageId: number | null;
+  view: LiveSubturtleBoardView;
+}> {
   const turtles = listSubturtles();
   const hasActiveWorkers = turtles.some((turtle) => turtle.status === "running");
   const record = readLiveSubturtleBoardRecord(chatId);
@@ -2852,7 +2864,11 @@ export async function syncLiveSubturtleBoard(
   const renderHash = computeLiveSubturtleBoardHash(payload.text, payload.replyMarkup);
   const now = nowIso();
 
-  const saveRecord = (messageId: number, createdAt?: string) => {
+  const saveRecord = (
+    messageId: number,
+    createdAt?: string,
+    pinState: LiveSubturtleBoardPinState = "established"
+  ) => {
     writeLiveSubturtleBoardRecord({
       chat_id: chatId,
       message_id: messageId,
@@ -2860,6 +2876,7 @@ export async function syncLiveSubturtleBoard(
       last_rendered_at: now,
       created_at: createdAt || record?.created_at || now,
       updated_at: now,
+      pin_state: pinState,
       current_view: payload.view,
     });
   };
@@ -2867,19 +2884,23 @@ export async function syncLiveSubturtleBoard(
     deleteLiveSubturtleBoardRecord(chatId);
   };
 
-  const pinMessage = async (messageId: number) => {
-    if (!options.pin || !api.pinChatMessage) return;
+  const pinMessage = async (messageId: number): Promise<LiveSubturtleBoardPinState> => {
+    if (!options.pin || !api.pinChatMessage) return "established";
     try {
       await api.pinChatMessage(chatId, messageId, { disable_notification: true });
+      return "established";
     } catch (error) {
       const summary = String(error).toLowerCase();
       if (
-        !summary.includes("message is already pinned") &&
-        !summary.includes("not enough rights") &&
-        !summary.includes("chat not modified")
+        summary.includes("message is already pinned") ||
+        summary.includes("chat not modified")
       ) {
-        throw error;
+        return "established";
       }
+      if (summary.includes("not enough rights")) {
+        return "unestablished";
+      }
+      throw error;
     }
   };
 
@@ -2934,8 +2955,14 @@ export async function syncLiveSubturtleBoard(
     supersededMessageIds: Array<number | null | undefined> = []
   ) => {
     if (hasActiveWorkers) {
-      await pinMessage(messageId);
-      saveRecord(messageId);
+      const pinState = await pinMessage(messageId);
+      saveRecord(messageId, undefined, pinState);
+      await cleanupSupersededMessages(supersededMessageIds);
+      return {
+        status: pinState === "established" ? status : "unestablished",
+        messageId,
+        view: payload.view,
+      };
     } else {
       await unpinMessage(messageId);
       clearRecord();
@@ -2970,8 +2997,13 @@ export async function syncLiveSubturtleBoard(
       ageMs < LIVE_SUBTURTLE_BOARD_REFRESH_MIN_MS
     ) {
       if (hasActiveWorkers) {
-        await pinMessage(record.message_id);
-        saveRecord(record.message_id);
+        const pinState = await pinMessage(record.message_id);
+        saveRecord(record.message_id, undefined, pinState);
+        return {
+          status: pinState === "established" ? "unchanged" : "unestablished",
+          messageId: record.message_id,
+          view: record.current_view || payload.view,
+        };
       } else {
         await unpinMessage(record.message_id);
         clearRecord();
@@ -3033,8 +3065,13 @@ export async function syncLiveSubturtleBoard(
     return { status: "created", messageId: null, view: payload.view };
   }
   if (hasActiveWorkers) {
-    await pinMessage(messageId);
-    saveRecord(messageId, now);
+    const pinState = await pinMessage(messageId);
+    saveRecord(messageId, now, pinState);
+    return {
+      status: pinState === "established" ? "created" : "unestablished",
+      messageId,
+      view: payload.view,
+    };
   } else {
     await unpinMessage(messageId);
     clearRecord();

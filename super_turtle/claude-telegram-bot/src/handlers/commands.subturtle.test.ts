@@ -469,7 +469,7 @@ describe("/subturtle", () => {
     }
   });
 
-  it("characterizes swallowed pin-rights failures as a tracked board establishment", async () => {
+  it("tracks pin-rights failures as unestablished instead of treating them as a successful board", async () => {
     const workdir = workingDir;
     const chatId = authorizedUserId + 41;
     const boardPath = join(
@@ -504,14 +504,81 @@ describe("/subturtle", () => {
         },
       }, chatId, { pin: true, disableNotification: true });
 
-      expect(result.status).toBe("created");
+      expect(result.status).toBe("unestablished");
       expect(result.messageId).toBe(861);
       expect(sent).toBe(1);
 
       const trackedBoard = JSON.parse(readFileSync(boardPath, "utf-8"));
       expect(trackedBoard.chat_id).toBe(chatId);
       expect(trackedBoard.message_id).toBe(861);
+      expect(trackedBoard.pin_state).toBe("unestablished");
       expect(trackedBoard.current_view).toEqual({ kind: "board" });
+    } finally {
+      rmSync(boardPath, { force: true });
+    }
+  });
+
+  it("reuses an unestablished board record instead of sending duplicate board messages", async () => {
+    const workdir = workingDir;
+    const chatId = authorizedUserId + 42;
+    const boardPath = join(
+      workdir,
+      ".superturtle/state/telegram/subturtle-boards",
+      `${chatId}.json`
+    );
+    rmSync(boardPath, { force: true });
+    let sent = 0;
+    const pinAttempts: Array<{ chatId: number; messageId: number }> = [];
+
+    Bun.spawnSync = ((cmd: unknown, opts?: unknown) => {
+      if (Array.isArray(cmd) && String(cmd[0]).endsWith("/subturtle/ctl") && cmd[1] === "list") {
+        return {
+          stdout: Buffer.from("  worker-a      running  yolo-codex   (PID 12345)   9m left       Same task"),
+          stderr: Buffer.from(""),
+          success: true,
+          exitCode: 0,
+        } as ReturnType<typeof Bun.spawnSync>;
+      }
+      return originalSpawnSync(cmd as Parameters<typeof Bun.spawnSync>[0], opts as Parameters<typeof Bun.spawnSync>[1]);
+    }) as typeof Bun.spawnSync;
+
+    try {
+      const first = await syncLiveSubturtleBoardForTest({
+        sendMessage: async () => {
+          sent += 1;
+          return { message_id: 862, chat: { id: chatId } };
+        },
+        editMessageText: async () => {},
+        pinChatMessage: async (targetChatId: number, messageId: number) => {
+          pinAttempts.push({ chatId: targetChatId, messageId });
+          throw new Error("not enough rights to manage pinned messages");
+        },
+      }, chatId, { pin: true, disableNotification: true });
+
+      const second = await syncLiveSubturtleBoardForTest({
+        sendMessage: async () => {
+          sent += 1;
+          return { message_id: 999, chat: { id: chatId } };
+        },
+        editMessageText: async () => {},
+        pinChatMessage: async (targetChatId: number, messageId: number) => {
+          pinAttempts.push({ chatId: targetChatId, messageId });
+          throw new Error("not enough rights to manage pinned messages");
+        },
+      }, chatId, { pin: true, disableNotification: true });
+
+      expect(first.status).toBe("unestablished");
+      expect(second.status).toBe("unestablished");
+      expect(second.messageId).toBe(862);
+      expect(sent).toBe(1);
+      expect(pinAttempts).toEqual([
+        { chatId, messageId: 862 },
+        { chatId, messageId: 862 },
+      ]);
+
+      const trackedBoard = JSON.parse(readFileSync(boardPath, "utf-8"));
+      expect(trackedBoard.message_id).toBe(862);
+      expect(trackedBoard.pin_state).toBe("unestablished");
     } finally {
       rmSync(boardPath, { force: true });
     }

@@ -1,5 +1,5 @@
 # Current task
-Refactor live board sync so pin failure is not treated as success and tracked board state matches actual Telegram state.
+Add an explicit board reconcile call after successful spawn and stop paths in addition to the background watcher.
 
 # End goal with specs
 - Make SubTurtle board establishment correct and explicit: a board must not be considered established unless Telegram message creation/edit and pinning actually succeeded.
@@ -20,8 +20,8 @@ Refactor live board sync so pin failure is not treated as success and tracked bo
 
 # Backlog
 - [x] Reproduce the current board pinning and parallel spawn failure modes in tests and document the exact contracts the fix must satisfy
-- [ ] Refactor live board sync so pin failure is not treated as success and tracked board state matches actual Telegram state <- current
-- [ ] Add an explicit board reconcile call after successful spawn and stop paths in addition to the background watcher
+- [x] Refactor live board sync so pin failure is not treated as success and tracked board state matches actual Telegram state
+- [ ] Add an explicit board reconcile call after successful spawn and stop paths in addition to the background watcher <- current
 - [ ] Introduce a locked shared-state helper for cron registration, removal, and reschedule so parallel spawns cannot lose updates
 - [ ] Add regression tests for single spawn board establishment, pin failure, four-way parallel spawn, and stop cleanup
 - [ ] Run the relevant test slices and summarize any remaining risks or follow-up cleanup
