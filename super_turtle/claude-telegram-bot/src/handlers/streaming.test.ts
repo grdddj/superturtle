@@ -642,6 +642,42 @@ describe("streaming notifications", () => {
     expect(deleteMessageMock).not.toHaveBeenCalled();
   });
 
+  it("does not send a new silent progress message after teardown completes", async () => {
+    const {
+      StreamingState,
+      createStatusCallback,
+      teardownStreamingState,
+    } = await loadFreshStreamingModule();
+    const replyCalls: Array<{ text: string; extra?: Record<string, unknown> }> = [];
+
+    const ctx = {
+      chat: { id: 654 },
+      reply: mock(async (text: string, extra?: Record<string, unknown>) => {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        replyCalls.push({ text, extra });
+        return {
+          chat: { id: 654 },
+          message_id: 1,
+        };
+      }),
+      api: {
+        editMessageText: mock(async () => {}),
+        deleteMessage: mock(async () => {}),
+      },
+    } as unknown as Context;
+
+    const state = new StreamingState();
+    createStatusCallback(ctx, state);
+    await teardownStreamingState(ctx, state, {
+      chatId: 654,
+      clearRegisteredState: true,
+    });
+    await state.progressUpdateChain;
+
+    expect(replyCalls).toEqual([]);
+    expect(state.progressMessage).toBeNull();
+  });
+
   it("enters Still working after 20s of quiet and refreshes at most every 30s", async () => {
     const { StreamingState, createStatusCallback } = await loadFreshStreamingModule();
     const replyCalls: Array<{ text: string; extra?: Record<string, unknown> }> = [];

@@ -1361,6 +1361,10 @@ async function updateProgressMessage(
     controlsKey: string;
   }
 ): Promise<void> {
+  if (state.teardownCompleted && !state.progressViewerCompleted) {
+    return;
+  }
+
   if (
     payload.text === state.lastProgressContent &&
     payload.controlsKey === state.lastProgressControlsKey
@@ -1369,6 +1373,10 @@ async function updateProgressMessage(
   }
 
   await waitForMinimumVisibleProgressDuration(state);
+
+  if (state.teardownCompleted && !state.progressViewerCompleted) {
+    return;
+  }
 
   if (state.progressMessage) {
     try {
@@ -1441,6 +1449,10 @@ async function updateProgressMessage(
     return;
   }
 
+  if (state.teardownCompleted && !state.progressViewerCompleted) {
+    return;
+  }
+
   try {
     const msg = await replySilently(ctx, payload.text, {
       parse_mode: "HTML",
@@ -1476,6 +1488,10 @@ function queueProgressMessageUpdate(
     controlsKey: string;
   }
 ): Promise<void> {
+  if (state.teardownCompleted && !state.progressViewerCompleted) {
+    return state.progressUpdateChain;
+  }
+
   state.progressUpdateChain = state.progressUpdateChain
     .catch(() => {})
     .then(() => updateProgressMessage(ctx, state, payload));
