@@ -14,6 +14,18 @@ async function loadCodexDriverModule() {
   return import(`./codex-driver.ts?test=${Date.now()}-${Math.random()}`);
 }
 
+async function mockStreamingModule(
+  overrides: Partial<typeof import("../handlers/streaming")>
+): Promise<void> {
+  const actualStreaming = await import(
+    `../handlers/streaming.ts?actual=${Date.now()}-${Math.random()}`
+  );
+  mock.module("../handlers/streaming", () => ({
+    ...actualStreaming,
+    ...overrides,
+  }));
+}
+
 afterEach(() => {
   codexSession.sendMessage = originalSendMessage;
   mock.restore();
@@ -21,13 +33,13 @@ afterEach(() => {
 
 describe("CodexDriver", () => {
   it("does not derive reasoning effort from message keywords", async () => {
-    mock.module("../handlers/streaming", () => ({
+    await mockStreamingModule({
       checkPendingAskUserRequests: async () => false,
       checkPendingBotControlRequests: async () => false,
       checkPendingPinoLogsRequests: async () => false,
       checkPendingSendImageRequests: async () => false,
       checkPendingSendTurtleRequests: async () => false,
-    }));
+    });
 
     const reasoningEfforts: Array<string | undefined> = [];
     codexSession.sendMessage = (async (
@@ -60,7 +72,7 @@ describe("CodexDriver", () => {
   it("flushes pending send_image requests for Codex MCP tool calls", async () => {
     const sendImageChecks: number[] = [];
 
-    mock.module("../handlers/streaming", () => ({
+    await mockStreamingModule({
       checkPendingAskUserRequests: async () => false,
       checkPendingBotControlRequests: async () => false,
       checkPendingPinoLogsRequests: async () => false,
@@ -69,7 +81,7 @@ describe("CodexDriver", () => {
         return true;
       },
       checkPendingSendTurtleRequests: async () => false,
-    }));
+    });
 
     codexSession.sendMessage = (async (
       _message,
@@ -106,13 +118,13 @@ describe("CodexDriver", () => {
     process.env.CODEX_PENDING_PUMP_SHUTDOWN_TIMEOUT_MS = "25";
 
     try {
-      mock.module("../handlers/streaming", () => ({
+      await mockStreamingModule({
         checkPendingAskUserRequests: async () => await new Promise<boolean>(() => {}),
         checkPendingBotControlRequests: async () => false,
         checkPendingPinoLogsRequests: async () => false,
         checkPendingSendImageRequests: async () => false,
         checkPendingSendTurtleRequests: async () => false,
-      }));
+      });
 
       codexSession.sendMessage = (async (_message, statusCallback) => {
         await statusCallback?.("done", "");
@@ -158,13 +170,13 @@ describe("CodexDriver", () => {
   });
 
   it("forwards deferred done when Codex emits done before stale-session retry throws", async () => {
-    mock.module("../handlers/streaming", () => ({
+    await mockStreamingModule({
       checkPendingAskUserRequests: async () => false,
       checkPendingBotControlRequests: async () => false,
       checkPendingPinoLogsRequests: async () => false,
       checkPendingSendImageRequests: async () => false,
       checkPendingSendTurtleRequests: async () => false,
-    }));
+    });
 
     codexSession.sendMessage = (async (_message, statusCallback) => {
       await statusCallback?.("done", "");
