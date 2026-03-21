@@ -754,6 +754,57 @@ describe("streaming notifications", () => {
     }
   });
 
+  it("stores a retained snapshot when heartbeat enters Still working", async () => {
+    const { StreamingState, createStatusCallback } = await loadFreshStreamingModule();
+    const editMessageTextMock = mock(async () => {});
+
+    const originalDateNow = Date.now;
+    const originalSetInterval = globalThis.setInterval;
+    const originalClearInterval = globalThis.clearInterval;
+    let fakeNow = 1_700_000_000_000;
+    let heartbeatTick: (() => Promise<void>) | null = null;
+
+    Date.now = () => fakeNow;
+    globalThis.setInterval = (((callback: TimerHandler) => {
+      heartbeatTick = callback as () => Promise<void>;
+      return 1 as unknown as ReturnType<typeof setInterval>;
+    }) as typeof setInterval);
+    globalThis.clearInterval = ((
+      _timer: ReturnType<typeof setInterval>
+    ) => undefined) as typeof clearInterval;
+
+    try {
+      const ctx = {
+        chat: { id: 790 },
+        reply: mock(async () => ({
+          chat: { id: 790 },
+          message_id: 1,
+        })),
+        api: {
+          editMessageText: editMessageTextMock,
+          deleteMessage: mock(async () => {}),
+        },
+      } as unknown as Context;
+
+      const state = new StreamingState();
+      const statusCallback = createStatusCallback(ctx, state);
+      await state.progressUpdateChain;
+
+      await statusCallback("thinking", "Investigating the issue");
+      fakeNow += 20_000;
+      await heartbeatTick?.();
+
+      expect(state.progressSnapshots.some((snapshot) => snapshot.progressState === "Still working")).toBe(true);
+      expect(String(editMessageTextMock.mock.calls[editMessageTextMock.mock.calls.length - 1]?.[2])).toContain(
+        "Investigating the issue"
+      );
+    } finally {
+      Date.now = originalDateNow;
+      globalThis.setInterval = originalSetInterval;
+      globalThis.clearInterval = originalClearInterval;
+    }
+  });
+
   it("retains bounded snapshot history and supports back/next navigation after completion", async () => {
     const {
       StreamingState,

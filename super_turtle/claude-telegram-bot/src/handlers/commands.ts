@@ -3116,13 +3116,6 @@ export async function buildSubturtleMenuMessage(
     const start = safePage * SUBTURTLE_MENU_PAGE_SIZE;
     const pageTurtles = runningTurtles.slice(start, start + SUBTURTLE_MENU_PAGE_SIZE);
 
-    if (totalPages > 1) {
-      messageLines.push("");
-      messageLines.push(
-        `📚 <b>Running picker:</b> page ${safePage + 1}/${totalPages} (${runningTurtles.length} running)`
-      );
-    }
-
     for (const turtle of pageTurtles) {
       keyboard.push([
         { text: `🐢 ${turtle.name}`, callback_data: `sub_pick:${turtle.name}:${safePage}` },

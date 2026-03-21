@@ -31,7 +31,9 @@ import {
   createStatusCallback,
   checkPendingPinoLogsRequests,
   navigateRetainedProgressViewer,
+  retainStreamingState,
   teardownStreamingState,
+  updateRetainedProgressState,
 } from "./streaming";
 import { isAnyDriverRunning, runMessageWithActiveDriver, stopActiveDriverQuery } from "./driver-routing";
 import { escapeHtml, convertMarkdownToHtml } from "../formatting";
@@ -555,28 +557,88 @@ export async function handleCallback(ctx: Context): Promise<void> {
       chat_id: chatId,
     });
   } catch (error) {
+    const errorSummary = String(error).slice(0, 200);
+    const retainStoppedProgress = async (): Promise<void> => {
+      if (state.teardownCompleted) {
+        return;
+      }
+      try {
+        await updateRetainedProgressState(ctx, state, "Stopped", {
+          toolHint: null,
+          storeSnapshot: true,
+          terminalSnapshot: true,
+        });
+        await retainStreamingState(ctx, state, {
+          chatId,
+          clearRegisteredState: true,
+        });
+      } catch (progressError) {
+        callbackLog.warn(
+          { err: progressError, chatId, requestId: callbackRequestId },
+          "Failed to retain stopped callback progress message"
+        );
+        await teardownStreamingState(ctx, state, {
+          chatId,
+          clearRegisteredState: true,
+        });
+      }
+    };
+    const retainFailedProgress = async (): Promise<void> => {
+      if (state.teardownCompleted) {
+        return;
+      }
+      try {
+        await updateRetainedProgressState(ctx, state, "Failed", {
+          summary: errorSummary,
+          toolHint: null,
+          storeSnapshot: true,
+          terminalSnapshot: true,
+        });
+        await retainStreamingState(ctx, state, {
+          chatId,
+          clearRegisteredState: true,
+        });
+      } catch (progressError) {
+        callbackLog.warn(
+          { err: progressError, chatId, requestId: callbackRequestId },
+          "Failed to retain failed callback progress message"
+        );
+        await teardownStreamingState(ctx, state, {
+          chatId,
+          clearRegisteredState: true,
+        });
+      }
+    };
+
     callbackLog.error({ err: error, callbackData, userId, chatId }, "Error processing callback");
     await auditLogError(
       userId,
       username,
-      String(error).slice(0, 200),
+      errorSummary,
       "handleCallback.askuser",
       { request_id: callbackRequestId, chat_id: chatId }
     );
-    await teardownStreamingState(ctx, state, {
-      chatId,
-      clearRegisteredState: true,
-    });
 
     if (String(error).includes("abort") || String(error).includes("cancel")) {
       // Only show "Query stopped" if it was an explicit stop, not an interrupt from a new message
       const wasInterrupt = session.consumeInterruptFlag();
       const stopAlreadyHandled = consumeHandledStopReply(chatId);
-      if (!wasInterrupt && !stopAlreadyHandled) {
+      const userInitiatedStop =
+        state.stopRequestedByUser || wasInterrupt || stopAlreadyHandled;
+      if (userInitiatedStop) {
+        await retainStoppedProgress();
+      } else {
+        await teardownStreamingState(ctx, state, {
+          chatId,
+          clearRegisteredState: true,
+        });
+      }
+      if (!userInitiatedStop) {
         await ctx.reply("🛑 Query stopped.");
       }
     } else {
-      await ctx.reply(`❌ Error: ${String(error).slice(0, 200)}`);
+      await retainFailedProgress();
+      await ctx.reply(`❌ Error: ${errorSummary}`);
     }
   } finally {
     typing.stop();

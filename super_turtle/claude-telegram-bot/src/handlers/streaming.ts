@@ -1169,7 +1169,11 @@ function recordProgressSnapshot(
   if (!options.terminal && isBlankProgressSummary(state.progressSummary)) {
     return;
   }
-  if (!options.terminal && state.progressState !== "Writing answer") {
+  if (
+    !options.terminal &&
+    state.progressState !== "Writing answer" &&
+    state.progressState !== "Still working"
+  ) {
     return;
   }
 

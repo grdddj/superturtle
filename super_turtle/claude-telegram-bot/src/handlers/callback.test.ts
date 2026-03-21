@@ -3,8 +3,12 @@ import { resolve } from "path";
 
 const callbackPath = resolve(import.meta.dir, "callback.ts");
 const streamingPath = resolve(import.meta.dir, "streaming.ts");
+const driverRoutingPath = resolve(import.meta.dir, "driver-routing.ts");
+const configPath = resolve(import.meta.dir, "../config.ts");
 const sessionPath = resolve(import.meta.dir, "../session.ts");
 const codexPath = resolve(import.meta.dir, "../codex-session.ts");
+const stopPath = resolve(import.meta.dir, "stop.ts");
+const utilsPath = resolve(import.meta.dir, "../utils.ts");
 const marker = "__CALLBACK_PROBE__=";
 
 type ProbeResult<T> = {
@@ -32,8 +36,12 @@ async function runCallbackProbe<T>(
     const marker = ${JSON.stringify(marker)};
     const callbackPath = ${JSON.stringify(callbackPath)};
     const streamingPath = ${JSON.stringify(streamingPath)};
+    const driverRoutingPath = ${JSON.stringify(driverRoutingPath)};
+    const configPath = ${JSON.stringify(configPath)};
     const sessionPath = ${JSON.stringify(sessionPath)};
     const codexPath = ${JSON.stringify(codexPath)};
+    const stopPath = ${JSON.stringify(stopPath)};
+    const utilsPath = ${JSON.stringify(utilsPath)};
     ${scriptBody}
   `;
 
@@ -230,6 +238,110 @@ describe("handleCallback Codex switching and controls", () => {
       { text: "Progress history unavailable" },
     ]);
   });
+
+  it("retains stopped progress for callback runs cancelled by an explicit stop", async () => {
+    const result = await runCallbackProbe<{
+      updateStates: string[];
+      retainCalls: number;
+      teardownCalls: number;
+      replies: string[];
+    }>(`
+      const { mock } = await import("bun:test");
+      const { IPC_DIR } = await import(configPath);
+      const actualStreaming = await import(streamingPath + "?actual=" + Date.now());
+      const actualDriverRouting = await import(driverRoutingPath + "?actual=" + Date.now());
+      const actualStop = await import(stopPath + "?actual=" + Date.now());
+
+      const replies = [];
+      const updateStates = [];
+      let retainCalls = 0;
+      let teardownCalls = 0;
+
+      mock.module(utilsPath, () => ({
+        auditLog: async () => {},
+        auditLogAuth: async () => {},
+        auditLogError: async () => {},
+        generateRequestId: () => "callback-stop-retain",
+        startTypingIndicator: () => ({ stop: () => {} }),
+      }));
+
+      mock.module(driverRoutingPath, () => ({
+        ...actualDriverRouting,
+        isAnyDriverRunning: () => false,
+        stopActiveDriverQuery: async () => "stopped",
+        runMessageWithActiveDriver: async () => {
+          throw new Error("abort");
+        },
+      }));
+
+      mock.module(stopPath, () => ({
+        ...actualStop,
+        consumeHandledStopReply: () => false,
+      }));
+
+      mock.module(streamingPath, () => ({
+        ...actualStreaming,
+        StreamingState: class StreamingState {
+          awaitingUserAttention = false;
+          teardownCompleted = false;
+          stopRequestedByUser = true;
+        },
+        createStatusCallback: () => async () => {},
+        navigateRetainedProgressViewer: async () => "missing",
+        retainStreamingState: async () => {
+          retainCalls += 1;
+        },
+        teardownStreamingState: async () => {
+          teardownCalls += 1;
+        },
+        updateRetainedProgressState: async (_ctx, _state, progressState) => {
+          updateStates.push(String(progressState));
+        },
+      }));
+
+      await Bun.write(
+        \`\${IPC_DIR}/ask-user-req-1.json\`,
+        JSON.stringify({
+          question: "Continue?",
+          options: ["Ship it", "Stop"],
+          status: "pending",
+        })
+      );
+
+      const { handleCallback } = await import(callbackPath);
+
+      const ctx = {
+        from: { id: 123, username: "tester" },
+        chat: { id: 123, type: "private" },
+        callbackQuery: { data: "askuser:req-1:0" },
+        answerCallbackQuery: async () => {},
+        reply: async (text) => {
+          replies.push(String(text));
+          return { chat: { id: 123 }, message_id: 1 };
+        },
+        api: {
+          editMessageText: async () => {},
+          deleteMessage: async () => {},
+        },
+      };
+
+      await handleCallback(ctx);
+
+      console.log(marker + JSON.stringify({
+        updateStates,
+        retainCalls,
+        teardownCalls,
+        replies,
+      }));
+    `);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.payload).not.toBeNull();
+    expect(result.payload?.updateStates).toEqual(["Stopped"]);
+    expect(result.payload?.retainCalls).toBe(1);
+    expect(result.payload?.teardownCalls).toBe(0);
+    expect(result.payload?.replies).toEqual([]);
+  }, 15000);
 
   it("claude model callback re-renders the picker keyboard after selection", async () => {
     const result = await runCallbackProbe<{

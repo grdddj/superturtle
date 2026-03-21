@@ -60,8 +60,11 @@ export class CodexDriver implements ChatDriver {
         }
       : undefined;
 
+    let response: string | null = null;
+    let runError: unknown = null;
+
     try {
-      return await codexSession.sendMessage(
+      response = await codexSession.sendMessage(
         input.message,
         wrappedStatusCallback,
         undefined,
@@ -72,21 +75,51 @@ export class CodexDriver implements ChatDriver {
         input.username,
         input.chatId
       );
-    } finally {
+    } catch (error) {
+      runError = error;
+    }
+
+    let cleanupError: unknown = null;
+    try {
       try {
         await pendingPump.stop();
-      } finally {
-        await pendingOutputs.flushAfterCompletion();
+      } catch (error) {
+        cleanupError = error;
+      }
 
-        if (deferredDone && downstreamStatusCallback) {
+      try {
+        await pendingOutputs.flushAfterCompletion();
+      } catch (error) {
+        cleanupError ??= error;
+      }
+
+      if (deferredDone && downstreamStatusCallback) {
+        try {
           await downstreamStatusCallback(
             deferredDone[0],
             deferredDone[1],
             deferredDone[2]
           );
+        } catch (error) {
+          cleanupError ??= error;
         }
       }
+    } finally {
+      if (runError) {
+        if (cleanupError) {
+          codexLog.warn(
+            { driver: this.id, err: cleanupError, runErr: runError },
+            "Codex cleanup failed after run error; preserving original error"
+          );
+        }
+        throw runError;
+      }
+      if (cleanupError) {
+        throw cleanupError;
+      }
     }
+
+    return response ?? "";
   }
 
   async stop() {

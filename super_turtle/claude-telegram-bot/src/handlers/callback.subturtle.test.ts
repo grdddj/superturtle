@@ -27,6 +27,10 @@ async function loadActualConfig() {
   return import(`../config.ts?callback-subturtle-config=${Date.now()}-${Math.random()}`);
 }
 
+async function loadActualCommands() {
+  return import(`./commands.ts?callback-subturtle-commands=${Date.now()}-${Math.random()}`);
+}
+
 async function loadCallbackModule(): Promise<CallbackModule> {
   return import(`./callback.ts?callback-subturtle=${Date.now()}-${Math.random()}`);
 }
@@ -42,12 +46,16 @@ function cleanupTrackedBoard(chatId: number): void {
 
 beforeEach(async () => {
   const actualConfig = await loadActualConfig();
+  const actualCommands = await loadActualCommands();
   mock.module("../config", () => ({
     ...actualConfig,
     TELEGRAM_TOKEN: "test-token",
     ALLOWED_USERS: [authorizedUserId],
     WORKING_DIR: workingDir,
     SUPERTURTLE_DATA_DIR: join(workingDir, ".superturtle"),
+  }));
+  mock.module("./commands", () => ({
+    ...actualCommands,
   }));
   cleanupTrackedBoard(912345678);
   cleanupTrackedBoard(923456781);
@@ -297,6 +305,7 @@ describe("subturtle callback actions", () => {
     expect(edits).toHaveLength(1);
     expect(edits[0]?.text).toContain("<b>SubTurtles</b>");
     expect(edits[0]?.text).toContain("page 2/2");
+    expect((edits[0]?.text.match(/Running picker/g) || []).length).toBe(1);
     const keyboard = (edits[0]?.extra as any)?.reply_markup?.inline_keyboard || [];
     expect(keyboard.flat().some((button: any) => button.callback_data === `sub_pick:${turtleName}:1`)).toBe(true);
     expect(keyboard.flat().some((button: any) => button.callback_data === "sub_menu:0")).toBe(true);

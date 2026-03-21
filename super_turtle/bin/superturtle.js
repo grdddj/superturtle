@@ -944,6 +944,15 @@ function terminateChildProcessGroup(child, signal = "SIGTERM") {
   } catch {}
 }
 
+function buildServiceChildSpawnOptions(env) {
+  return {
+    cwd: BOT_DIR,
+    env,
+    stdio: "inherit",
+    detached: process.platform !== "win32",
+  };
+}
+
 async function serviceRun() {
   checkBun();
 
@@ -1125,11 +1134,7 @@ async function serviceRun() {
     console.log(`Hosted runtime ownership: ${leaseClaim.lease.lease_id} epoch ${leaseClaim.lease.lease_epoch}`);
   }
 
-  child = spawn("bash", ["-lc", serviceCommand], {
-    cwd: BOT_DIR,
-    env: serviceEnv,
-    stdio: "inherit",
-  });
+  child = spawn("bash", ["-lc", serviceCommand], buildServiceChildSpawnOptions(serviceEnv));
 
   const heartbeatLoop = async () => {
     if (!leaseClaim || !currentSession?.access_token || shuttingDown || !child || child.exitCode !== null) {
@@ -2148,5 +2153,7 @@ module.exports = {
     buildServiceCommand,
     buildPlatformServiceCommand,
     getKeepAwakeCommand,
+    buildServiceChildSpawnOptions,
+    terminateChildProcessGroup,
   },
 };
