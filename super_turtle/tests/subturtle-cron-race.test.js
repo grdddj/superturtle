@@ -159,17 +159,14 @@ async function main() {
     assert.ok(Array.isArray(jobs), "expected cron-jobs.json to remain a JSON array");
     assert.strictEqual(
       jobs.length,
-      1,
-      `expected the current stale-write race to drop one cron registration, got ${jobs.length}`
+      2,
+      `expected the locked cron mutation helper to preserve both registrations, got ${jobs.length}`
     );
-    assert.ok(
-      jobs[0] && typeof jobs[0].worker_name === "string",
-      "expected the surviving cron entry to keep a worker_name"
-    );
-    assert.ok(
-      ["worker-a", "worker-b"].includes(jobs[0].worker_name),
-      `unexpected surviving worker_name ${String(jobs[0].worker_name)}`
-    );
+    const workerNames = jobs
+      .map((job) => (job && typeof job.worker_name === "string" ? job.worker_name : null))
+      .filter(Boolean)
+      .sort();
+    assert.deepStrictEqual(workerNames, ["worker-a", "worker-b"]);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

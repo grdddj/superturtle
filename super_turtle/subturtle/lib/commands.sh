@@ -415,72 +415,144 @@ register_spawn_cron_job() {
   local interval_ms="$2"
   local cron_jobs_file="$CRON_JOBS_FILE"
 
-  "$PYTHON" - "$cron_jobs_file" "$name" "$interval_ms" "${SCRIPT_DIR}/ctl" <<'PY'
+  run_locked_cron_jobs_mutation "$cron_jobs_file" register "$name" "$interval_ms" "${SCRIPT_DIR}/ctl"
+}
+
+run_locked_cron_jobs_mutation() {
+  "$PYTHON" - "$@" <<'PY'
 import datetime
+import fcntl
 import json
+import os
 import secrets
 import sys
+import tempfile
 from pathlib import Path
 
 cron_jobs_path = Path(sys.argv[1])
-name = sys.argv[2]
-interval_ms = int(sys.argv[3])
-ctl_path = sys.argv[4] if len(sys.argv) > 4 else "./super_turtle/subturtle/ctl"
-prompt = (
-    f"[SILENT CHECK-IN] Check SubTurtle {name}: run `{ctl_path} status {name}`, "
-    f"inspect `.superturtle/subturtles/{name}/CLAUDE.md`, and review `git log --oneline -10`.\n"
-    "Rules: Do NOT message the user unless one of these conditions is met:\n"
-    f"- 🎉 SubTurtle completed all backlog items -> stop SubTurtle {name} and report what shipped\n"
-    f"- ⚠️ SubTurtle appears stuck (no meaningful progress for 30+ minutes across repeated supervision checks) -> stop it, diagnose, and report\n"
-    "- ❌ SubTurtle errored, crashed, or is otherwise broken -> report the error clearly\n"
-    "- 🚀 New milestone reached (significant backlog progress) -> send one brief update\n"
-    "If SubTurtle is progressing normally without notable events, respond with only: [SILENT]"
-)
+operation = sys.argv[2]
 
-jobs = []
-if cron_jobs_path.exists():
+
+def load_jobs(must_exist: bool) -> list:
+    if must_exist and not cron_jobs_path.exists():
+        raise FileNotFoundError(f"cron jobs file not found: {cron_jobs_path}")
+    if not cron_jobs_path.exists():
+        return []
+
     raw = cron_jobs_path.read_text(encoding="utf-8").strip()
-    if raw:
-        parsed = json.loads(raw)
-        if not isinstance(parsed, list):
-            raise ValueError("cron-jobs.json must contain a JSON array")
-        jobs = parsed
+    if not raw:
+        return []
 
-existing_ids = {
-    str(job.get("id"))
-    for job in jobs
-    if isinstance(job, dict) and "id" in job
-}
+    parsed = json.loads(raw)
+    if not isinstance(parsed, list):
+        raise ValueError("cron-jobs.json must contain a JSON array")
+    return parsed
 
-job_id = ""
-for _ in range(32):
-    candidate = secrets.token_hex(3)
-    if candidate not in existing_ids:
-        job_id = candidate
-        break
-if not job_id:
-    raise RuntimeError("failed to generate unique cron job id")
 
-now_ms = int(datetime.datetime.now(datetime.timezone.utc).timestamp() * 1000)
-job = {
-    "id": job_id,
-    "prompt": prompt,
-    "silent": True,
-    "job_kind": "subturtle_supervision",
-    "worker_name": name,
-    "supervision_mode": "silent",
-    "type": "recurring",
-    "fire_at": now_ms + interval_ms,
-    "interval_ms": interval_ms,
-    "created_at": datetime.datetime.now(datetime.timezone.utc)
-    .replace(microsecond=0)
-    .isoformat()
-    .replace("+00:00", "Z"),
-}
+def write_jobs(jobs: list) -> None:
+    cron_jobs_path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp_path = tempfile.mkstemp(
+        prefix=f"{cron_jobs_path.name}.",
+        suffix=".tmp",
+        dir=str(cron_jobs_path.parent),
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps(jobs, indent=2) + "\n")
+        os.replace(temp_path, cron_jobs_path)
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
 
-jobs.append(job)
-cron_jobs_path.write_text(json.dumps(jobs, indent=2) + "\n", encoding="utf-8")
-print(job_id)
+
+lock_path = cron_jobs_path.with_name(f"{cron_jobs_path.name}.lock")
+lock_path.parent.mkdir(parents=True, exist_ok=True)
+with lock_path.open("a+", encoding="utf-8") as lock_file:
+    fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+
+    if operation == "register":
+        name = sys.argv[3]
+        interval_ms = int(sys.argv[4])
+        ctl_path = sys.argv[5] if len(sys.argv) > 5 else "./super_turtle/subturtle/ctl"
+        prompt = (
+            f"[SILENT CHECK-IN] Check SubTurtle {name}: run `{ctl_path} status {name}`, "
+            f"inspect `.superturtle/subturtles/{name}/CLAUDE.md`, and review `git log --oneline -10`.\n"
+            "Rules: Do NOT message the user unless one of these conditions is met:\n"
+            f"- 🎉 SubTurtle completed all backlog items -> stop SubTurtle {name} and report what shipped\n"
+            f"- ⚠️ SubTurtle appears stuck (no meaningful progress for 30+ minutes across repeated supervision checks) -> stop it, diagnose, and report\n"
+            "- ❌ SubTurtle errored, crashed, or is otherwise broken -> report the error clearly\n"
+            "- 🚀 New milestone reached (significant backlog progress) -> send one brief update\n"
+            "If SubTurtle is progressing normally without notable events, respond with only: [SILENT]"
+        )
+
+        jobs = load_jobs(must_exist=False)
+        existing_ids = {
+            str(job.get("id"))
+            for job in jobs
+            if isinstance(job, dict) and "id" in job
+        }
+
+        job_id = ""
+        for _ in range(32):
+            candidate = secrets.token_hex(3)
+            if candidate not in existing_ids:
+                job_id = candidate
+                break
+        if not job_id:
+            raise RuntimeError("failed to generate unique cron job id")
+
+        now = datetime.datetime.now(datetime.timezone.utc)
+        now_ms = int(now.timestamp() * 1000)
+        jobs.append(
+            {
+                "id": job_id,
+                "prompt": prompt,
+                "silent": True,
+                "job_kind": "subturtle_supervision",
+                "worker_name": name,
+                "supervision_mode": "silent",
+                "type": "recurring",
+                "fire_at": now_ms + interval_ms,
+                "interval_ms": interval_ms,
+                "created_at": now.replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+            }
+        )
+        write_jobs(jobs)
+        print(job_id)
+    elif operation == "remove":
+        cron_job_id = sys.argv[3]
+        jobs = load_jobs(must_exist=True)
+        new_jobs = []
+        removed = False
+        for job in jobs:
+            if isinstance(job, dict) and str(job.get("id")) == cron_job_id:
+                removed = True
+                continue
+            new_jobs.append(job)
+
+        if not removed:
+            raise RuntimeError(f"cron job id not found: {cron_job_id}")
+
+        write_jobs(new_jobs)
+    elif operation == "reschedule":
+        cron_job_id = sys.argv[3]
+        interval_ms = int(sys.argv[4])
+        jobs = load_jobs(must_exist=True)
+        now_ms = int(datetime.datetime.now(datetime.timezone.utc).timestamp() * 1000)
+        updated = False
+        for job in jobs:
+            if isinstance(job, dict) and str(job.get("id")) == cron_job_id:
+                job["interval_ms"] = interval_ms
+                job["fire_at"] = now_ms + interval_ms
+                updated = True
+                break
+
+        if not updated:
+            sys.exit(42)
+
+        write_jobs(jobs)
+    else:
+        raise RuntimeError(f"unknown cron mutation operation: {operation}")
 PY
 }
 
@@ -488,38 +560,7 @@ remove_spawn_cron_job() {
   local cron_job_id="$1"
   local cron_jobs_file="$CRON_JOBS_FILE"
 
-  "$PYTHON" - "$cron_jobs_file" "$cron_job_id" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-cron_jobs_path = Path(sys.argv[1])
-cron_job_id = sys.argv[2]
-
-if not cron_jobs_path.exists():
-    raise FileNotFoundError(f"cron jobs file not found: {cron_jobs_path}")
-
-raw = cron_jobs_path.read_text(encoding="utf-8").strip()
-jobs = []
-if raw:
-    parsed = json.loads(raw)
-    if not isinstance(parsed, list):
-        raise ValueError("cron-jobs.json must contain a JSON array")
-    jobs = parsed
-
-new_jobs = []
-removed = False
-for job in jobs:
-    if isinstance(job, dict) and str(job.get("id")) == cron_job_id:
-        removed = True
-        continue
-    new_jobs.append(job)
-
-if not removed:
-    raise RuntimeError(f"cron job id not found: {cron_job_id}")
-
-cron_jobs_path.write_text(json.dumps(new_jobs, indent=2) + "\n", encoding="utf-8")
-PY
+  run_locked_cron_jobs_mutation "$cron_jobs_file" remove "$cron_job_id"
 }
 
 do_reschedule_cron() {
@@ -557,41 +598,7 @@ do_reschedule_cron() {
   fi
 
   local py_status=0
-  "$PYTHON" - "$CRON_JOBS_FILE" "$CRON_JOB_ID" "$interval_ms" <<'PY' || py_status=$?
-import datetime
-import json
-import sys
-from pathlib import Path
-
-cron_jobs_path = Path(sys.argv[1])
-cron_job_id = sys.argv[2]
-interval_ms = int(sys.argv[3])
-
-if not cron_jobs_path.exists():
-    raise FileNotFoundError(f"cron jobs file not found: {cron_jobs_path}")
-
-raw = cron_jobs_path.read_text(encoding="utf-8").strip()
-jobs = []
-if raw:
-    parsed = json.loads(raw)
-    if not isinstance(parsed, list):
-        raise ValueError("cron-jobs.json must contain a JSON array")
-    jobs = parsed
-
-now_ms = int(datetime.datetime.now(datetime.timezone.utc).timestamp() * 1000)
-updated = False
-for job in jobs:
-    if isinstance(job, dict) and str(job.get("id")) == cron_job_id:
-        job["interval_ms"] = interval_ms
-        job["fire_at"] = now_ms + interval_ms
-        updated = True
-        break
-
-if not updated:
-    sys.exit(42)
-
-cron_jobs_path.write_text(json.dumps(jobs, indent=2) + "\n", encoding="utf-8")
-PY
+  run_locked_cron_jobs_mutation "$CRON_JOBS_FILE" reschedule "$CRON_JOB_ID" "$interval_ms" || py_status=$?
   if (( py_status != 0 )); then
     if (( py_status == 42 )); then
       echo "ERROR: no cron job found for id '${CRON_JOB_ID}'" >&2

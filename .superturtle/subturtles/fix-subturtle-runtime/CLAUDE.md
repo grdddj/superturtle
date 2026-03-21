@@ -1,5 +1,5 @@
 # Current task
-Introduce a locked shared-state helper for cron registration, removal, and reschedule so parallel spawns cannot lose updates.
+Add regression tests for single spawn board establishment, pin failure, four-way parallel spawn, and stop cleanup.
 
 # End goal with specs
 - Make SubTurtle board establishment correct and explicit: a board must not be considered established unless Telegram message creation/edit and pinning actually succeeded.
@@ -22,6 +22,6 @@ Introduce a locked shared-state helper for cron registration, removal, and resch
 - [x] Reproduce the current board pinning and parallel spawn failure modes in tests and document the exact contracts the fix must satisfy
 - [x] Refactor live board sync so pin failure is not treated as success and tracked board state matches actual Telegram state
 - [x] Add an explicit board reconcile call after successful spawn and stop paths in addition to the background watcher
-- [ ] Introduce a locked shared-state helper for cron registration, removal, and reschedule so parallel spawns cannot lose updates <- current
-- [ ] Add regression tests for single spawn board establishment, pin failure, four-way parallel spawn, and stop cleanup
+- [x] Introduce a locked shared-state helper for cron registration, removal, and reschedule so parallel spawns cannot lose updates
+- [ ] Add regression tests for single spawn board establishment, pin failure, four-way parallel spawn, and stop cleanup <- current
 - [ ] Run the relevant test slices and summarize any remaining risks or follow-up cleanup
