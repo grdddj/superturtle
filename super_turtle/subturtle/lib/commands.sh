@@ -159,6 +159,37 @@ skills_to_json() {
   printf '%s\n' "$@" | "$PYTHON" -c 'import json, sys; print(json.dumps([line.strip() for line in sys.stdin if line.strip()]))' 2>/dev/null || echo '[]'
 }
 
+reconcile_live_subturtle_board() {
+  local reason="${1:-manual}"
+  local bot_dir="${SUPER_TURTLE_DIR}/claude-telegram-bot"
+
+  [[ -d "$bot_dir" ]] || return 0
+  command -v bun >/dev/null 2>&1 || return 0
+
+  (
+    export CLAUDE_WORKING_DIR="${PROJECT_DIR}"
+
+    if [[ -f "${PROJECT_DIR}/.superturtle/.env" ]]; then
+      set -a
+      # shellcheck disable=SC1090
+      source "${PROJECT_DIR}/.superturtle/.env"
+      set +a
+    elif [[ -f "${bot_dir}/.env" ]]; then
+      set -a
+      # shellcheck disable=SC1091
+      source "${bot_dir}/.env"
+      set +a
+    fi
+
+    if [[ -z "${TELEGRAM_BOT_TOKEN:-}" || -z "${TELEGRAM_ALLOWED_USERS:-}" ]]; then
+      exit 0
+    fi
+
+    cd "$bot_dir"
+    bun run src/subturtle-board-reconcile.ts "$reason"
+  ) >/dev/null 2>&1 || true
+}
+
 finalize_stop_and_archive() {
   local name="$1"
   local run_status="$2"
@@ -174,6 +205,7 @@ finalize_stop_and_archive() {
   write_conductor_worker_state "$name" "stopped" "supervisor" "$stop_reason" "" "$stopped_at" || true
   rm -f "$(pid_file "$name")"
   do_archive "$name"
+  reconcile_live_subturtle_board "stop:${name}:${run_status}"
 }
 
 do_start() {
@@ -653,6 +685,7 @@ do_spawn() {
 
   echo "[subturtle:${name}] cron registered (${cron_job_id}, every ${cron_interval})"
   write_conductor_worker_state "$name" "running" "supervisor" || true
+  reconcile_live_subturtle_board "spawn:${name}"
   echo ""
   do_list
 }
