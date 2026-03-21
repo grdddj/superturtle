@@ -1,5 +1,5 @@
 # Current task
-Avoid unrelated edits while this disposable worker stays available for live SubTurtle board observation.
+Keep the state file valid while this disposable worker stays available for live SubTurtle board observation.
 
 # End goal with specs
 - Provide a minimal disposable worker for verifying live board pinning behavior.
@@ -16,7 +16,7 @@ Avoid unrelated edits while this disposable worker stays available for live SubT
 
 # Backlog
 - [x] Start and remain alive for board reconciliation checks
-- [ ] Avoid unrelated edits <- current
-- [ ] Keep the state file valid
+- [x] Avoid unrelated edits
+- [ ] Keep the state file valid <- current
 - [ ] Allow status polling
 - [ ] Exit only when explicitly stopped
