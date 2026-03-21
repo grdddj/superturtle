@@ -49,10 +49,11 @@ if (process.env.SUPERTURTLE_TEST_CRON_RACE_DIR && stdin.includes("failed to gene
       "    barrier_dir = _RacePath(_race_os.environ[\\"SUPERTURTLE_TEST_CRON_RACE_DIR\\"])",
       "    barrier_dir.mkdir(parents=True, exist_ok=True)",
       "    worker_name = _race_os.environ[\\"SUPERTURTLE_TEST_CRON_RACE_NAME\\"]",
+      "    expected = int(_race_os.environ.get(\\"SUPERTURTLE_TEST_CRON_RACE_EXPECTED\\", \\"2\\"))",
       "    (barrier_dir / f\\"{worker_name}.ready\\").write_text(\\"ready\\", encoding=\\"utf-8\\")",
       "    deadline = _race_time.time() + 10",
       "    while _race_time.time() < deadline:",
-      "        if len(list(barrier_dir.glob(\\"*.ready\\"))) >= 2:",
+      "        if len(list(barrier_dir.glob(\\"*.ready\\"))) >= expected:",
       "            return",
       "        _race_time.sleep(0.01)",
       "    raise RuntimeError(\\"timed out waiting for cron race barrier\\")",
@@ -140,33 +141,33 @@ async function main() {
     PATH: `${fakeBinDir}:${process.env.PATH || ""}`,
     SUPERTURTLE_REAL_PYTHON: realPython,
     SUPERTURTLE_TEST_CRON_RACE_DIR: barrierDir,
+    SUPERTURTLE_TEST_CRON_RACE_EXPECTED: "4",
     CRON_JOBS_FILE: cronJobsPath,
   };
 
   try {
+    const workerNames = ["worker-a", "worker-b", "worker-c", "worker-d"];
     await Promise.all([
-      runRegisterSpawnCronJob("worker-a", {
-        ...baseEnv,
-        SUPERTURTLE_TEST_CRON_RACE_NAME: "worker-a",
-      }),
-      runRegisterSpawnCronJob("worker-b", {
-        ...baseEnv,
-        SUPERTURTLE_TEST_CRON_RACE_NAME: "worker-b",
-      }),
+      ...workerNames.map((name) =>
+        runRegisterSpawnCronJob(name, {
+          ...baseEnv,
+          SUPERTURTLE_TEST_CRON_RACE_NAME: name,
+        })
+      ),
     ]);
 
     const jobs = JSON.parse(fs.readFileSync(cronJobsPath, "utf-8"));
     assert.ok(Array.isArray(jobs), "expected cron-jobs.json to remain a JSON array");
     assert.strictEqual(
       jobs.length,
-      2,
-      `expected the locked cron mutation helper to preserve both registrations, got ${jobs.length}`
+      workerNames.length,
+      `expected the locked cron mutation helper to preserve all parallel registrations, got ${jobs.length}`
     );
-    const workerNames = jobs
+    const persistedWorkerNames = jobs
       .map((job) => (job && typeof job.worker_name === "string" ? job.worker_name : null))
       .filter(Boolean)
       .sort();
-    assert.deepStrictEqual(workerNames, ["worker-a", "worker-b"]);
+    assert.deepStrictEqual(persistedWorkerNames, [...workerNames].sort());
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

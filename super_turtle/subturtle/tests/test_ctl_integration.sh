@@ -735,6 +735,51 @@ test_spawn_output_parity() {
   return 0
 }
 
+test_spawn_and_stop_trigger_live_board_reconcile() {
+  local name state_path mock_bin log_path
+  name="$(make_test_name "spawn-stop-board-reconcile")"
+  state_path="${TMP_DIR}/${name}.md"
+  mock_bin="${TMP_DIR}/mock-shell-${name}"
+  log_path="${TMP_DIR}/${name}.board-reconcile.log"
+
+  write_valid_state_file "$state_path" "spawn and stop trigger board reconcile"
+  mkdir -p "$mock_bin"
+
+  cat > "${mock_bin}/bun" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "${SUPERTURTLE_TEST_BUN_LOG}"
+exit 0
+SH
+  chmod +x "${mock_bin}/bun"
+
+  if ! env \
+    PATH="${mock_bin}:${PATH}" \
+    SUPERTURTLE_TEST_BUN_LOG="${log_path}" \
+    TELEGRAM_BOT_TOKEN="test-token" \
+    TELEGRAM_ALLOWED_USERS="123" \
+    "$CTL" spawn "$name" --type yolo-codex --timeout 2m --state-file "$state_path" >/dev/null; then
+    fail "spawn failed for ${name}"
+    return 1
+  fi
+  track_subturtle "$name"
+
+  assert_file_exists "$log_path" || return 1
+  assert_file_contains "$log_path" "run src/subturtle-board-reconcile.ts spawn:${name}" || return 1
+
+  if ! env \
+    PATH="${mock_bin}:${PATH}" \
+    SUPERTURTLE_TEST_BUN_LOG="${log_path}" \
+    TELEGRAM_BOT_TOKEN="test-token" \
+    TELEGRAM_ALLOWED_USERS="123" \
+    "$CTL" stop "$name" >/dev/null; then
+    fail "stop failed for ${name}"
+    return 1
+  fi
+
+  assert_file_contains "$log_path" "run src/subturtle-board-reconcile.ts stop:${name}:stopped" || return 1
+  return 0
+}
+
 test_spawn_with_skills() {
   local name state_path ws skills_json
   name="$(make_test_name "spawn-skills")"
@@ -1467,6 +1512,7 @@ register_test test_spawn_creates_workspace
 register_test test_spawn_stdin_state
 register_test test_spawn_file_state
 register_test test_spawn_output_parity
+register_test test_spawn_and_stop_trigger_live_board_reconcile
 register_test test_spawn_with_skills
 register_test test_status_running
 register_test test_status_mocked_shell_output
