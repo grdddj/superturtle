@@ -1,8 +1,8 @@
 import type { Context } from "grammy";
 import { WORKING_DIR, CTL_PATH } from "../config";
 import { session } from "../session";
-import { stopActiveDriverQuery } from "./driver-routing";
-import { clearDeferredQueue, suppressDrain } from "../deferred-queue";
+import { isAnyDriverRunning, stopActiveDriverQuery } from "./driver-routing";
+import { clearDeferredQueue, getDeferredQueueSize, suppressDrain } from "../deferred-queue";
 import {
   getStreamingState,
   retainStreamingState,
@@ -143,13 +143,17 @@ function markRecentStopReply(chatId: number, now = Date.now()): void {
   recentStopReplyExpiryByChat.set(chatId, now + STOP_REPLY_DEDUPE_WINDOW_MS);
 }
 
+function hasForegroundWorkToStop(chatId: number): boolean {
+  return isAnyDriverRunning() || getDeferredQueueSize(chatId) > 0;
+}
+
 /**
  * Unified user-facing stop handler for all stop entrypoints.
  * Stops the active foreground run and clears the queue, but leaves background
  * SubTurtles alone.
  */
 export async function handleStop(ctx: Context, chatId: number): Promise<void> {
-  if (hasRecentStopReply(chatId)) {
+  if (hasRecentStopReply(chatId) && !hasForegroundWorkToStop(chatId)) {
     stopLog.info({ chatId }, "Suppressed duplicate stop reply");
     return;
   }

@@ -564,6 +564,70 @@ describe("stop handlers", () => {
     }
   });
 
+  it("handleStop does not suppress a new stop when fresh work starts within the dedupe window", async () => {
+    const actualImportSuffix = `${Date.now()}-${Math.random()}`;
+    const actualStreaming = await import(`./streaming.ts?stop-redo=${actualImportSuffix}`);
+    const deferredQueue = await import(`../deferred-queue.ts?stop-redo=${actualImportSuffix}`);
+    const actualDriverRouting = await import(
+      `./driver-routing.ts?stop-redo=${actualImportSuffix}`
+    );
+
+    let driverRunning = false;
+    let stopCalls = 0;
+
+    mock.module("./streaming", () => ({
+      ...actualStreaming,
+      getStreamingState: () => undefined,
+      clearStreamingState: () => {},
+      cleanupToolMessages: async () => {},
+    }));
+    mock.module("../deferred-queue", () => ({ ...deferredQueue }));
+    mock.module("./driver-routing", () => ({
+      ...actualDriverRouting,
+      isAnyDriverRunning: () => driverRunning,
+      stopActiveDriverQuery: async () => {
+        stopCalls += 1;
+        return "stopped" as const;
+      },
+    }));
+
+    Bun.spawnSync = ((cmd: unknown, _opts?: unknown) => {
+      if (!Array.isArray(cmd)) {
+        return originalSpawnSync(cmd as Parameters<typeof Bun.spawnSync>[0]);
+      }
+      throw new Error(`handleStop should not call ctl for foreground-only stop: ${cmd.join(" ")}`);
+    }) as typeof Bun.spawnSync;
+
+    const replies: string[] = [];
+    const chatId = 41006;
+    const ctx = {
+      chat: { id: chatId },
+      api: {
+        editMessageText: async () => {},
+        deleteMessage: async () => {},
+      },
+      reply: async (text: string) => {
+        replies.push(text);
+        return {} as any;
+      },
+    } as unknown as Context;
+
+    const { handleStop } = await import(`./stop.ts?stop-redo=${actualImportSuffix}`);
+
+    try {
+      await handleStop(ctx, chatId);
+
+      driverRunning = true;
+      await handleStop(ctx, chatId);
+
+      expect(stopCalls).toBe(2);
+      expect(replies).toEqual(["🛑 Stopped current work.", "🛑 Stopped current work."]);
+    } finally {
+      deferredQueue.clearDeferredQueue(chatId);
+      deferredQueue.unsuppressDrain(chatId);
+    }
+  });
+
   it("stopAllRunningWork suppresses drain, clears queue, then drains after unsuppress", async () => {
     const actualImportSuffix = `${Date.now()}-${Math.random()}`;
 
