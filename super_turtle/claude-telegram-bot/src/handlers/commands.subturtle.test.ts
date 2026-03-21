@@ -469,6 +469,54 @@ describe("/subturtle", () => {
     }
   });
 
+  it("characterizes swallowed pin-rights failures as a tracked board establishment", async () => {
+    const workdir = workingDir;
+    const chatId = authorizedUserId + 41;
+    const boardPath = join(
+      workdir,
+      ".superturtle/state/telegram/subturtle-boards",
+      `${chatId}.json`
+    );
+    rmSync(boardPath, { force: true });
+    let sent = 0;
+
+    Bun.spawnSync = ((cmd: unknown, opts?: unknown) => {
+      if (Array.isArray(cmd) && String(cmd[0]).endsWith("/subturtle/ctl") && cmd[1] === "list") {
+        return {
+          stdout: Buffer.from("  worker-a      running  yolo-codex   (PID 12345)   9m left       Same task"),
+          stderr: Buffer.from(""),
+          success: true,
+          exitCode: 0,
+        } as ReturnType<typeof Bun.spawnSync>;
+      }
+      return originalSpawnSync(cmd as Parameters<typeof Bun.spawnSync>[0], opts as Parameters<typeof Bun.spawnSync>[1]);
+    }) as typeof Bun.spawnSync;
+
+    try {
+      const result = await syncLiveSubturtleBoardForTest({
+        sendMessage: async () => {
+          sent += 1;
+          return { message_id: 861, chat: { id: chatId } };
+        },
+        editMessageText: async () => {},
+        pinChatMessage: async () => {
+          throw new Error("not enough rights to manage pinned messages");
+        },
+      }, chatId, { pin: true, disableNotification: true });
+
+      expect(result.status).toBe("created");
+      expect(result.messageId).toBe(861);
+      expect(sent).toBe(1);
+
+      const trackedBoard = JSON.parse(readFileSync(boardPath, "utf-8"));
+      expect(trackedBoard.chat_id).toBe(chatId);
+      expect(trackedBoard.message_id).toBe(861);
+      expect(trackedBoard.current_view).toEqual({ kind: "board" });
+    } finally {
+      rmSync(boardPath, { force: true });
+    }
+  });
+
   it("unpins an existing board when no workers remain", async () => {
     const workdir = workingDir;
     const chatId = authorizedUserId + 5;
