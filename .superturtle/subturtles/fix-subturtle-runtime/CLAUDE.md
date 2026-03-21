@@ -1,5 +1,5 @@
 # Current task
-Run the relevant test slices and summarize remaining risks or follow-up cleanup, including the existing `commands.subturtle` logger export mismatch.
+All backlog items are complete. Verification summary: `bash super_turtle/subturtle/tests/test_ctl_integration.sh`, `node super_turtle/tests/subturtle-cron-race.test.js`, and `bun test super_turtle/claude-telegram-bot/src/subturtle-board-reconcile.test.ts` passed. Remaining follow-up cleanup: `bun test super_turtle/claude-telegram-bot/src/handlers/commands.subturtle.test.ts` still fails on the existing `logger` export mismatch, and `cd super_turtle/claude-telegram-bot && bun run typecheck` still reports pre-existing `commands.ts`, `streaming.ts`, and `streaming.test.ts` type errors.
 
 # End goal with specs
 - Make SubTurtle board establishment correct and explicit: a board must not be considered established unless Telegram message creation/edit and pinning actually succeeded.
@@ -24,4 +24,7 @@ Run the relevant test slices and summarize remaining risks or follow-up cleanup,
 - [x] Add an explicit board reconcile call after successful spawn and stop paths in addition to the background watcher
 - [x] Introduce a locked shared-state helper for cron registration, removal, and reschedule so parallel spawns cannot lose updates
 - [x] Add regression tests for single spawn board establishment, pin failure, four-way parallel spawn, and stop cleanup
-- [ ] Run the relevant test slices and summarize any remaining risks or follow-up cleanup <- current
+- [x] Run the relevant test slices and summarize any remaining risks or follow-up cleanup, including the existing `commands.subturtle` logger export mismatch
+
+## Loop Control
+STOP
