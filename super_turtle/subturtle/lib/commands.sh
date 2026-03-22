@@ -654,7 +654,13 @@ do_spawn() {
         echo "[subturtle:${name}] ERROR: state file not found: ${state_file}" >&2
         exit 1
       fi
-      cp "$state_file" "$ws/CLAUDE.md"
+      # Guard against self-copy on macOS (clobbers file to zero bytes)
+      local resolved_src resolved_dst
+      resolved_src="$(cd "$(dirname "$state_file")" && pwd)/$(basename "$state_file")"
+      resolved_dst="$(cd "$(dirname "$ws/CLAUDE.md")" && pwd)/CLAUDE.md"
+      if [[ "$resolved_src" != "$resolved_dst" ]]; then
+        cp "$state_file" "$ws/CLAUDE.md"
+      fi
     fi
   elif [[ ! -t 0 ]]; then
     if ! cat > "$ws/CLAUDE.md"; then
