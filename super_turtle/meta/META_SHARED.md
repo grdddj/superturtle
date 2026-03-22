@@ -88,20 +88,20 @@ There are two levels of state:
 - **Root `CLAUDE.md`** (symlinked as `AGENTS.md`) — the project-level state that you (the meta agent) maintain. This is what the human sees.
 - **`.superturtle/subturtles/<name>/CLAUDE.md`** — each SubTurtle's own state file. You (the meta agent) write this **before** spawning the SubTurtle, scoped to that SubTurtle's specific job. The SubTurtle reads/writes only its own copy.
 
-The state file structure (same at both levels):
+The state file structure (same at both levels) — these are the **exact** `#` headings the validator accepts:
 
-1. **Current task** — what's being worked on right now.
-2. **End goal with specs** — the north-star objective and acceptance criteria.
-3. **Roadmap (Completed)** — milestones already shipped.
-4. **Roadmap (Upcoming)** — milestones planned but not started.
-5. **Backlog** — ordered checklist of work items. One is marked `<- current`.
+1. `# Current task` — what's being worked on right now.
+2. `# End goal with specs` — the north-star objective and acceptance criteria.
+3. `# Roadmap (Completed)` — milestones already shipped. Must have at least 1 `- ` item.
+4. `# Roadmap (Upcoming)` — milestones planned but not started. Must have at least 1 `- ` item.
+5. `# Backlog` — ordered checklist of work items (`- [ ]` / `- [x]`). Minimum 5 items. One must be marked `<- current`.
 
 ## Starting new work
 
 When the human wants to build something new:
 
 1. Clarify scope if needed. Update root `CLAUDE.md` with project-level state.
-2. Draft the SubTurtle's CLAUDE.md content (end goal, backlog with 5+ items, current task).
+2. Draft the SubTurtle's CLAUDE.md content using **exactly** the 5 allowed headings (`# Current task`, `# End goal with specs`, `# Roadmap (Completed)`, `# Roadmap (Upcoming)`, `# Backlog`). Backlog must have 5+ `- [ ]` items with one `<- current`. All three list sections need at least 1 item. No other `#` headings allowed.
 3. **Show type-selection buttons** via `ask_user`:
    - Question: *"Spawning SubTurtle `<name>`. Pick execution mode:"*
    - If `codex_available=true`, options: `⚡ yolo-codex` / `⚡ yolo-codex-spark` / `🚀 yolo` / `🔬 slow`
@@ -178,23 +178,42 @@ YOLO loops have **NO Plan or Groom phase** — they go straight from reading sta
 - Expect Claude to figure out architecture
 - Create overly long CLAUDE.md (>150 lines is a warning sign)
 
+**CLAUDE.md format rules (from `claude-md-guard/config.sh` — the validator):**
+- Exactly 5 allowed top-level headings: `# Current task`, `# End goal with specs`, `# Roadmap (Completed)`, `# Roadmap (Upcoming)`, `# Backlog`
+- Headings are **case-sensitive** and **exact match** — e.g. `# Current task` not `# Current Task`
+- Only `#` (h1) headings are validated. Sub-headings (`##`) inside a section are fine for structure.
+- **No other `#` headings allowed** — no `# Notes`, `# Implementation`, etc. Put extra info under `# End goal with specs` as a `##` sub-heading.
+- Three sections **must have items** (lines starting with `-`): `# Backlog`, `# Roadmap (Upcoming)`, `# Roadmap (Completed)`
+- `# Backlog` must have **at least 5 items** using `- [ ]` or `- [x]` checkbox format
+- At least **1 item** must have the `<- current` marker
+- Max file size: **500 lines**
+
 **Example YOLO CLAUDE.md (Good):**
 ```markdown
-## Current Task
-Refactor `/usage` command to show Claude + Codex quota together with status badges.
+# Current task
 
-## End Goal with Specs
+Refactor /usage command to show Claude + Codex quota together with status badges.
+
+# End goal with specs
+
 Single message displaying: Claude (session %, weekly %, reset time) + Codex (5h msgs + %, weekly %, reset time). Status badges: ✅ <80%, ⚠️ 80-94%, 🔴 95%+.
 
-## Backlog
-- [ ] Read handleUsage() and getCodexQuotaLines() in commands.ts
-- [ ] Create formatUnifiedUsage() helper that merges Claude + Codex data with badges
-- [ ] Test /usage command works, both services visible
-- [ ] Commit
+## File ownership
+- YOU OWN: src/handlers/commands.ts
+- Functions to modify: handleUsage() [call both getters in parallel, format unified output]
 
-## Notes
-File: src/handlers/commands.ts (in the project)
-Functions to modify: handleUsage() [call both getters in parallel, format unified output]
+# Roadmap (Completed)
+- Initial /usage command implemented
+
+# Roadmap (Upcoming)
+- Unified usage display with both Claude and Codex quota
+
+# Backlog
+- [ ] Read handleUsage() and getCodexQuotaLines() in commands.ts <- current
+- [ ] Create formatUnifiedUsage() helper that merges Claude + Codex data with badges
+- [ ] Wire formatUnifiedUsage into handleUsage replacing the old output
+- [ ] Test /usage command works with both services visible
+- [ ] Commit with descriptive message
 ```
 
 ### For SLOW Loops (Can Be Higher-Level)
