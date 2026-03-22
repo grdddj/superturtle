@@ -4,6 +4,7 @@ window.FractalSnake.ui = (() => {
   const HIGH_SCORE_KEY = "fractal-snake-high-score";
   const ENGINE_RETRY_MS = 250;
   const STATE_POLL_MS = 200;
+  const GOLDEN_RATIO = (1 + Math.sqrt(5)) / 2;
   const defaultState = Object.freeze({
     score: 0,
     fibIndex: 0,
@@ -13,21 +14,26 @@ window.FractalSnake.ui = (() => {
   });
 
   let hudElement = null;
+  let menuOverlayElement = null;
   let initialized = false;
   let retryTimer = null;
   let pollTimer = null;
   let highScore = readHighScore();
+  let engineRef = null;
+  let hasStartedGame = false;
 
   function init() {
     if (initialized) return;
 
     initialized = true;
     hudElement = document.getElementById("hud");
+    menuOverlayElement = document.getElementById("menu-overlay");
     if (!hudElement) return;
 
     hudElement.classList.add("hud-overlay");
     hudElement.setAttribute("aria-live", "polite");
     renderHud(normalizeState(defaultState));
+    renderStartScreen(false);
     attachToEngine();
   }
 
@@ -36,9 +42,13 @@ window.FractalSnake.ui = (() => {
 
     const engine = window.FractalSnake && window.FractalSnake.engine;
     if (!engine) {
+      renderStartScreen(false);
       retryTimer = window.setTimeout(attachToEngine, ENGINE_RETRY_MS);
       return;
     }
+
+    engineRef = engine;
+    renderStartScreen(typeof engine.start === "function");
 
     if (typeof engine.getState === "function") {
       updateFromState(engine.getState());
@@ -113,6 +123,115 @@ window.FractalSnake.ui = (() => {
         </div>
       </div>
     `;
+  }
+
+  function renderStartScreen(isReady) {
+    if (!menuOverlayElement || hasStartedGame) return;
+
+    menuOverlayElement.className = "menu-overlay is-visible";
+    menuOverlayElement.setAttribute("aria-hidden", "false");
+    menuOverlayElement.innerHTML = `
+      <section class="menu-screen start-screen" aria-labelledby="start-screen-title">
+        <div class="start-screen__halo" aria-hidden="true"></div>
+        <div class="start-screen__content">
+          <p class="start-screen__eyebrow">Sequence-driven arcade survival</p>
+          <h1 id="start-screen-title" class="start-screen__title">Fractal Snake</h1>
+          <div class="start-screen__logo" aria-hidden="true">
+            ${renderSpiralLogo()}
+          </div>
+          <p class="start-screen__subtitle">
+            Grow by Fibonacci steps, chase the pattern, and hold the line.
+          </p>
+          <button
+            class="start-screen__button"
+            type="button"
+            ${isReady ? "" : "disabled"}
+          >
+            ${isReady ? "Play" : "Syncing Engine..."}
+          </button>
+        </div>
+      </section>
+    `;
+
+    const playButton = menuOverlayElement.querySelector(".start-screen__button");
+    if (playButton) {
+      playButton.addEventListener("click", handlePlayClick, { once: true });
+    }
+  }
+
+  function renderSpiralLogo() {
+    const nodes = [1, 1, 2, 3, 5, 8, 13];
+    const spiralPath = buildSpiralPath();
+
+    return `
+      <svg class="spiral-logo" viewBox="0 0 260 260" role="presentation" focusable="false">
+        <defs>
+          <linearGradient id="spiral-stroke" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#fff4c7"></stop>
+            <stop offset="45%" stop-color="#ffcf66"></stop>
+            <stop offset="100%" stop-color="#ff9b22"></stop>
+          </linearGradient>
+        </defs>
+        <path class="spiral-logo__path spiral-logo__path--glow" d="${spiralPath}"></path>
+        <path class="spiral-logo__path" d="${spiralPath}"></path>
+        ${nodes.map((value, index) => renderSpiralNode(value, index)).join("")}
+      </svg>
+    `;
+  }
+
+  function renderSpiralNode(value, index) {
+    const angle = -Math.PI / 2 + index * (Math.PI / 2);
+    const radius = 10 * GOLDEN_RATIO ** index;
+    const x = 130 + Math.cos(angle) * radius;
+    const y = 130 + Math.sin(angle) * radius;
+    const size = 3 + index * 1.8;
+
+    return `
+      <circle
+        class="spiral-logo__node"
+        cx="${x.toFixed(2)}"
+        cy="${y.toFixed(2)}"
+        r="${size.toFixed(2)}"
+        style="--node-delay:${(index * 140).toFixed(0)}ms"
+      >
+        <title>Fibonacci ${value}</title>
+      </circle>
+    `;
+  }
+
+  function buildSpiralPath() {
+    const center = 130;
+    const quarterTurn = Math.PI / 2;
+    const startAngle = -Math.PI / 2;
+    const endAngle = startAngle + quarterTurn * 6.4;
+    const points = [];
+
+    for (let angle = startAngle; angle <= endAngle; angle += 0.08) {
+      const radius = 7.5 * GOLDEN_RATIO ** ((angle - startAngle) / quarterTurn);
+      const x = center + Math.cos(angle) * radius;
+      const y = center + Math.sin(angle) * radius;
+      points.push(`${x.toFixed(2)} ${y.toFixed(2)}`);
+    }
+
+    return `M ${points.join(" L ")}`;
+  }
+
+  function handlePlayClick() {
+    if (!engineRef || typeof engineRef.start !== "function") {
+      return;
+    }
+
+    hasStartedGame = true;
+    hideMenuOverlay();
+    engineRef.start();
+  }
+
+  function hideMenuOverlay() {
+    if (!menuOverlayElement) return;
+
+    menuOverlayElement.className = "menu-overlay";
+    menuOverlayElement.setAttribute("aria-hidden", "true");
+    menuOverlayElement.innerHTML = "";
   }
 
   function normalizeState(nextState) {

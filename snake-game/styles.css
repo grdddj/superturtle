@@ -4,7 +4,24 @@ body { background: #0a0a0a; overflow: hidden; font-family: 'Courier New', monosp
 #game-container { width: 100vw; height: 100vh; position: relative; }
 #game-canvas { width: 100%; height: 100%; display: block; }
 #hud { position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; }
-#menu-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; }
+#menu-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 220ms ease, visibility 220ms ease;
+}
+
+#menu-overlay.is-visible {
+  pointer-events: auto;
+  opacity: 1;
+  visibility: visible;
+}
 
 .hud-overlay {
   padding: 1rem;
@@ -45,9 +62,203 @@ body { background: #0a0a0a; overflow: hidden; font-family: 'Courier New', monosp
   text-shadow: 0 0 12px rgba(255, 191, 73, 0.2);
 }
 
+.menu-screen {
+  position: relative;
+  width: min(100%, 720px);
+  min-height: min(84vh, 720px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 214, 127, 0.22);
+  border-radius: 30px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top, rgba(255, 193, 94, 0.18), transparent 42%),
+    linear-gradient(160deg, rgba(29, 15, 3, 0.92), rgba(9, 8, 6, 0.86));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 239, 194, 0.04),
+    0 28px 70px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(18px);
+}
+
+.start-screen__halo {
+  position: absolute;
+  inset: -10%;
+  background:
+    radial-gradient(circle at center, rgba(255, 175, 58, 0.2), transparent 34%),
+    conic-gradient(from 0deg, rgba(255, 208, 112, 0.12), transparent 25%, rgba(255, 157, 35, 0.18), transparent 70%, rgba(255, 238, 181, 0.14));
+  filter: blur(18px);
+  animation: startHaloSpin 24s linear infinite;
+}
+
+.start-screen__content {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 480px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 1.1rem;
+  padding: 2.5rem 1.75rem;
+}
+
+.start-screen__eyebrow {
+  font-size: 0.75rem;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  color: rgba(255, 228, 172, 0.72);
+}
+
+.start-screen__title {
+  font-size: clamp(2.6rem, 7vw, 4.6rem);
+  line-height: 0.92;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #fff1bf;
+  text-shadow:
+    0 0 20px rgba(255, 191, 73, 0.28),
+    0 0 55px rgba(255, 153, 0, 0.18);
+}
+
+.start-screen__logo {
+  width: min(100%, 270px);
+  aspect-ratio: 1;
+  padding: 1rem;
+  border-radius: 32px;
+  background:
+    radial-gradient(circle at center, rgba(255, 216, 138, 0.12), rgba(18, 12, 5, 0.18) 56%, rgba(0, 0, 0, 0) 100%);
+  animation: logoFloat 5.8s ease-in-out infinite;
+}
+
+.spiral-logo {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  transform-origin: center;
+  animation: logoTurn 14s linear infinite;
+}
+
+.spiral-logo__path {
+  fill: none;
+  stroke: url(#spiral-stroke);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 14 10;
+  stroke-dashoffset: 0;
+  filter: drop-shadow(0 0 10px rgba(255, 185, 78, 0.26));
+  animation: spiralTrace 5.2s linear infinite;
+}
+
+.spiral-logo__path--glow {
+  stroke: rgba(255, 240, 190, 0.34);
+  stroke-width: 14;
+  stroke-dasharray: none;
+  filter: blur(7px);
+  animation: none;
+}
+
+.spiral-logo__node {
+  fill: rgba(255, 241, 199, 0.94);
+  stroke: rgba(255, 173, 41, 0.62);
+  stroke-width: 1.5;
+  transform-origin: center;
+  animation: nodePulse 2.4s ease-in-out infinite;
+  animation-delay: var(--node-delay);
+}
+
+.start-screen__subtitle {
+  max-width: 28rem;
+  font-size: 0.98rem;
+  line-height: 1.6;
+  color: rgba(255, 231, 176, 0.84);
+}
+
+.start-screen__button {
+  min-width: 10rem;
+  padding: 0.95rem 1.7rem;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ffe49d, #ffb545 55%, #ff8b1f);
+  color: #231405;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow:
+    0 16px 28px rgba(255, 162, 43, 0.24),
+    inset 0 -2px 0 rgba(84, 41, 0, 0.18);
+  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+}
+
+.start-screen__button:hover,
+.start-screen__button:focus-visible {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow:
+    0 20px 34px rgba(255, 162, 43, 0.3),
+    inset 0 -2px 0 rgba(84, 41, 0, 0.18);
+  filter: saturate(1.08);
+}
+
+.start-screen__button:focus-visible {
+  outline: 2px solid rgba(255, 239, 194, 0.9);
+  outline-offset: 3px;
+}
+
+.start-screen__button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+  transform: none;
+  box-shadow:
+    0 12px 24px rgba(255, 162, 43, 0.16),
+    inset 0 -2px 0 rgba(84, 41, 0, 0.12);
+}
+
+@keyframes startHaloSpin {
+  from { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(1.04); }
+  to { transform: rotate(360deg) scale(1); }
+}
+
+@keyframes logoFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes logoTurn {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes spiralTrace {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: -96; }
+}
+
+@keyframes nodePulse {
+  0%, 100% { transform: scale(0.94); opacity: 0.78; }
+  50% { transform: scale(1.08); opacity: 1; }
+}
+
 @media (max-width: 720px) {
   .hud-panel {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .menu-screen {
+    min-height: auto;
+  }
+
+  .start-screen__content {
+    gap: 1rem;
+    padding: 2.15rem 1.25rem;
+  }
+
+  .start-screen__title {
+    letter-spacing: 0.12em;
   }
 }
 
@@ -63,5 +274,31 @@ body { background: #0a0a0a; overflow: hidden; font-family: 'Courier New', monosp
 
   .hud-value {
     font-size: 1.1rem;
+  }
+
+  #menu-overlay {
+    padding: 0.9rem;
+  }
+
+  .menu-screen {
+    border-radius: 24px;
+  }
+
+  .start-screen__eyebrow {
+    font-size: 0.68rem;
+    letter-spacing: 0.28em;
+  }
+
+  .start-screen__logo {
+    width: min(100%, 220px);
+    padding: 0.65rem;
+  }
+
+  .start-screen__subtitle {
+    font-size: 0.9rem;
+  }
+
+  .start-screen__button {
+    width: 100%;
   }
 }
