@@ -186,14 +186,8 @@ function drawBoardPlaceholder(context, width, height, timestamp, state) {
   const snake = extractPoints(state?.snake);
   drawSnakeSegments(context, layout, snake, timestamp);
 
-  const food = extractPoints(state?.food);
-  food.forEach((point) => {
-    const center = getCellCenter(layout, point);
-    context.fillStyle = 'rgba(80, 225, 255, 0.95)';
-    context.beginPath();
-    context.arc(center.x, center.y, layout.cellSize * 0.25, 0, Math.PI * 2);
-    context.fill();
-  });
+  const food = collectPoints(state?.food);
+  drawFoodItems(context, layout, food, timestamp);
 
   context.restore();
 }
@@ -228,7 +222,7 @@ function drawStateOverlay(context, width, height, state) {
 function inferBoardLayout(state, width, height) {
   const board = state?.board || state?.grid || state?.bounds || null;
   const snake = extractPoints(state?.snake);
-  const food = extractPoints(state?.food);
+  const food = collectPoints(state?.food);
   const allPoints = snake.concat(food);
 
   const cols = readDimension(board, ['cols', 'columns', 'width'], allPoints, 'x');
@@ -276,6 +270,15 @@ function extractPoints(value) {
   return value
     .map((point) => normalizePoint(point))
     .filter((point) => point !== null);
+}
+
+function collectPoints(value) {
+  if (Array.isArray(value)) {
+    return extractPoints(value);
+  }
+
+  const point = normalizePoint(value);
+  return point ? [point] : [];
 }
 
 function normalizePoint(point) {
@@ -334,6 +337,79 @@ function drawSnakeSegments(context, layout, snake, timestamp) {
   });
 
   context.restore();
+}
+
+function drawFoodItems(context, layout, food, timestamp) {
+  if (!food.length) {
+    return;
+  }
+
+  context.save();
+  context.globalCompositeOperation = 'screen';
+
+  food.forEach((point, index) => {
+    const center = getCellCenter(layout, point);
+    const pulse = 0.5 + Math.sin(timestamp / 220 + index * 0.8) * 0.5;
+    const rotation = timestamp / 720 + index * (Math.PI / GOLDEN_RATIO);
+    const spiralRadius = layout.cellSize * (0.16 + pulse * 0.09);
+    const haloRadius = layout.cellSize * (0.48 + pulse * 0.14);
+    const halo = context.createRadialGradient(center.x, center.y, 0, center.x, center.y, haloRadius);
+
+    halo.addColorStop(0, 'rgba(190, 255, 255, 0.38)');
+    halo.addColorStop(0.45, 'rgba(72, 235, 255, 0.18)');
+    halo.addColorStop(1, 'rgba(72, 235, 255, 0)');
+
+    context.fillStyle = halo;
+    context.beginPath();
+    context.arc(center.x, center.y, haloRadius, 0, TAU);
+    context.fill();
+
+    drawFibonacciSpiral(context, center.x, center.y, spiralRadius, rotation, pulse);
+  });
+
+  context.restore();
+}
+
+function drawFibonacciSpiral(context, x, y, radius, rotation, pulse) {
+  const turns = 2.4;
+  const maxTheta = turns * TAU;
+  const minRadius = Math.max(1.2, radius * 0.11);
+  const growthRate = Math.log(radius / minRadius) / maxTheta;
+  const steps = 64;
+  const endX = x + Math.cos(rotation + maxTheta) * radius;
+  const endY = y + Math.sin(rotation + maxTheta) * radius;
+  const gradient = context.createLinearGradient(x, y, endX, endY);
+
+  gradient.addColorStop(0, 'rgba(218, 255, 255, 0.98)');
+  gradient.addColorStop(0.45, 'rgba(92, 244, 255, 0.95)');
+  gradient.addColorStop(1, 'rgba(18, 180, 215, 0.78)');
+
+  context.beginPath();
+  for (let step = 0; step <= steps; step += 1) {
+    const theta = (step / steps) * maxTheta;
+    const spiralRadius = minRadius * Math.exp(growthRate * theta);
+    const px = x + Math.cos(rotation + theta) * spiralRadius;
+    const py = y + Math.sin(rotation + theta) * spiralRadius;
+
+    if (step === 0) {
+      context.moveTo(px, py);
+    } else {
+      context.lineTo(px, py);
+    }
+  }
+
+  context.lineCap = 'round';
+  context.lineJoin = 'round';
+  context.lineWidth = Math.max(1.8, radius * (0.16 + pulse * 0.05));
+  context.shadowColor = 'rgba(122, 245, 255, 0.95)';
+  context.shadowBlur = radius * (1.2 + pulse * 1.5);
+  context.strokeStyle = gradient;
+  context.stroke();
+
+  context.beginPath();
+  context.arc(x, y, Math.max(1.6, radius * 0.16), 0, TAU);
+  context.fillStyle = 'rgba(220, 255, 255, 0.95)';
+  context.fill();
 }
 
 function drawGoldenSpiralArc(context, x, y, radius, lineWidth, rotation, colors) {
