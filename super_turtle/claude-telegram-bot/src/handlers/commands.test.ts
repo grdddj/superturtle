@@ -41,6 +41,10 @@ type SwitchCommandProbePayload = {
   codexKillCalls: number;
 };
 
+type SwitchAuthProbePayload = {
+  replies: ReplyRecord[];
+};
+
 type ResumeProbePayload = {
   replies: ReplyRecord[];
 };
@@ -477,6 +481,85 @@ function runSwitchCommandProbeInIsolatedProcess(opts: {
   expect(jsonEnd).toBeGreaterThanOrEqual(firstBrace);
   const jsonText = tail.slice(firstBrace, jsonEnd + 1);
   return JSON.parse(jsonText) as SwitchCommandProbePayload;
+}
+
+function runSwitchAuthProbeInIsolatedProcess(opts: {
+  allowedUsers: number[];
+  userId: number;
+}): SwitchAuthProbePayload {
+  const projectRoot = resolve(import.meta.dir, "../..");
+  const marker = "__SWITCH_AUTH_PROBE__=";
+  const script = `
+    process.env.TELEGRAM_BOT_TOKEN = "test-token";
+    process.env.TELEGRAM_ALLOWED_USERS = ${JSON.stringify(opts.allowedUsers.join(","))};
+    process.env.CLAUDE_WORKING_DIR = process.cwd();
+    process.env.CODEX_ENABLED = "false";
+    console.log = () => {};
+    console.warn = () => {};
+    console.error = () => {};
+
+    const { handleSwitch } = await import("./src/handlers/commands.ts");
+
+    const replies = [];
+    const ctx = {
+      from: { id: ${JSON.stringify(opts.userId)} },
+      message: { text: "/switch" },
+      reply: async (text, extra) => {
+        replies.push({ text: String(text), extra });
+      },
+    };
+
+    await handleSwitch(ctx);
+    process.stdout.write(${JSON.stringify(marker)} + JSON.stringify({ replies }));
+  `;
+
+  const proc = Bun.spawnSync(["bun", "-e", script], { cwd: projectRoot });
+  expect(proc.exitCode).toBe(0);
+
+  const combinedOutput = `${proc.stdout.toString()}\n${proc.stderr.toString()}`;
+  const markerIndex = combinedOutput.lastIndexOf(marker);
+  expect(markerIndex).toBeGreaterThanOrEqual(0);
+
+  const tail = combinedOutput.slice(markerIndex + marker.length);
+  const firstBrace = tail.indexOf("{");
+  expect(firstBrace).toBeGreaterThanOrEqual(0);
+
+  let depth = 0;
+  let inString = false;
+  let isEscaped = false;
+  let jsonEnd = -1;
+  for (let i = firstBrace; i < tail.length; i += 1) {
+    const ch = tail[i]!;
+    if (inString) {
+      if (isEscaped) {
+        isEscaped = false;
+      } else if (ch === "\\") {
+        isEscaped = true;
+      } else if (ch === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+    if (ch === "\"") {
+      inString = true;
+      continue;
+    }
+    if (ch === "{") {
+      depth += 1;
+      continue;
+    }
+    if (ch === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        jsonEnd = i;
+        break;
+      }
+    }
+  }
+
+  expect(jsonEnd).toBeGreaterThanOrEqual(firstBrace);
+  const jsonText = tail.slice(firstBrace, jsonEnd + 1);
+  return JSON.parse(jsonText) as SwitchAuthProbePayload;
 }
 
 function runResumeProbeInIsolatedProcess(opts: {
@@ -1184,25 +1267,12 @@ describe("handlers with mock Context", () => {
     expect(result.replies[0]!.text).toContain("Unknown driver: codxe");
   }, 20_000);
 
-  it("handleSwitch keeps the legacy redirect behind authorization", async () => {
-    const actualConfig = await import("../config");
-    mock.module("../config", () => ({
-      ...actualConfig,
-      ALLOWED_USERS: [123],
-    }));
-    const { handleSwitch: isolatedHandleSwitch } = await import(
-      `./commands.ts?switch-auth=${Date.now()}-${Math.random()}`
-    );
+  it("handleSwitch keeps the legacy redirect behind authorization", () => {
+    const result = runSwitchAuthProbeInIsolatedProcess({
+      allowedUsers: [123],
+      userId: 999_999,
+    });
 
-    const replies: ReplyRecord[] = [];
-    await isolatedHandleSwitch({
-      from: { id: 999_999 },
-      message: { text: "/switch" },
-      reply: async (text: string, extra?: { parse_mode?: string; reply_markup?: unknown }) => {
-        replies.push({ text, extra });
-      },
-    } as any);
-
-    expect(replies).toEqual([{ text: "Unauthorized.", extra: undefined }]);
+    expect(result.replies).toEqual([{ text: "Unauthorized.", extra: undefined }]);
   });
 });
