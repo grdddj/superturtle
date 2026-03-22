@@ -1,5 +1,5 @@
 # Current task
-Write `beta-environment.txt` with the required header, captured environment details, and completion line.
+Write `done.flag` with `ok`.
 
 # End goal with specs
 - Produce a harmless smoke-test artifact set under `/tmp/st-codex-test-b/`.
@@ -24,6 +24,6 @@ Write `beta-environment.txt` with the required header, captured environment deta
 - [x] Confirm the exact output directory and filenames.
 - [x] Create `/tmp/st-codex-test-b/` and seed `commands.log`.
 - [x] Capture the working directory and `uname -a` output.
-- [ ] Write `beta-environment.txt` with the required header and completion line. <- current
-- [ ] Write `done.flag` with `ok`.
+- [x] Write `beta-environment.txt` with the required header and completion line.
+- [ ] Write `done.flag` with `ok`. <- current
 - [ ] Verify all three files exist and stop.
