@@ -1,6 +1,6 @@
 # Current task
 
-Append Loop Control STOP to complete the workflow.
+All tasks complete. Loop stopped.
 
 # End goal with specs
 
@@ -15,6 +15,9 @@ Create .superturtle/subturtles/test-2/result.txt with "test-2 done" and a timest
 # Backlog
 - [x] Write result.txt with timestamp
 - [x] Verify file exists
-- [ ] Append Loop Control STOP <- current
-- [ ] Clean up
-- [ ] Done
+- [x] Append Loop Control STOP
+- [x] Clean up
+- [x] Done
+
+## Loop Control
+STOP
