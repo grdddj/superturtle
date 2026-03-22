@@ -1,5 +1,7 @@
 const GRID_SIZE = 40;
 const BASE_TICK_MS = 180;
+const MIN_TICK_MS = 70;
+const TICK_DECREASE_PER_LEVEL = 8;
 const INITIAL_DIRECTION = "right";
 const GOLDEN_ANGLE_RADIANS = (137.5 * Math.PI) / 180;
 const FOOD_SPIRAL_SCALE = 0.5;
@@ -172,6 +174,13 @@ function emitStateChange() {
   });
 }
 
+function getTickInterval(fibIndex) {
+  return Math.max(
+    MIN_TICK_MS,
+    BASE_TICK_MS - fibIndex * TICK_DECREASE_PER_LEVEL,
+  );
+}
+
 function isSamePosition(a, b) {
   return Boolean(a) && Boolean(b) && a.x === b.x && a.y === b.y;
 }
@@ -262,6 +271,7 @@ function step() {
     state.fibIndex += 1;
     state.currentFibValue = growthAmount;
     state.food = createFoodPosition(nextSnake);
+    tickInterval = getTickInterval(state.fibIndex);
   }
 
   if (pendingGrowth > 0) {
@@ -329,8 +339,8 @@ function reset() {
   pendingGrowth = 0;
   foodSpawnIndex = 0;
   queuedDirection = INITIAL_DIRECTION;
-  tickInterval = BASE_TICK_MS;
   state = createInitialState();
+  tickInterval = getTickInterval(state.fibIndex);
   resetTiming();
   emitStateChange();
 
