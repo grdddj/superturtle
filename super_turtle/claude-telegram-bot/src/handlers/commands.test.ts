@@ -1185,8 +1185,17 @@ describe("handlers with mock Context", () => {
   }, 20_000);
 
   it("handleSwitch keeps the legacy redirect behind authorization", async () => {
+    const actualConfig = await import("../config");
+    mock.module("../config", () => ({
+      ...actualConfig,
+      ALLOWED_USERS: [123],
+    }));
+    const { handleSwitch: isolatedHandleSwitch } = await import(
+      `./commands.ts?switch-auth=${Date.now()}-${Math.random()}`
+    );
+
     const replies: ReplyRecord[] = [];
-    await handleSwitch({
+    await isolatedHandleSwitch({
       from: { id: 999_999 },
       message: { text: "/switch" },
       reply: async (text: string, extra?: { parse_mode?: string; reply_markup?: unknown }) => {
