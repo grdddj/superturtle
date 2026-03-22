@@ -1,5 +1,5 @@
 # Current task
-Write `gamma-dates.txt` with the required header and completion line.
+Write `done.flag` with `ok`.
 
 # End goal with specs
 - Produce a harmless smoke-test artifact set under `/tmp/st-codex-test-c/`.
@@ -25,6 +25,6 @@ Write `gamma-dates.txt` with the required header and completion line.
 - [x] Confirm the exact output directory and filenames.
 - [x] Create `/tmp/st-codex-test-c/` and seed `commands.log`.
 - [x] Capture the local time, UTC time, and timezone abbreviation. Saved in `/tmp/st-codex-test-c/time-capture.env`.
-- [ ] Write `gamma-dates.txt` with the required header and completion line. <- current
-- [ ] Write `done.flag` with `ok`.
+- [x] Write `gamma-dates.txt` with the required header and completion line.
+- [ ] Write `done.flag` with `ok`. <- current
 - [ ] Verify all three files exist and stop.
