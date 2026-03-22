@@ -1,13 +1,21 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
-process.env.TELEGRAM_BOT_TOKEN ||= "test-token";
-process.env.TELEGRAM_ALLOWED_USERS ||= "123";
-process.env.CLAUDE_WORKING_DIR ||= process.cwd();
+process.env.TELEGRAM_BOT_TOKEN = "test-token";
+process.env.TELEGRAM_ALLOWED_USERS = "123";
+process.env.CLAUDE_WORKING_DIR = process.cwd();
 
-const { handleLooplogs, MAIN_LOOP_LOG_PATH } = await import("./commands");
-const { ALLOWED_USERS } = await import("../config");
+type CommandsModule = typeof import("./commands");
 
-const authorizedUserId = ALLOWED_USERS[0] ?? Number((process.env.TELEGRAM_ALLOWED_USERS || "123").split(",")[0]?.trim() || "123");
+const authorizedUserId = 123;
+
+async function loadLooplogsModule(): Promise<Pick<CommandsModule, "handleLooplogs" | "MAIN_LOOP_LOG_PATH">> {
+  const actualSecurity = await import(`../security.ts?looplogs-security=${Date.now()}-${Math.random()}`);
+  mock.module("../security", () => ({
+    ...actualSecurity,
+    isAuthorized: () => true,
+  }));
+  return import(`./commands.ts?looplogs=${Date.now()}-${Math.random()}`);
+}
 
 async function withLoopLogPathEnv(path: string | undefined, fn: () => Promise<void>): Promise<void> {
   const previous = process.env.SUPERTURTLE_LOOP_LOG_PATH;
@@ -27,9 +35,21 @@ async function withLoopLogPathEnv(path: string | undefined, fn: () => Promise<vo
   }
 }
 
+beforeEach(() => {
+  mock.restore();
+  process.env.TELEGRAM_BOT_TOKEN = "test-token";
+  process.env.TELEGRAM_ALLOWED_USERS = "123";
+  process.env.CLAUDE_WORKING_DIR = process.cwd();
+});
+
+afterEach(() => {
+  mock.restore();
+});
+
 describe("/looplogs", () => {
   it("falls back to legacy main-loop path when token-prefixed path is missing", async () => {
     await withLoopLogPathEnv(undefined, async () => {
+      const { handleLooplogs, MAIN_LOOP_LOG_PATH } = await loadLooplogsModule();
       const expectedLogText = "legacy log line";
       const originalSpawnSync = Bun.spawnSync;
       const spawnedCommands: string[][] = [];
@@ -82,6 +102,7 @@ describe("/looplogs", () => {
   });
 
   it("returns the tailed main-loop logs", async () => {
+    const { handleLooplogs, MAIN_LOOP_LOG_PATH } = await loadLooplogsModule();
     await withLoopLogPathEnv(MAIN_LOOP_LOG_PATH, async () => {
       const expectedLogText = Array.from({ length: 50 }, (_, i) => `line ${i + 1}`).join("\n");
       const originalSpawnSync = Bun.spawnSync;
@@ -122,6 +143,7 @@ describe("/looplogs", () => {
   });
 
   it("returns an actionable error when the log file is missing", async () => {
+    const { handleLooplogs, MAIN_LOOP_LOG_PATH } = await loadLooplogsModule();
     await withLoopLogPathEnv(MAIN_LOOP_LOG_PATH, async () => {
       const originalSpawnSync = Bun.spawnSync;
       Bun.spawnSync = ((cmd: unknown, opts?: unknown) => {
