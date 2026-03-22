@@ -1426,6 +1426,11 @@ export async function handleModel(ctx: Context): Promise<void> {
     return;
   }
 
+  if (target) {
+    await ctx.reply(`❌ Unknown driver: ${target}. Use /model claude or /model codex`);
+    return;
+  }
+
   if (session.activeDriver === "codex" && !CODEX_AVAILABLE) {
     session.activeDriver = "claude";
     await ctx.reply(`${getCodexUnavailableMessage()}\nUsing Claude model controls.`);
@@ -1441,6 +1446,20 @@ export async function handleModel(ctx: Context): Promise<void> {
     parse_mode: "HTML",
     reply_markup: picker.replyMarkup,
   });
+}
+
+/**
+ * /switch - Legacy redirect to /model.
+ */
+export async function handleSwitch(ctx: Context): Promise<void> {
+  const userId = ctx.from?.id;
+
+  if (!isAuthorized(userId, ALLOWED_USERS)) {
+    await ctx.reply("Unauthorized.");
+    return;
+  }
+
+  await ctx.reply("/switch has been merged into /model. Use /model to change your driver, model, or effort level.");
 }
 
 /**

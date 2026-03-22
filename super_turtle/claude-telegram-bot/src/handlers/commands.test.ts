@@ -24,6 +24,7 @@ const {
   handleStatus,
   handleCron,
   handleModel,
+  handleSwitch,
   handlePinologs,
 } = await import("./commands");
 
@@ -1167,4 +1168,32 @@ describe("handlers with mock Context", () => {
     expect(result.replies[0]!.text).toContain("Failed to switch to Codex");
     expect(result.replies[0]!.text).toContain("forced start failure for test");
   }, 20_000);
+
+  it("handleModel rejects unknown driver arguments", () => {
+    const result = runSwitchCommandProbeInIsolatedProcess({
+      command: "/model codxe",
+      codexEnabled: true,
+      codexCliAvailable: true,
+    });
+
+    expect(result.activeDriver).toBe("claude");
+    expect(result.startNewThreadCalls).toBe(0);
+    expect(result.sessionKillCalls).toBe(0);
+    expect(result.codexKillCalls).toBe(0);
+    expect(result.replies).toHaveLength(1);
+    expect(result.replies[0]!.text).toContain("Unknown driver: codxe");
+  }, 20_000);
+
+  it("handleSwitch keeps the legacy redirect behind authorization", async () => {
+    const replies: ReplyRecord[] = [];
+    await handleSwitch({
+      from: { id: 999_999 },
+      message: { text: "/switch" },
+      reply: async (text: string, extra?: { parse_mode?: string; reply_markup?: unknown }) => {
+        replies.push({ text, extra });
+      },
+    } as any);
+
+    expect(replies).toEqual([{ text: "Unauthorized.", extra: undefined }]);
+  });
 });

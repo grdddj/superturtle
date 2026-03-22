@@ -9,6 +9,7 @@ export {
   handleUsage,
   handleContext,
   handleModel,
+  handleSwitch,
   handleResume,
   handleSubturtle,
   handleCron,
