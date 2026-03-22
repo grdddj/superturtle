@@ -1,5 +1,5 @@
 # Current task
-Write `done.flag` with `ok` for worker `tmp-codex-d`.
+Verify all three files exist under `/tmp/st-codex-test-d/` and contain sensible content.
 
 # End goal with specs
 - Produce a harmless smoke-test artifact set under `/tmp/st-codex-test-d/`.
@@ -25,5 +25,5 @@ Write `done.flag` with `ok` for worker `tmp-codex-d`.
 - [x] Create `/tmp/st-codex-test-d/` and seed `commands.log`.
 - [x] Count `/tmp` entries and capture the first 5 names.
 - [x] Write `delta-files.txt` with the required header and completion line.
-- [ ] Write `done.flag` with `ok`. <- current
-- [ ] Verify all three files exist and stop.
+- [x] Write `done.flag` with `ok`.
+- [ ] Verify all three files exist and stop. <- current
