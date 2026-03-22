@@ -9,6 +9,9 @@ const visualsState = {
   height: 0,
   pixelRatio: 1,
   stars: [],
+  fractalCanvas: null,
+  fractalWidth: 0,
+  fractalHeight: 0,
 };
 
 function init() {
@@ -66,6 +69,7 @@ function resizeCanvas() {
   visualsState.height = cssHeight;
   visualsState.pixelRatio = pixelRatio;
   visualsState.stars = buildStars(cssWidth, cssHeight);
+  ensureFractalBackdrop(cssWidth, cssHeight);
 
   context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
   context.imageSmoothingEnabled = true;
@@ -80,7 +84,7 @@ function renderFrame(timestamp) {
 
   const engineState = readEngineState();
 
-  drawBackdrop(context, visualsState.width, visualsState.height, timestamp);
+  drawBackdrop(context, visualsState.width, visualsState.height, timestamp, engineState);
   drawBoardPlaceholder(context, visualsState.width, visualsState.height, engineState);
   drawStateOverlay(context, visualsState.width, visualsState.height, engineState);
 
@@ -101,8 +105,10 @@ function readEngineState() {
   }
 }
 
-function drawBackdrop(context, width, height, timestamp) {
+function drawBackdrop(context, width, height, timestamp, state) {
   const pulse = 0.5 + Math.sin(timestamp / 1800) * 0.5;
+  const score = typeof state?.score === 'number' ? state.score : 0;
+  const hueRotation = (score * 17) % 360;
 
   const gradient = context.createLinearGradient(0, 0, width, height);
   gradient.addColorStop(0, '#070816');
@@ -112,6 +118,8 @@ function drawBackdrop(context, width, height, timestamp) {
   context.fillStyle = gradient;
   context.fillRect(0, 0, width, height);
 
+  drawFractalLayer(context, width, height, timestamp, hueRotation, pulse);
+
   context.save();
   context.globalAlpha = 0.3 + pulse * 0.1;
   for (const star of visualsState.stars) {
@@ -120,6 +128,29 @@ function drawBackdrop(context, width, height, timestamp) {
     context.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
     context.fill();
   }
+  context.restore();
+}
+
+function drawFractalLayer(context, width, height, timestamp, hueRotation, pulse) {
+  const { fractalCanvas } = visualsState;
+  if (!fractalCanvas) {
+    return;
+  }
+
+  const driftX = Math.sin(timestamp / 12000) * width * 0.015;
+  const driftY = Math.cos(timestamp / 10000) * height * 0.02;
+
+  context.save();
+  context.globalAlpha = 0.34 + pulse * 0.16;
+  context.filter = `hue-rotate(${hueRotation}deg) saturate(1.35) brightness(${0.78 + pulse * 0.18})`;
+  context.drawImage(fractalCanvas, driftX, driftY, width, height);
+  context.restore();
+
+  context.save();
+  context.globalCompositeOperation = 'screen';
+  context.globalAlpha = 0.16;
+  context.fillStyle = `hsl(${(225 + hueRotation) % 360} 88% 64%)`;
+  context.fillRect(0, 0, width, height);
   context.restore();
 }
 
@@ -295,6 +326,83 @@ function buildStars(width, height) {
   }
 
   return stars;
+}
+
+function ensureFractalBackdrop(width, height) {
+  const targetWidth = clamp(Math.round(width * 0.42), 180, 480);
+  const targetHeight = clamp(Math.round(height * 0.42), 180, 480);
+
+  if (
+    visualsState.fractalCanvas &&
+    visualsState.fractalWidth === targetWidth &&
+    visualsState.fractalHeight === targetHeight
+  ) {
+    return;
+  }
+
+  const fractalCanvas = document.createElement('canvas');
+  fractalCanvas.width = targetWidth;
+  fractalCanvas.height = targetHeight;
+
+  const fractalContext = fractalCanvas.getContext('2d');
+  if (!fractalContext) {
+    visualsState.fractalCanvas = null;
+    visualsState.fractalWidth = 0;
+    visualsState.fractalHeight = 0;
+    return;
+  }
+
+  paintJuliaSet(fractalContext, targetWidth, targetHeight);
+  visualsState.fractalCanvas = fractalCanvas;
+  visualsState.fractalWidth = targetWidth;
+  visualsState.fractalHeight = targetHeight;
+}
+
+function paintJuliaSet(context, width, height) {
+  const imageData = context.createImageData(width, height);
+  const pixels = imageData.data;
+  const aspect = width / height;
+  const maxIterations = 88;
+  const constantReal = -0.82;
+  const constantImaginary = 0.156;
+  const zoom = 1.55;
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const offset = (y * width + x) * 4;
+      let zx = ((x / width) * 2 - 1) * aspect * zoom - 0.18;
+      let zy = ((y / height) * 2 - 1) * zoom + 0.04;
+      let iteration = 0;
+
+      while (zx * zx + zy * zy < 16 && iteration < maxIterations) {
+        const nextReal = zx * zx - zy * zy + constantReal;
+        zy = 2 * zx * zy + constantImaginary;
+        zx = nextReal;
+        iteration += 1;
+      }
+
+      const smoothIteration =
+        iteration === maxIterations
+          ? 0
+          : iteration + 1 - Math.log2(Math.log2(zx * zx + zy * zy));
+      const escape = iteration === maxIterations ? 0 : 1 - smoothIteration / maxIterations;
+      const glow = Math.max(0, Math.min(1, Math.pow(escape, 1.35)));
+      const grain = 0.78 + pseudoRandom(x * 0.37 + y * 0.61) * 0.22;
+      const band = 0.5 + Math.sin((zx + zy) * 6.2) * 0.5;
+      const luminance = glow * grain * (0.8 + band * 0.35);
+
+      pixels[offset] = Math.round(8 + luminance * 82);
+      pixels[offset + 1] = Math.round(14 + luminance * 116);
+      pixels[offset + 2] = Math.round(30 + luminance * 190);
+      pixels[offset + 3] = Math.round(30 + luminance * 220);
+    }
+  }
+
+  context.putImageData(imageData, 0, 0);
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }
 
 function pseudoRandom(seed) {
