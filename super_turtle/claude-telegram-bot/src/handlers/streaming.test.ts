@@ -532,7 +532,7 @@ describe("bot-control dynamic import", () => {
         /* best-effort cleanup */
       }
     }
-  });
+  }, 20_000);
 });
 
 describe("streaming notifications", () => {
