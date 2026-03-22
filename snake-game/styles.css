@@ -217,6 +217,101 @@ body { background: #0a0a0a; overflow: hidden; font-family: 'Courier New', monosp
     inset 0 -2px 0 rgba(84, 41, 0, 0.12);
 }
 
+.game-over-screen {
+  min-height: min(72vh, 560px);
+}
+
+.game-over-screen__halo {
+  position: absolute;
+  inset: -18%;
+  background:
+    radial-gradient(circle at center, rgba(255, 196, 92, 0.2), transparent 32%),
+    radial-gradient(circle at 50% 72%, rgba(255, 120, 32, 0.16), transparent 26%);
+  filter: blur(28px);
+  animation: gameOverHaloPulse 3.8s ease-in-out infinite;
+}
+
+.game-over-screen__content {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 460px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.1rem;
+  padding: 2.4rem 1.75rem;
+  text-align: center;
+  animation: gameOverRise 360ms ease-out both;
+}
+
+.game-over-screen__eyebrow {
+  font-size: 0.72rem;
+  letter-spacing: 0.36em;
+  text-transform: uppercase;
+  color: rgba(255, 220, 163, 0.66);
+}
+
+.game-over-screen__title {
+  font-size: clamp(2.4rem, 6vw, 4rem);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #fff0c1;
+  text-shadow:
+    0 0 18px rgba(255, 191, 73, 0.26),
+    0 0 46px rgba(255, 133, 30, 0.16);
+}
+
+.game-over-screen__summary,
+.game-over-screen__detail {
+  max-width: 28rem;
+  line-height: 1.55;
+  color: rgba(255, 232, 181, 0.84);
+}
+
+.game-over-screen__summary {
+  font-size: 1rem;
+}
+
+.game-over-screen__detail {
+  font-size: 0.92rem;
+  color: rgba(255, 216, 146, 0.78);
+}
+
+.game-over-screen__stats {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.game-over-screen__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.95rem 0.85rem;
+  border: 1px solid rgba(255, 210, 121, 0.18);
+  border-radius: 18px;
+  background: rgba(255, 239, 201, 0.04);
+  box-shadow: inset 0 1px 0 rgba(255, 244, 214, 0.04);
+}
+
+.game-over-screen__label {
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 223, 161, 0.66);
+}
+
+.game-over-screen__value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #fff3cf;
+}
+
+.game-over-screen__button {
+  margin-top: 0.3rem;
+}
+
 @keyframes startHaloSpin {
   from { transform: rotate(0deg) scale(1); }
   50% { transform: rotate(180deg) scale(1.04); }
@@ -243,6 +338,23 @@ body { background: #0a0a0a; overflow: hidden; font-family: 'Courier New', monosp
   50% { transform: scale(1.08); opacity: 1; }
 }
 
+@keyframes gameOverRise {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes gameOverHaloPulse {
+  0%, 100% { transform: scale(0.96); opacity: 0.7; }
+  50% { transform: scale(1.04); opacity: 1; }
+}
+
 @media (max-width: 720px) {
   .hud-panel {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -255,6 +367,10 @@ body { background: #0a0a0a; overflow: hidden; font-family: 'Courier New', monosp
   .start-screen__content {
     gap: 1rem;
     padding: 2.15rem 1.25rem;
+  }
+
+  .game-over-screen__stats {
+    grid-template-columns: 1fr;
   }
 
   .start-screen__title {
@@ -292,6 +408,18 @@ body { background: #0a0a0a; overflow: hidden; font-family: 'Courier New', monosp
   .start-screen__logo {
     width: min(100%, 220px);
     padding: 0.65rem;
+  }
+
+  .game-over-screen__content {
+    padding: 2rem 1.1rem;
+  }
+
+  .game-over-screen__title {
+    letter-spacing: 0.12em;
+  }
+
+  .game-over-screen__value {
+    font-size: 1.35rem;
   }
 
   .start-screen__subtitle {

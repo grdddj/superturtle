@@ -11,6 +11,7 @@ window.FractalSnake.ui = (() => {
     currentFibValue: 1,
     snakeLength: 1,
     snake: [],
+    isGameOver: false,
   });
 
   let hudElement = null;
@@ -21,6 +22,7 @@ window.FractalSnake.ui = (() => {
   let highScore = readHighScore();
   let engineRef = null;
   let hasStartedGame = false;
+  let runHighScoreBaseline = highScore;
 
   function init() {
     if (initialized) return;
@@ -96,6 +98,15 @@ window.FractalSnake.ui = (() => {
     }
 
     renderHud(normalized);
+
+    if (normalized.isGameOver) {
+      renderGameOverScreen(normalized);
+      return;
+    }
+
+    if (hasStartedGame) {
+      hideMenuOverlay();
+    }
   }
 
   function renderHud(state) {
@@ -217,12 +228,24 @@ window.FractalSnake.ui = (() => {
   }
 
   function handlePlayClick() {
-    if (!engineRef || typeof engineRef.start !== "function") {
-      return;
-    }
+    startNewRun();
+  }
+
+  function handleReplayClick() {
+    startNewRun();
+  }
+
+  function startNewRun() {
+    if (!engineRef || typeof engineRef.start !== "function") return;
 
     hasStartedGame = true;
+    runHighScoreBaseline = highScore;
     hideMenuOverlay();
+
+    if (typeof engineRef.reset === "function") {
+      engineRef.reset();
+    }
+
     engineRef.start();
   }
 
@@ -232,6 +255,49 @@ window.FractalSnake.ui = (() => {
     menuOverlayElement.className = "menu-overlay";
     menuOverlayElement.setAttribute("aria-hidden", "true");
     menuOverlayElement.innerHTML = "";
+  }
+
+  function renderGameOverScreen(state) {
+    if (!menuOverlayElement) return;
+
+    const fibLevel = state.currentFibValue || fibonacciValue(state.fibIndex);
+    const comparison = buildHighScoreComparison(state.score);
+
+    menuOverlayElement.className = "menu-overlay is-visible";
+    menuOverlayElement.setAttribute("aria-hidden", "false");
+    menuOverlayElement.innerHTML = `
+      <section class="menu-screen game-over-screen" aria-labelledby="game-over-title">
+        <div class="game-over-screen__halo" aria-hidden="true"></div>
+        <div class="game-over-screen__content">
+          <p class="game-over-screen__eyebrow">Run complete</p>
+          <h2 id="game-over-title" class="game-over-screen__title">Game Over</h2>
+          <p class="game-over-screen__summary">${comparison.summary}</p>
+          <div class="game-over-screen__stats" role="list" aria-label="Final run statistics">
+            <div class="game-over-screen__stat" role="listitem">
+              <span class="game-over-screen__label">Final Score</span>
+              <span class="game-over-screen__value">${state.score}</span>
+            </div>
+            <div class="game-over-screen__stat" role="listitem">
+              <span class="game-over-screen__label">Fibonacci Peak</span>
+              <span class="game-over-screen__value">${fibLevel}</span>
+            </div>
+            <div class="game-over-screen__stat" role="listitem">
+              <span class="game-over-screen__label">High Score</span>
+              <span class="game-over-screen__value">${highScore}</span>
+            </div>
+          </div>
+          <p class="game-over-screen__detail">${comparison.detail}</p>
+          <button class="start-screen__button game-over-screen__button" type="button">
+            Play Again
+          </button>
+        </div>
+      </section>
+    `;
+
+    const replayButton = menuOverlayElement.querySelector(".game-over-screen__button");
+    if (replayButton) {
+      replayButton.addEventListener("click", handleReplayClick, { once: true });
+    }
   }
 
   function normalizeState(nextState) {
@@ -245,6 +311,7 @@ window.FractalSnake.ui = (() => {
     const currentFibValue = finiteNumber(source.currentFibValue, fibonacciValue(fibIndex));
     const score = finiteNumber(source.score, 0);
     const snakeLength = finiteNumber(source.snakeLength, snake.length || 1);
+    const isGameOver = Boolean(source.isGameOver);
 
     return {
       score,
@@ -252,6 +319,7 @@ window.FractalSnake.ui = (() => {
       currentFibValue,
       snakeLength,
       snake,
+      isGameOver,
     };
   }
 
@@ -290,6 +358,36 @@ window.FractalSnake.ui = (() => {
     } catch (error) {
       // Ignore storage failures so HUD updates continue in private browsing contexts.
     }
+  }
+
+  function buildHighScoreComparison(score) {
+    if (runHighScoreBaseline === 0 && score > 0) {
+      return {
+        summary: "First mark on the board.",
+        detail: "You posted the opening high score for Fractal Snake.",
+      };
+    }
+
+    if (score > runHighScoreBaseline) {
+      const margin = score - runHighScoreBaseline;
+      return {
+        summary: "New high score.",
+        detail: `You beat the previous best by ${margin}.`,
+      };
+    }
+
+    if (score === runHighScoreBaseline && score > 0) {
+      return {
+        summary: "You matched the high score.",
+        detail: `The best score remains ${highScore}.`,
+      };
+    }
+
+    const deficit = Math.max(runHighScoreBaseline - score, 0);
+    return {
+      summary: `You finished ${deficit} short of the record.`,
+      detail: `Current high score to beat: ${highScore}.`,
+    };
   }
 
   return { init };
