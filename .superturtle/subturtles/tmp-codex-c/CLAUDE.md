@@ -1,5 +1,5 @@
 # Current task
-Write `done.flag` with `ok`.
+All backlog items complete.
 
 # End goal with specs
 - Produce a harmless smoke-test artifact set under `/tmp/st-codex-test-c/`.
@@ -26,5 +26,8 @@ Write `done.flag` with `ok`.
 - [x] Create `/tmp/st-codex-test-c/` and seed `commands.log`.
 - [x] Capture the local time, UTC time, and timezone abbreviation. Saved in `/tmp/st-codex-test-c/time-capture.env`.
 - [x] Write `gamma-dates.txt` with the required header and completion line.
-- [ ] Write `done.flag` with `ok`. <- current
-- [ ] Verify all three files exist and stop.
+- [x] Write `done.flag` with `ok`.
+- [x] Verify all three files exist and stop.
+
+## Loop Control
+STOP
