@@ -1,6 +1,7 @@
 # Current task
 
 Build the start screen in the menu overlay for a fractal/Fibonacci snake game in snake-game/ui.js and snake-game/styles.css, with title, animated Fibonacci spiral logo, and a play button wired to engine.start.
+HUD groundwork is complete; the next slice is the first menu overlay state.
 
 # End goal with specs
 
