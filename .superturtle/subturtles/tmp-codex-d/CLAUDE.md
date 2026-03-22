@@ -1,5 +1,5 @@
 # Current task
-Count `/tmp` entries and capture the first 5 names for worker `tmp-codex-d`.
+Write `delta-files.txt` with the required header and completion line for worker `tmp-codex-d`.
 
 # End goal with specs
 - Produce a harmless smoke-test artifact set under `/tmp/st-codex-test-d/`.
@@ -23,7 +23,7 @@ Count `/tmp` entries and capture the first 5 names for worker `tmp-codex-d`.
 # Backlog
 - [x] Confirm the exact output directory and filenames.
 - [x] Create `/tmp/st-codex-test-d/` and seed `commands.log`.
-- [ ] Count `/tmp` entries and capture the first 5 names. <- current
-- [ ] Write `delta-files.txt` with the required header and completion line.
+- [x] Count `/tmp` entries and capture the first 5 names.
+- [ ] Write `delta-files.txt` with the required header and completion line. <- current
 - [ ] Write `done.flag` with `ok`.
 - [ ] Verify all three files exist and stop.
