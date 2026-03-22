@@ -7,6 +7,10 @@ async function loadModule() {
   return import(`./subturtle-board-reconcile.ts?test=${Date.now()}-${Math.random()}`);
 }
 
+async function loadActualCommandsModule() {
+  return import(`./handlers/commands.ts?board-reconcile-commands=${Date.now()}-${Math.random()}`);
+}
+
 afterEach(() => {
   mock.restore();
 });
@@ -18,6 +22,7 @@ describe("reconcileLiveSubturtleBoardNow", () => {
       messageId: 42,
       view: { kind: "board" as const },
     }));
+    const actualCommands = await loadActualCommandsModule();
 
     mock.module("./config", () => ({
       ALLOWED_USERS: [456],
@@ -32,6 +37,7 @@ describe("reconcileLiveSubturtleBoardNow", () => {
       },
     }));
     mock.module("./handlers/commands", () => ({
+      ...actualCommands,
       syncLiveSubturtleBoard,
     }));
 
@@ -58,6 +64,7 @@ describe("reconcileLiveSubturtleBoardNow", () => {
       messageId: 42,
       view: { kind: "board" as const },
     }));
+    const actualCommands = await loadActualCommandsModule();
 
     mock.module("./config", () => ({
       ALLOWED_USERS: [],
@@ -72,6 +79,7 @@ describe("reconcileLiveSubturtleBoardNow", () => {
       },
     }));
     mock.module("./handlers/commands", () => ({
+      ...actualCommands,
       syncLiveSubturtleBoard,
     }));
 

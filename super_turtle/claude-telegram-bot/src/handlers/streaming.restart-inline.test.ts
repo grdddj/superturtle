@@ -25,6 +25,10 @@ async function loadFreshStreamingModule() {
   return import(`./streaming.ts?inline-restart=${Date.now()}-${Math.random()}`);
 }
 
+async function loadActualCommandsModule() {
+  return import(`./commands.ts?inline-restart-commands=${Date.now()}-${Math.random()}`);
+}
+
 beforeEach(async () => {
   process.env.SUPERTURTLE_IPC_DIR = IPC_DIR;
   await cleanupIpcFiles(INLINE_RESTART_PATTERN);
@@ -44,6 +48,7 @@ describe("inline bot-control restart", () => {
     let resetCalls = 0;
     const scheduledCallbacks: Array<() => void> = [];
     const exitCodes: number[] = [];
+    const actualCommands = await loadActualCommandsModule();
 
     const originalExit = process.exit;
     const originalSetTimeout = globalThis.setTimeout;
@@ -71,6 +76,7 @@ describe("inline bot-control restart", () => {
     }));
 
     mock.module("./commands", () => ({
+      ...actualCommands,
       resetAllDriverSessions: async () => {
         resetCalls += 1;
       },
