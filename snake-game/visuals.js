@@ -3,6 +3,11 @@ const GOLDEN_RATIO = (1 + Math.sqrt(5)) / 2;
 const TAU = Math.PI * 2;
 const TRAIL_FADE_MS = 2000;
 const MAX_TRAIL_MARKS = 24;
+const EAT_FLASH_MS = 220;
+const DEATH_TINT_FADE_MS = 420;
+const LEVEL_BURST_MS = 950;
+const LEVEL_BURST_PARTICLES = 24;
+const MAX_LEVEL_BURSTS = 6;
 
 const visualsState = {
   canvas: null,
@@ -18,6 +23,11 @@ const visualsState = {
   fractalHeight: 0,
   trailMarks: [],
   lastSnakeSnapshot: [],
+  lastEngineSnapshot: null,
+  eatFlashStartedAt: Number.NEGATIVE_INFINITY,
+  eatFlashPoint: null,
+  deathStartedAt: null,
+  levelBursts: [],
 };
 
 function init() {
@@ -89,9 +99,21 @@ function renderFrame(timestamp) {
   }
 
   const engineState = readEngineState();
+  const layout = inferBoardLayout(engineState, visualsState.width, visualsState.height);
+
+  updateReactiveEffects(engineState, timestamp);
+  pruneLevelBursts(timestamp);
 
   drawBackdrop(context, visualsState.width, visualsState.height, timestamp, engineState);
-  drawBoardPlaceholder(context, visualsState.width, visualsState.height, timestamp, engineState);
+  drawBoardPlaceholder(context, layout, timestamp, engineState);
+  drawReactiveEffects(
+    context,
+    visualsState.width,
+    visualsState.height,
+    layout,
+    timestamp,
+    engineState
+  );
   drawStateOverlay(context, visualsState.width, visualsState.height, engineState);
 
   visualsState.animationFrameId = window.requestAnimationFrame(renderFrame);
@@ -160,8 +182,7 @@ function drawFractalLayer(context, width, height, timestamp, hueRotation, pulse)
   context.restore();
 }
 
-function drawBoardPlaceholder(context, width, height, timestamp, state) {
-  const layout = inferBoardLayout(state, width, height);
+function drawBoardPlaceholder(context, layout, timestamp, state) {
   if (!layout) {
     return;
   }
@@ -194,6 +215,246 @@ function drawBoardPlaceholder(context, width, height, timestamp, state) {
 
   const food = collectPoints(state?.food);
   drawFoodItems(context, layout, food, timestamp);
+
+  context.restore();
+}
+
+function updateReactiveEffects(state, timestamp) {
+  if (!state) {
+    visualsState.lastEngineSnapshot = null;
+    resetReactiveEffects();
+    return;
+  }
+
+  const snapshot = createEngineSnapshot(state);
+  const previous = visualsState.lastEngineSnapshot;
+
+  if (!previous) {
+    visualsState.lastEngineSnapshot = snapshot;
+    visualsState.deathStartedAt = snapshot.isGameOver ? timestamp : null;
+    return;
+  }
+
+  const resetOccurred =
+    snapshot.score < previous.score
+    || snapshot.fibIndex < previous.fibIndex
+    || (!snapshot.isGameOver && previous.isGameOver && snapshot.score === 0);
+
+  if (resetOccurred) {
+    resetReactiveEffects();
+  }
+
+  if (snapshot.score > previous.score) {
+    visualsState.eatFlashStartedAt = timestamp;
+    visualsState.eatFlashPoint = snapshot.head ? { ...snapshot.head } : null;
+  }
+
+  if (snapshot.fibIndex > previous.fibIndex && snapshot.head) {
+    const burstsToSpawn = snapshot.fibIndex - previous.fibIndex;
+
+    for (let burstIndex = 0; burstIndex < burstsToSpawn; burstIndex += 1) {
+      spawnLevelBurst(snapshot.head, timestamp);
+    }
+  }
+
+  if (snapshot.isGameOver && !previous.isGameOver) {
+    visualsState.deathStartedAt = timestamp;
+  } else if (!snapshot.isGameOver) {
+    visualsState.deathStartedAt = null;
+  }
+
+  visualsState.lastEngineSnapshot = snapshot;
+}
+
+function createEngineSnapshot(state) {
+  const snake = extractPoints(state?.snake);
+
+  return {
+    score: Number.isFinite(state?.score) ? state.score : 0,
+    fibIndex: Number.isFinite(state?.fibIndex) ? state.fibIndex : 0,
+    isGameOver: Boolean(state?.isGameOver),
+    head: snake[0] ? { ...snake[0] } : null,
+  };
+}
+
+function resetReactiveEffects() {
+  visualsState.eatFlashStartedAt = Number.NEGATIVE_INFINITY;
+  visualsState.eatFlashPoint = null;
+  visualsState.deathStartedAt = null;
+  visualsState.levelBursts = [];
+}
+
+function spawnLevelBurst(origin, timestamp) {
+  const particles = [];
+
+  for (let index = 0; index < LEVEL_BURST_PARTICLES; index += 1) {
+    const angle = (index / LEVEL_BURST_PARTICLES) * TAU + Math.random() * 0.35;
+    const speed = 0.8 + Math.random() * 1.65;
+
+    particles.push({
+      angle,
+      speed,
+      lift: -0.12 - Math.random() * 0.28,
+      drag: 0.86 + Math.random() * 0.18,
+      size: 0.06 + Math.random() * 0.12,
+      alpha: 0.45 + Math.random() * 0.4,
+      hueShift: -4 + Math.random() * 18,
+    });
+  }
+
+  visualsState.levelBursts.push({
+    origin: { ...origin },
+    createdAt: timestamp,
+    particles,
+  });
+
+  if (visualsState.levelBursts.length > MAX_LEVEL_BURSTS) {
+    visualsState.levelBursts.splice(0, visualsState.levelBursts.length - MAX_LEVEL_BURSTS);
+  }
+}
+
+function pruneLevelBursts(timestamp) {
+  visualsState.levelBursts = visualsState.levelBursts.filter(
+    (burst) => timestamp - burst.createdAt < LEVEL_BURST_MS
+  );
+}
+
+function drawReactiveEffects(context, width, height, layout, timestamp, state) {
+  drawLevelBursts(context, layout, timestamp);
+  drawEatFlash(context, width, height, layout, timestamp);
+  drawDeathTint(context, width, height, timestamp, state);
+}
+
+function drawEatFlash(context, width, height, layout, timestamp) {
+  const age = timestamp - visualsState.eatFlashStartedAt;
+  if (age < 0 || age > EAT_FLASH_MS) {
+    return;
+  }
+
+  const life = clamp(1 - age / EAT_FLASH_MS, 0, 1);
+  const intensity = Math.pow(life, 1.6);
+
+  context.save();
+  context.globalCompositeOperation = 'screen';
+
+  context.fillStyle = `rgba(255, 242, 194, ${0.08 + intensity * 0.22})`;
+  context.fillRect(0, 0, width, height);
+
+  if (layout && visualsState.eatFlashPoint) {
+    const center = getCellCenter(layout, visualsState.eatFlashPoint);
+    const radius = Math.max(layout.cellSize * 2.4, Math.min(width, height) * (0.12 + intensity * 0.22));
+    const aura = context.createRadialGradient(center.x, center.y, 0, center.x, center.y, radius);
+
+    aura.addColorStop(0, `rgba(255, 252, 228, ${0.18 + intensity * 0.42})`);
+    aura.addColorStop(0.35, `rgba(255, 214, 112, ${0.12 + intensity * 0.3})`);
+    aura.addColorStop(0.72, `rgba(72, 235, 255, ${intensity * 0.18})`);
+    aura.addColorStop(1, 'rgba(72, 235, 255, 0)');
+
+    context.fillStyle = aura;
+    context.beginPath();
+    context.arc(center.x, center.y, radius, 0, TAU);
+    context.fill();
+  }
+
+  context.restore();
+}
+
+function drawDeathTint(context, width, height, timestamp, state) {
+  if (!state?.isGameOver || visualsState.deathStartedAt === null) {
+    return;
+  }
+
+  const age = Math.max(0, timestamp - visualsState.deathStartedAt);
+  const onset = clamp(age / DEATH_TINT_FADE_MS, 0, 1);
+  const pulse = 0.5 + Math.sin(timestamp / 180) * 0.5;
+
+  context.save();
+  context.fillStyle = `rgba(92, 0, 14, ${0.12 + onset * 0.16})`;
+  context.fillRect(0, 0, width, height);
+
+  const centerGlow = context.createRadialGradient(
+    width / 2,
+    height / 2,
+    Math.min(width, height) * 0.14,
+    width / 2,
+    height / 2,
+    Math.max(width, height) * 0.72
+  );
+
+  centerGlow.addColorStop(0, `rgba(255, 110, 128, ${0.05 + onset * 0.05 + pulse * 0.03})`);
+  centerGlow.addColorStop(0.55, `rgba(182, 18, 44, ${0.08 + onset * 0.08})`);
+  centerGlow.addColorStop(1, `rgba(18, 0, 4, ${0.34 + onset * 0.18})`);
+
+  context.fillStyle = centerGlow;
+  context.fillRect(0, 0, width, height);
+  context.restore();
+}
+
+function drawLevelBursts(context, layout, timestamp) {
+  if (!layout || !visualsState.levelBursts.length) {
+    return;
+  }
+
+  context.save();
+  context.globalCompositeOperation = 'screen';
+
+  visualsState.levelBursts.forEach((burst) => {
+    const age = Math.max(0, timestamp - burst.createdAt);
+    const life = clamp(1 - age / LEVEL_BURST_MS, 0, 1);
+    if (life <= 0) {
+      return;
+    }
+
+    const center = getCellCenter(layout, burst.origin);
+    const originGlow = context.createRadialGradient(
+      center.x,
+      center.y,
+      0,
+      center.x,
+      center.y,
+      layout.cellSize * (0.5 + (1 - life) * 1.6)
+    );
+
+    originGlow.addColorStop(0, `rgba(255, 252, 210, ${life * 0.22})`);
+    originGlow.addColorStop(0.45, `rgba(255, 196, 86, ${life * 0.15})`);
+    originGlow.addColorStop(1, 'rgba(255, 196, 86, 0)');
+
+    context.fillStyle = originGlow;
+    context.beginPath();
+    context.arc(center.x, center.y, layout.cellSize * 1.45, 0, TAU);
+    context.fill();
+
+    burst.particles.forEach((particle) => {
+      const progress = 1 - life;
+      const velocity = particle.speed * particle.drag;
+      const distance = layout.cellSize * velocity * (0.55 + progress * 1.9);
+      const px = center.x + Math.cos(particle.angle) * distance;
+      const py =
+        center.y
+        + Math.sin(particle.angle) * distance
+        + particle.lift * layout.cellSize * (0.25 + progress * 2.1);
+      const streakLength = layout.cellSize * (0.18 + progress * 0.24);
+      const startX = px - Math.cos(particle.angle) * streakLength;
+      const startY = py - Math.sin(particle.angle) * streakLength;
+      const alpha = particle.alpha * Math.pow(life, 1.45);
+      const radius = Math.max(1.1, layout.cellSize * particle.size * (0.8 + progress * 0.75));
+
+      context.beginPath();
+      context.moveTo(startX, startY);
+      context.lineTo(px, py);
+      context.lineCap = 'round';
+      context.lineWidth = Math.max(1, radius * 0.9);
+      context.strokeStyle = hsla(40 + particle.hueShift, 100, 72, alpha * 0.85);
+      context.shadowColor = hsla(46 + particle.hueShift, 100, 76, alpha);
+      context.shadowBlur = radius * 3.2;
+      context.stroke();
+
+      context.beginPath();
+      context.arc(px, py, radius, 0, TAU);
+      context.fillStyle = hsla(46 + particle.hueShift, 100, 76, alpha);
+      context.fill();
+    });
+  });
 
   context.restore();
 }
