@@ -4,6 +4,7 @@ window.FractalSnake.ui = (() => {
   const HIGH_SCORE_KEY = "fractal-snake-high-score";
   const ENGINE_RETRY_MS = 250;
   const STATE_POLL_MS = 200;
+  const TOAST_DISPLAY_MS = 2600;
   const GOLDEN_RATIO = (1 + Math.sqrt(5)) / 2;
   const defaultState = Object.freeze({
     score: 0,
@@ -16,14 +17,18 @@ window.FractalSnake.ui = (() => {
   });
 
   let hudElement = null;
+  let hudStatsElement = null;
+  let toastRegionElement = null;
   let menuOverlayElement = null;
   let initialized = false;
   let retryTimer = null;
   let pollTimer = null;
+  let toastTimer = null;
   let highScore = readHighScore();
   let engineRef = null;
   let hasStartedGame = false;
   let runHighScoreBaseline = highScore;
+  let lastState = normalizeState(defaultState);
 
   function init() {
     if (initialized) return;
@@ -34,8 +39,8 @@ window.FractalSnake.ui = (() => {
     if (!hudElement) return;
 
     hudElement.classList.add("hud-overlay");
-    hudElement.setAttribute("aria-live", "polite");
-    renderHud(normalizeState(defaultState));
+    initializeHud();
+    renderHud(lastState);
     renderStartScreen(false);
     attachToEngine();
   }
@@ -99,28 +104,33 @@ window.FractalSnake.ui = (() => {
     }
 
     renderHud(normalized);
+    syncLevelUpToast(normalized);
 
     if (normalized.isGameOver) {
       renderGameOverScreen(normalized);
+      lastState = normalized;
       return;
     }
 
     if (hasStartedGame && normalized.isPaused) {
       renderPauseScreen(normalized);
+      lastState = normalized;
       return;
     }
 
     if (hasStartedGame) {
       hideMenuOverlay();
     }
+
+    lastState = normalized;
   }
 
   function renderHud(state) {
-    if (!hudElement) return;
+    if (!hudStatsElement) return;
 
     const fibLevel = state.currentFibValue || fibonacciValue(state.fibIndex);
 
-    hudElement.innerHTML = `
+    hudStatsElement.innerHTML = `
       <div class="hud-panel">
         <div class="hud-stat">
           <span class="hud-label">Score</span>
@@ -140,6 +150,20 @@ window.FractalSnake.ui = (() => {
         </div>
       </div>
     `;
+  }
+
+  function initializeHud() {
+    if (!hudElement) return;
+
+    hudElement.setAttribute("aria-live", "off");
+    hudElement.innerHTML = `
+      <div class="hud-shell">
+        <div class="hud-stats"></div>
+        <div class="hud-toast-region" aria-live="polite" aria-atomic="true"></div>
+      </div>
+    `;
+    hudStatsElement = hudElement.querySelector(".hud-stats");
+    toastRegionElement = hudElement.querySelector(".hud-toast-region");
   }
 
   function renderStartScreen(isReady) {
@@ -246,6 +270,7 @@ window.FractalSnake.ui = (() => {
 
     hasStartedGame = true;
     runHighScoreBaseline = highScore;
+    clearLevelUpToast();
     hideMenuOverlay();
 
     if (typeof engineRef.reset === "function") {
@@ -261,6 +286,64 @@ window.FractalSnake.ui = (() => {
     menuOverlayElement.className = "menu-overlay";
     menuOverlayElement.setAttribute("aria-hidden", "true");
     menuOverlayElement.innerHTML = "";
+  }
+
+  function syncLevelUpToast(state) {
+    if (!toastRegionElement) return;
+
+    if (
+      state.score < lastState.score ||
+      state.fibIndex < lastState.fibIndex ||
+      state.isGameOver
+    ) {
+      clearLevelUpToast();
+      return;
+    }
+
+    const leveledUp =
+      hasStartedGame &&
+      state.score > lastState.score &&
+      state.fibIndex > lastState.fibIndex;
+
+    if (!leveledUp) {
+      return;
+    }
+
+    showLevelUpToast(state.fibIndex, state.currentFibValue);
+  }
+
+  function showLevelUpToast(levelNumber, growthAmount) {
+    if (!toastRegionElement) return;
+
+    clearToastTimer();
+    toastRegionElement.innerHTML = `
+      <section class="level-up-toast is-visible" role="status" aria-label="Level up">
+        <p class="level-up-toast__eyebrow">Level Up</p>
+        <div class="level-up-toast__row">
+          <span class="level-up-toast__level">Level ${levelNumber}</span>
+          <span class="level-up-toast__growth">+${growthAmount} growth</span>
+        </div>
+      </section>
+    `;
+
+    toastTimer = window.setTimeout(() => {
+      clearLevelUpToast();
+    }, TOAST_DISPLAY_MS);
+  }
+
+  function clearLevelUpToast() {
+    clearToastTimer();
+
+    if (toastRegionElement) {
+      toastRegionElement.innerHTML = "";
+    }
+  }
+
+  function clearToastTimer() {
+    if (toastTimer !== null) {
+      window.clearTimeout(toastTimer);
+      toastTimer = null;
+    }
   }
 
   function renderPauseScreen(state) {
