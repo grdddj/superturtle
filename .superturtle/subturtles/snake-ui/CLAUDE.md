@@ -1,7 +1,7 @@
 # Current task
 
-Add mobile touch controls in snake-game/ui.js with swipe detection for direction changes and update snake-game/styles.css to show touch hint arrows on mobile viewports.
-The level-up toast is done; the next slice is touch input and mobile hints.
+Update styles.css with all UI component styles using golden amber color theme and CSS transition animations and responsive breakpoints.
+Mobile touch swipe controls and touch hint arrows are now implemented; the remaining slice is the broader style pass.
 
 # End goal with specs
 
@@ -21,5 +21,5 @@ File ownership: YOU OWN snake-game/ui.js (create it) and snake-game/styles.css (
 - [x] Build game over screen showing final score and fibonacci level reached and high score comparison with play again button
 - [x] Build pause overlay showing PAUSED text centered with resume instructions
 - [x] Add level-up toast notification that slides in from the right showing fibonacci level number and growth amount then fades out
-- [ ] Add mobile touch controls with swipe detection for direction changes and display touch hint arrows on mobile viewports <- current
-- [ ] Update styles.css with all UI component styles using golden amber color theme and CSS transition animations and responsive breakpoints
+- [x] Add mobile touch controls with swipe detection for direction changes and display touch hint arrows on mobile viewports
+- [ ] Update styles.css with all UI component styles using golden amber color theme and CSS transition animations and responsive breakpoints <- current

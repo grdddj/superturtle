@@ -5,6 +5,7 @@ window.FractalSnake.ui = (() => {
   const ENGINE_RETRY_MS = 250;
   const STATE_POLL_MS = 200;
   const TOAST_DISPLAY_MS = 2600;
+  const SWIPE_MIN_DISTANCE_PX = 24;
   const GOLDEN_RATIO = (1 + Math.sqrt(5)) / 2;
   const defaultState = Object.freeze({
     score: 0,
@@ -12,14 +13,23 @@ window.FractalSnake.ui = (() => {
     currentFibValue: 1,
     snakeLength: 1,
     snake: [],
+    direction: "right",
     isPaused: false,
     isGameOver: false,
+  });
+  const DIRECTION_TO_KEY = Object.freeze({
+    up: "ArrowUp",
+    down: "ArrowDown",
+    left: "ArrowLeft",
+    right: "ArrowRight",
   });
 
   let hudElement = null;
   let hudStatsElement = null;
   let toastRegionElement = null;
+  let touchHintsElement = null;
   let menuOverlayElement = null;
+  let gameContainerElement = null;
   let initialized = false;
   let retryTimer = null;
   let pollTimer = null;
@@ -29,6 +39,8 @@ window.FractalSnake.ui = (() => {
   let hasStartedGame = false;
   let runHighScoreBaseline = highScore;
   let lastState = normalizeState(defaultState);
+  let activeTouchId = null;
+  let touchOrigin = null;
 
   function init() {
     if (initialized) return;
@@ -36,10 +48,12 @@ window.FractalSnake.ui = (() => {
     initialized = true;
     hudElement = document.getElementById("hud");
     menuOverlayElement = document.getElementById("menu-overlay");
+    gameContainerElement = document.getElementById("game-container");
     if (!hudElement) return;
 
     hudElement.classList.add("hud-overlay");
     initializeHud();
+    initializeTouchControls();
     renderHud(lastState);
     renderStartScreen(false);
     attachToEngine();
@@ -150,6 +164,8 @@ window.FractalSnake.ui = (() => {
         </div>
       </div>
     `;
+
+    syncTouchHintDirection(state.direction);
   }
 
   function initializeHud() {
@@ -160,10 +176,152 @@ window.FractalSnake.ui = (() => {
       <div class="hud-shell">
         <div class="hud-stats"></div>
         <div class="hud-toast-region" aria-live="polite" aria-atomic="true"></div>
+        <div class="touch-hints" aria-hidden="true">
+          <p class="touch-hints__label">Swipe to turn</p>
+          <div class="touch-hints__grid">
+            <span class="touch-hints__arrow touch-hints__arrow--up" data-direction="up">↑</span>
+            <span class="touch-hints__arrow touch-hints__arrow--left" data-direction="left">←</span>
+            <span class="touch-hints__arrow touch-hints__arrow--right" data-direction="right">→</span>
+            <span class="touch-hints__arrow touch-hints__arrow--down" data-direction="down">↓</span>
+          </div>
+        </div>
       </div>
     `;
     hudStatsElement = hudElement.querySelector(".hud-stats");
     toastRegionElement = hudElement.querySelector(".hud-toast-region");
+    touchHintsElement = hudElement.querySelector(".touch-hints");
+  }
+
+  function initializeTouchControls() {
+    if (!gameContainerElement) return;
+
+    gameContainerElement.addEventListener("touchstart", handleTouchStart, { passive: true });
+    gameContainerElement.addEventListener("touchmove", handleTouchMove, { passive: false });
+    gameContainerElement.addEventListener("touchend", handleTouchEnd, { passive: false });
+    gameContainerElement.addEventListener("touchcancel", clearTouchGesture, { passive: true });
+  }
+
+  function handleTouchStart(event) {
+    if (activeTouchId !== null || !shouldHandleTouchInput()) {
+      return;
+    }
+
+    const touch = event.changedTouches && event.changedTouches[0];
+    if (!touch) return;
+
+    activeTouchId = touch.identifier;
+    touchOrigin = { x: touch.clientX, y: touch.clientY };
+  }
+
+  function handleTouchMove(event) {
+    if (activeTouchId === null || !touchOrigin) {
+      return;
+    }
+
+    const touch = findTrackedTouch(event.changedTouches);
+    if (!touch) return;
+
+    if (event.cancelable) {
+      event.preventDefault();
+    }
+
+    tryDispatchSwipe(touch.clientX - touchOrigin.x, touch.clientY - touchOrigin.y);
+  }
+
+  function handleTouchEnd(event) {
+    if (activeTouchId === null || !touchOrigin) {
+      return;
+    }
+
+    const touch = findTrackedTouch(event.changedTouches);
+    if (!touch) return;
+
+    if (event.cancelable) {
+      event.preventDefault();
+    }
+
+    tryDispatchSwipe(touch.clientX - touchOrigin.x, touch.clientY - touchOrigin.y);
+    clearTouchGesture();
+  }
+
+  function clearTouchGesture() {
+    activeTouchId = null;
+    touchOrigin = null;
+  }
+
+  function tryDispatchSwipe(deltaX, deltaY) {
+    if (!shouldHandleTouchInput()) {
+      clearTouchGesture();
+      return;
+    }
+
+    const direction = resolveSwipeDirection(deltaX, deltaY);
+    if (!direction) {
+      return;
+    }
+
+    dispatchDirectionInput(direction);
+    clearTouchGesture();
+  }
+
+  function resolveSwipeDirection(deltaX, deltaY) {
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
+    const dominantDistance = Math.max(absX, absY);
+
+    if (dominantDistance < SWIPE_MIN_DISTANCE_PX) {
+      return null;
+    }
+
+    if (absX > absY) {
+      return deltaX < 0 ? "left" : "right";
+    }
+
+    return deltaY < 0 ? "up" : "down";
+  }
+
+  function dispatchDirectionInput(direction) {
+    const key = DIRECTION_TO_KEY[direction];
+    if (!key) return;
+
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key,
+        code: key,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+  }
+
+  function shouldHandleTouchInput() {
+    return hasStartedGame && !lastState.isPaused && !lastState.isGameOver;
+  }
+
+  function findTrackedTouch(touchList) {
+    if (activeTouchId === null || !touchList) {
+      return null;
+    }
+
+    for (let index = 0; index < touchList.length; index += 1) {
+      const touch = touchList[index];
+      if (touch.identifier === activeTouchId) {
+        return touch;
+      }
+    }
+
+    return null;
+  }
+
+  function syncTouchHintDirection(direction) {
+    if (!touchHintsElement) return;
+
+    const activeDirection = DIRECTION_TO_KEY[direction] ? direction : "right";
+    const arrows = touchHintsElement.querySelectorAll("[data-direction]");
+
+    for (const arrow of arrows) {
+      arrow.classList.toggle("is-active", arrow.dataset.direction === activeDirection);
+    }
   }
 
   function renderStartScreen(isReady) {
@@ -431,6 +589,7 @@ window.FractalSnake.ui = (() => {
     const currentFibValue = finiteNumber(source.currentFibValue, fibonacciValue(fibIndex));
     const score = finiteNumber(source.score, 0);
     const snakeLength = finiteNumber(source.snakeLength, snake.length || 1);
+    const direction = typeof source.direction === "string" ? source.direction : "right";
     const isPaused = Boolean(source.isPaused);
     const isGameOver = Boolean(source.isGameOver);
 
@@ -440,6 +599,7 @@ window.FractalSnake.ui = (() => {
       currentFibValue,
       snakeLength,
       snake,
+      direction,
       isPaused,
       isGameOver,
     };
