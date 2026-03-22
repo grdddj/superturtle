@@ -69,6 +69,23 @@ function createInitialState() {
   };
 }
 
+function getFibonacciValue(index) {
+  if (index <= 1) {
+    return 1;
+  }
+
+  let previous = 1;
+  let current = 1;
+
+  for (let fibStep = 2; fibStep <= index; fibStep += 1) {
+    const next = previous + current;
+    previous = current;
+    current = next;
+  }
+
+  return current;
+}
+
 function createFoodPosition(snake) {
   const occupied = new Set(snake.map((segment) => `${segment.x},${segment.y}`));
   const center = Math.floor(GRID_SIZE / 2);
@@ -159,8 +176,12 @@ function step() {
   const ateFood = isSamePosition(nextHead, state.food);
 
   if (ateFood) {
-    pendingGrowth += 1;
+    const growthAmount = getFibonacciValue(state.fibIndex);
+
+    pendingGrowth += growthAmount;
     state.score += 1;
+    state.fibIndex += 1;
+    state.currentFibValue = growthAmount;
     state.food = createFoodPosition(nextSnake);
   }
 

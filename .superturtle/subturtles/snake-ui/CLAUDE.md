@@ -1,25 +1,24 @@
 # Current task
-Implement the visible board and score display for the snake game in `snake/`.
+
+Build the start screen in the menu overlay for a fractal/Fibonacci snake game in snake-game/ui.js and snake-game/styles.css, with title, animated Fibonacci spiral logo, and a play button wired to engine.start.
 
 # End goal with specs
-- Deliver a usable local UI for the snake game under `snake/`.
-- Render the board, score, and clear game states such as start, active play, and game over.
-- Support practical keyboard controls for play and restart.
-- Keep the UI intentionally simple and coherent rather than ornate.
-- Integrate with the game engine cleanly and avoid unnecessary framework sprawl.
+
+UI module in snake-game/ui.js rendering: HUD overlay in the hud div showing score, fibonacci level, snake length, and high score from localStorage. Start screen with FRACTAL SNAKE title and animated CSS Fibonacci spiral logo and play button. Game over screen with final stats and play again button. Pause overlay. Level-up toast notifications. Golden/amber CSS theme. Responsive with mobile touch swipe controls. All transitions use CSS animations.
+
+File ownership: YOU OWN snake-game/ui.js (create it) and snake-game/styles.css (extend it, keep existing base styles). DO NOT EDIT index.html, engine.js, visuals.js, audio.js, main.js. Register as window.FractalSnake.ui = { init }.
 
 # Roadmap (Completed)
-- No implementation work completed yet.
+- Project scaffold created with index.html, main.js, styles.css with base styles
 
 # Roadmap (Upcoming)
-- Inspect the current `snake/` scaffold and engine state before making UI decisions.
-- Implement the board rendering and scoreboard.
-- Wire keyboard controls and restart affordances.
-- Polish the visual clarity enough that the demo is obviously playable.
+- Complete ui.js and styles.css with all UI features and test responsiveness
 
 # Backlog
-- [x] Inspect the current `snake/` state and claim the rendering/control surface
-- [ ] Implement the visible board and score display <- current
-- [ ] Add keyboard control handling and a clear restart path
-- [ ] Make the active, paused/start, and game-over states understandable
-- [ ] Commit the UI slice with minimal overlap against engine-owned logic
+- [x] Create ui.js with HUD rendering showing score and current fibonacci level and snake length and high score persisted in localStorage
+- [ ] Build start screen in menu-overlay with FRACTAL SNAKE title and animated spiral logo using CSS keyframes and a play button that calls engine.start <- current
+- [ ] Build game over screen showing final score and fibonacci level reached and high score comparison with play again button
+- [ ] Build pause overlay showing PAUSED text centered with resume instructions
+- [ ] Add level-up toast notification that slides in from the right showing fibonacci level number and growth amount then fades out
+- [ ] Add mobile touch controls with swipe detection for direction changes and display touch hint arrows on mobile viewports
+- [ ] Update styles.css with all UI component styles using golden amber color theme and CSS transition animations and responsive breakpoints
