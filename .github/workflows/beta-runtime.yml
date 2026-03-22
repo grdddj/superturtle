@@ -12,12 +12,12 @@ concurrency:
 
 jobs:
   publish-beta-package:
-    if: ${{ secrets.NPM_TOKEN != '' }}
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: super_turtle
     outputs:
+      should_publish: ${{ steps.preflight.outputs.should_publish }}
       branch_dist_tag: ${{ steps.version.outputs.branch_dist_tag }}
       package_version: ${{ steps.version.outputs.package_version }}
       runtime_install_spec: ${{ steps.version.outputs.runtime_install_spec }}
@@ -25,25 +25,40 @@ jobs:
       template_channel: ${{ steps.version.outputs.template_channel }}
       template_version_tag: ${{ steps.version.outputs.template_version_tag }}
     steps:
+      - id: preflight
+        run: |
+          if [ -z "${NPM_TOKEN}" ]; then
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "should_publish=true" >> "$GITHUB_OUTPUT"
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
       - uses: actions/checkout@v4
+        if: steps.preflight.outputs.should_publish == 'true'
       - uses: actions/setup-node@v4
+        if: steps.preflight.outputs.should_publish == 'true'
         with:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
       - id: version
+        if: steps.preflight.outputs.should_publish == 'true'
         run: node scripts/prepare-beta-release.mjs >> "$GITHUB_OUTPUT"
-      - run: bash tests/npm-package-smoke.sh
-      - run: npm publish --tag beta --access public
+      - if: steps.preflight.outputs.should_publish == 'true'
+        run: bash tests/npm-package-smoke.sh
+      - if: steps.preflight.outputs.should_publish == 'true'
+        run: npm publish --tag beta --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - run: npm dist-tag add "superturtle@${PACKAGE_VERSION}" "${BRANCH_DIST_TAG}"
+      - if: steps.preflight.outputs.should_publish == 'true'
+        run: npm dist-tag add "superturtle@${PACKAGE_VERSION}" "${BRANCH_DIST_TAG}"
         env:
           BRANCH_DIST_TAG: ${{ steps.version.outputs.branch_dist_tag }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           PACKAGE_VERSION: ${{ steps.version.outputs.package_version }}
 
   publish-beta-template:
-    if: ${{ needs.publish-beta-package.result == 'success' && secrets.E2B_API_KEY != '' }}
+    if: ${{ needs.publish-beta-package.result == 'success' && needs.publish-beta-package.outputs.should_publish == 'true' }}
     needs:
       - publish-beta-package
     runs-on: ubuntu-latest
@@ -51,10 +66,23 @@ jobs:
       run:
         working-directory: super_turtle
     steps:
+      - id: preflight
+        run: |
+          if [ -z "${E2B_API_KEY}" ]; then
+            echo "should_publish_template=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "should_publish_template=true" >> "$GITHUB_OUTPUT"
+        env:
+          E2B_API_KEY: ${{ secrets.E2B_API_KEY }}
       - uses: actions/checkout@v4
+        if: steps.preflight.outputs.should_publish_template == 'true'
       - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
-      - run: bun run e2b:template:build
+        if: steps.preflight.outputs.should_publish_template == 'true'
+      - if: steps.preflight.outputs.should_publish_template == 'true'
+        run: bun install --frozen-lockfile
+      - if: steps.preflight.outputs.should_publish_template == 'true'
+        run: bun run e2b:template:build
         env:
           E2B_API_KEY: ${{ secrets.E2B_API_KEY }}
           SUPERTURTLE_E2B_TEMPLATE_CHANNEL: ${{ needs.publish-beta-package.outputs.template_channel }}

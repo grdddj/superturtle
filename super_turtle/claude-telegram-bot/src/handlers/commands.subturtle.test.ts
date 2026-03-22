@@ -601,7 +601,10 @@ describe("/subturtle", () => {
       await Bun.sleep(150);
       expect(sent).toBe(1);
 
-      releaseFirstSend?.();
+      const releaseFirstSendNow = releaseFirstSend;
+      if (releaseFirstSendNow !== null) {
+        (releaseFirstSendNow as () => void)();
+      }
 
       const [firstResult, secondResult] = await Promise.all([first, second]);
       expect(firstResult.status).toBe("created");
@@ -613,7 +616,10 @@ describe("/subturtle", () => {
       const trackedBoard = JSON.parse(readFileSync(boardPath, "utf-8"));
       expect(trackedBoard.message_id).toBe(871);
     } finally {
-      releaseFirstSend?.();
+      const releaseFirstSendFinally = releaseFirstSend;
+      if (releaseFirstSendFinally !== null) {
+        (releaseFirstSendFinally as () => void)();
+      }
       rmSync(boardPath, { force: true });
       rmSync(`${boardPath}.lock`, { force: true });
     }

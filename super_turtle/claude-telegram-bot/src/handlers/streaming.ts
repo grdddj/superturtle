@@ -1037,12 +1037,28 @@ async function clearProgressMessage(ctx: Context, state: StreamingState): Promis
 }
 
 type ReplyExtra = NonNullable<Parameters<Context["reply"]>[1]>;
+type PhotoReplyExtra = NonNullable<Parameters<Context["replyWithPhoto"]>[1]>;
+type StickerReplyExtra = NonNullable<Parameters<Context["replyWithSticker"]>[1]>;
 
 function withSilentNotification(extra?: ReplyExtra): ReplyExtra {
   return {
     ...(extra || {}),
     disable_notification: true,
   } as ReplyExtra;
+}
+
+function withSilentPhotoNotification(extra?: PhotoReplyExtra): PhotoReplyExtra {
+  return {
+    ...(extra || {}),
+    disable_notification: true,
+  } as PhotoReplyExtra;
+}
+
+function withSilentStickerNotification(extra?: StickerReplyExtra): StickerReplyExtra {
+  return {
+    ...(extra || {}),
+    disable_notification: true,
+  } as StickerReplyExtra;
 }
 
 async function replySilently(
@@ -1506,6 +1522,20 @@ function getNotificationExtra(notify: boolean, extra?: ReplyExtra): ReplyExtra |
   return notify ? extra : withSilentNotification(extra);
 }
 
+function getPhotoNotificationExtra(
+  notify: boolean,
+  extra?: PhotoReplyExtra
+): PhotoReplyExtra | undefined {
+  return notify ? extra : withSilentPhotoNotification(extra);
+}
+
+function getStickerNotificationExtra(
+  notify: boolean,
+  extra?: StickerReplyExtra
+): StickerReplyExtra | undefined {
+  return notify ? extra : withSilentStickerNotification(extra);
+}
+
 async function sendTextMessage(
   ctx: Context,
   text: string,
@@ -1527,7 +1557,7 @@ async function sendImageOutput(
 ): Promise<Message[]> {
   const caption = options.caption || undefined;
   const notify = options.notify ?? false;
-  const replyOptions = getNotificationExtra(notify, caption ? { caption } : undefined);
+  const replyOptions = getPhotoNotificationExtra(notify, caption ? { caption } : undefined);
 
   try {
     const isUrl = source.startsWith("http://") || source.startsWith("https://");
@@ -1567,7 +1597,7 @@ async function sendStickerOutput(
     return [
       await ctx.replyWithSticker(
         new InputFile(buffer, "turtle.webp"),
-        getNotificationExtra(notify)
+        getStickerNotificationExtra(notify)
       ),
     ];
   } catch (photoError) {

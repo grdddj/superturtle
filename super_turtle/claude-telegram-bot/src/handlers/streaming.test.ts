@@ -25,6 +25,10 @@ const {
 const { IPC_DIR } = await import("../config");
 mkdirSync(IPC_DIR, { recursive: true });
 
+type StreamingModule = typeof import("./streaming");
+type EditMessageTextCall = [number, number, string, Record<string, unknown>?];
+type HeartbeatTick = () => void | Promise<void>;
+
 const STREAMING_ASK_USER_PATTERN = "ask-user-streaming-*.json";
 const STREAMING_PINO_LOGS_PATTERN = "pino-logs-streaming-*.json";
 const STREAMING_BOT_CONTROL_PATTERN = "bot-control-streaming-*.json";
@@ -56,7 +60,7 @@ afterEach(async () => {
   await cleanupIpcFiles(STREAMING_BOT_CONTROL_PATTERN);
 });
 
-async function loadStreamingModuleWithLogLines(lines: string[]) {
+async function loadStreamingModuleWithLogLines(lines: string[]): Promise<StreamingModule> {
   const logReader = await import("../log-reader");
   mock.module("../log-reader", () => ({
     ...logReader,
@@ -66,8 +70,18 @@ async function loadStreamingModuleWithLogLines(lines: string[]) {
   return import(`./streaming.ts?pino-log-lines=${Date.now()}-${Math.random()}`);
 }
 
-async function loadFreshStreamingModule() {
+async function loadFreshStreamingModule(): Promise<StreamingModule> {
   return import(`./streaming.ts?fresh=${Date.now()}-${Math.random()}`);
+}
+
+function getEditMessageTextCalls(mockFn: ReturnType<typeof mock>): EditMessageTextCall[] {
+  return mockFn.mock.calls as unknown as EditMessageTextCall[];
+}
+
+async function runHeartbeatTick(tick: HeartbeatTick | null): Promise<void> {
+  if (tick) {
+    await tick();
+  }
 }
 
 function expectLiveProgressText(
@@ -576,20 +590,21 @@ describe("streaming notifications", () => {
     });
     expect(replyCalls[1]?.extra?.disable_notification).toBeUndefined();
     expect(editMessageTextMock).toHaveBeenCalledTimes(2);
-    expect(editMessageTextMock.mock.calls[0]?.[0]).toBe(123);
-    expect(editMessageTextMock.mock.calls[0]?.[1]).toBe(1);
+    const editCalls = getEditMessageTextCalls(editMessageTextMock);
+    expect(editCalls[0]?.[0]).toBe(123);
+    expect(editCalls[0]?.[1]).toBe(1);
     expectLiveProgressText(
-      String(editMessageTextMock.mock.calls[0]?.[2]),
+      String(editCalls[0]?.[2]),
       "Hello from Super Turtle"
     );
-    expect(editMessageTextMock.mock.calls[0]?.[3]).toEqual({ parse_mode: "HTML" });
-    expect(editMessageTextMock.mock.calls[1]?.[0]).toBe(123);
-    expect(editMessageTextMock.mock.calls[1]?.[1]).toBe(1);
+    expect(editCalls[0]?.[3]).toEqual({ parse_mode: "HTML" });
+    expect(editCalls[1]?.[0]).toBe(123);
+    expect(editCalls[1]?.[1]).toBe(1);
     expectCompletedProgressText(
-      String(editMessageTextMock.mock.calls[1]?.[2]),
+      String(editCalls[1]?.[2]),
       "Hello from Super Turtle"
     );
-    expect(editMessageTextMock.mock.calls[1]?.[3]).toEqual({ parse_mode: "HTML" });
+    expect(editCalls[1]?.[3]).toEqual({ parse_mode: "HTML" });
   });
 
   it("updates thinking and tool progress in the retained silent message", async () => {
@@ -627,18 +642,10 @@ describe("streaming notifications", () => {
       extra: { disable_notification: true, parse_mode: "HTML" },
     });
     expect(editMessageTextMock).toHaveBeenCalledTimes(3);
-    expectLiveProgressText(
-      String(editMessageTextMock.mock.calls[0]?.[2]),
-      "Planning the answer"
-    );
-    expectLiveProgressText(
-      String(editMessageTextMock.mock.calls[1]?.[2]),
-      "Error: command failed"
-    );
-    expectCompletedProgressText(
-      String(editMessageTextMock.mock.calls[2]?.[2]),
-      "Reply ready."
-    );
+    const editCalls = getEditMessageTextCalls(editMessageTextMock);
+    expectLiveProgressText(String(editCalls[0]?.[2]), "Planning the answer");
+    expectLiveProgressText(String(editCalls[1]?.[2]), "Error: command failed");
+    expectCompletedProgressText(String(editCalls[2]?.[2]), "Reply ready.");
     expect(deleteMessageMock).not.toHaveBeenCalled();
   });
 
@@ -687,11 +694,11 @@ describe("streaming notifications", () => {
     const originalSetInterval = globalThis.setInterval;
     const originalClearInterval = globalThis.clearInterval;
     let fakeNow = 1_700_000_000_000;
-    let heartbeatTick: (() => Promise<void>) | null = null;
+    let heartbeatTick: HeartbeatTick | null = null;
 
     Date.now = () => fakeNow;
-    globalThis.setInterval = (((callback: TimerHandler) => {
-      heartbeatTick = callback as () => Promise<void>;
+    globalThis.setInterval = (((callback: (...args: unknown[]) => unknown) => {
+      heartbeatTick = callback as HeartbeatTick;
       return 1 as unknown as ReturnType<typeof setInterval>;
     }) as typeof setInterval);
     globalThis.clearInterval = ((
@@ -722,30 +729,31 @@ describe("streaming notifications", () => {
       expect(heartbeatTick).not.toBeNull();
 
       fakeNow += 19_000;
-      await heartbeatTick?.();
+      await runHeartbeatTick(heartbeatTick);
       expect(editMessageTextMock).not.toHaveBeenCalled();
 
       fakeNow += 1_000;
-      await heartbeatTick?.();
+      await runHeartbeatTick(heartbeatTick);
       expect(editMessageTextMock).not.toHaveBeenCalled();
 
       fakeNow += 29_000;
-      await heartbeatTick?.();
+      await runHeartbeatTick(heartbeatTick);
       expect(editMessageTextMock).not.toHaveBeenCalled();
 
       fakeNow += 1_000;
-      await heartbeatTick?.();
+      await runHeartbeatTick(heartbeatTick);
       expect(editMessageTextMock).not.toHaveBeenCalled();
 
       await statusCallback("thinking", "Back on it");
       expect(editMessageTextMock).toHaveBeenCalledTimes(1);
+      const editCalls = getEditMessageTextCalls(editMessageTextMock);
       expectLiveProgressText(
-        String(editMessageTextMock.mock.calls[0]?.[2]),
+        String(editCalls[0]?.[2]),
         "Back on it"
       );
 
       fakeNow += 19_000;
-      await heartbeatTick?.();
+      await runHeartbeatTick(heartbeatTick);
       expect(editMessageTextMock).toHaveBeenCalledTimes(1);
     } finally {
       Date.now = originalDateNow;
@@ -762,11 +770,11 @@ describe("streaming notifications", () => {
     const originalSetInterval = globalThis.setInterval;
     const originalClearInterval = globalThis.clearInterval;
     let fakeNow = 1_700_000_000_000;
-    let heartbeatTick: (() => Promise<void>) | null = null;
+    let heartbeatTick: HeartbeatTick | null = null;
 
     Date.now = () => fakeNow;
-    globalThis.setInterval = (((callback: TimerHandler) => {
-      heartbeatTick = callback as () => Promise<void>;
+    globalThis.setInterval = (((callback: (...args: unknown[]) => unknown) => {
+      heartbeatTick = callback as HeartbeatTick;
       return 1 as unknown as ReturnType<typeof setInterval>;
     }) as typeof setInterval);
     globalThis.clearInterval = ((
@@ -792,12 +800,11 @@ describe("streaming notifications", () => {
 
       await statusCallback("thinking", "Investigating the issue");
       fakeNow += 20_000;
-      await heartbeatTick?.();
+      await runHeartbeatTick(heartbeatTick);
 
       expect(state.progressSnapshots.some((snapshot) => snapshot.progressState === "Still working")).toBe(true);
-      expect(String(editMessageTextMock.mock.calls[editMessageTextMock.mock.calls.length - 1]?.[2])).toContain(
-        "Investigating the issue"
-      );
+      const lastEditCall = getEditMessageTextCalls(editMessageTextMock).at(-1);
+      expect(String(lastEditCall?.[2])).toContain("Investigating the issue");
     } finally {
       Date.now = originalDateNow;
       globalThis.setInterval = originalSetInterval;
@@ -846,7 +853,7 @@ describe("streaming notifications", () => {
     expect(state.progressSnapshots[state.progressSnapshots.length - 1]?.terminal).toBe(true);
     expect(state.selectedProgressSnapshotIndex).toBe(11);
 
-    const finalEdit = editMessageTextMock.mock.calls[editMessageTextMock.mock.calls.length - 1];
+    const finalEdit = getEditMessageTextCalls(editMessageTextMock).at(-1);
     expect(String(finalEdit?.[2])).toContain("12 / 12");
     expect((finalEdit?.[3] as any)?.reply_markup?.inline_keyboard).toEqual([
       [{ text: "⬅️", callback_data: "progress_nav:back" }],
@@ -854,7 +861,7 @@ describe("streaming notifications", () => {
 
     const backResult = await navigateRetainedProgressViewer(ctx, "back");
     expect(backResult).toBe("updated");
-    const afterBackEdit = editMessageTextMock.mock.calls[editMessageTextMock.mock.calls.length - 1];
+    const afterBackEdit = getEditMessageTextCalls(editMessageTextMock).at(-1);
     expect(String(afterBackEdit?.[2])).toContain("11 / 12");
     expect(String(afterBackEdit?.[2])).toContain("Elapsed ");
     expect(String(afterBackEdit?.[2])).toContain("Answer draft 12");
@@ -876,7 +883,7 @@ describe("streaming notifications", () => {
       "next"
     );
     expect(nextResult).toBe("updated");
-    const afterNextEdit = editMessageTextMock.mock.calls[editMessageTextMock.mock.calls.length - 1];
+    const afterNextEdit = getEditMessageTextCalls(editMessageTextMock).at(-1);
     expect(String(afterNextEdit?.[2])).toContain("12 / 12");
     expect(String(afterNextEdit?.[2])).toContain("Elapsed ");
     expect(String(afterNextEdit?.[2])).toContain("Answer draft 13");

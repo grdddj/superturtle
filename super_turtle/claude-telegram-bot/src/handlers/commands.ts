@@ -2892,6 +2892,12 @@ export async function buildLiveSubturtleBoardMessage(
   return { text: payload.text, replyMarkup: payload.replyMarkup };
 }
 
+type LiveSubturtleBoardSyncResult = {
+  status: "created" | "updated" | "unchanged" | "skipped" | "unestablished";
+  messageId: number | null;
+  view: LiveSubturtleBoardView;
+};
+
 export async function syncLiveSubturtleBoard(
   api: LiveSubturtleBoardApi,
   chatId: number,
@@ -2904,12 +2910,8 @@ export async function syncLiveSubturtleBoard(
     targetMessageId?: number;
     allowCreateOnEditFailure?: boolean;
   } = {}
-): Promise<{
-  status: "created" | "updated" | "unchanged" | "skipped" | "unestablished";
-  messageId: number | null;
-  view: LiveSubturtleBoardView;
-}> {
-  return withLiveSubturtleBoardLock(chatId, async () => {
+): Promise<LiveSubturtleBoardSyncResult> {
+  return withLiveSubturtleBoardLock<LiveSubturtleBoardSyncResult>(chatId, async () => {
     const turtles = listSubturtles();
     const hasActiveWorkers = turtles.some((turtle) => turtle.status === "running");
     const record = readLiveSubturtleBoardRecord(chatId);
@@ -3035,7 +3037,7 @@ export async function syncLiveSubturtleBoard(
       messageId: number,
       status: "updated" | "unchanged",
       supersededMessageIds: Array<number | null | undefined> = []
-    ) => {
+    ): Promise<LiveSubturtleBoardSyncResult> => {
       if (hasActiveWorkers) {
         const pinState = await pinMessage(messageId);
         saveRecord(messageId, undefined, pinState);
@@ -3056,7 +3058,7 @@ export async function syncLiveSubturtleBoard(
     const editExistingBoardMessage = async (
       messageId: number,
       supersededMessageIds: Array<number | null | undefined> = []
-    ) => {
+    ): Promise<LiveSubturtleBoardSyncResult> => {
       try {
         await api.editMessageText(chatId, messageId, payload.text, {
           parse_mode: "HTML",
