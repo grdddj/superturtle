@@ -1,6 +1,6 @@
 # Current task
 
-Add trail effect with fading recursive branching fractal patterns behind the snake that fade over about 2 seconds.
+Add visual feedback effects including screen flash on eat and red tint overlay on death and golden particle burst on fibonacci level up.
 
 # End goal with specs
 
@@ -19,5 +19,5 @@ File ownership: YOU OWN snake-game/visuals.js (create it). DO NOT EDIT index.htm
 - [x] Draw fractal background by precomputing a Julia set detail to an offscreen canvas and tinting the hue based on current score
 - [x] Render snake segments as golden spiral arcs with gradient coloring from dark amber at tail to bright gold at head
 - [x] Render food items as pulsing rotating Fibonacci spirals with cyan glow effect using shadow blur
-- [ ] Add trail effect with fading recursive branching fractal patterns behind the snake that fade over about 2 seconds <- current
-- [ ] Add visual feedback effects including screen flash on eat and red tint overlay on death and golden particle burst on fibonacci level up
+- [x] Add trail effect with fading recursive branching fractal patterns behind the snake that fade over about 2 seconds
+- [ ] Add visual feedback effects including screen flash on eat and red tint overlay on death and golden particle burst on fibonacci level up <- current

@@ -1,6 +1,8 @@
 const FRACTAL_SNAKE = (window.FractalSnake = window.FractalSnake || {});
 const GOLDEN_RATIO = (1 + Math.sqrt(5)) / 2;
 const TAU = Math.PI * 2;
+const TRAIL_FADE_MS = 2000;
+const MAX_TRAIL_MARKS = 24;
 
 const visualsState = {
   canvas: null,
@@ -14,6 +16,8 @@ const visualsState = {
   fractalCanvas: null,
   fractalWidth: 0,
   fractalHeight: 0,
+  trailMarks: [],
+  lastSnakeSnapshot: [],
 };
 
 function init() {
@@ -184,6 +188,8 @@ function drawBoardPlaceholder(context, width, height, timestamp, state) {
   }
 
   const snake = extractPoints(state?.snake);
+  syncTrailMarks(snake, timestamp, state);
+  drawSnakeTrail(context, layout, timestamp);
   drawSnakeSegments(context, layout, snake, timestamp);
 
   const food = collectPoints(state?.food);
@@ -339,6 +345,169 @@ function drawSnakeSegments(context, layout, snake, timestamp) {
   context.restore();
 }
 
+function syncTrailMarks(snake, timestamp, state) {
+  pruneTrailMarks(timestamp);
+
+  if (!snake.length) {
+    visualsState.lastSnakeSnapshot = [];
+    return;
+  }
+
+  const previousSnake = visualsState.lastSnakeSnapshot;
+  if (!previousSnake.length) {
+    visualsState.lastSnakeSnapshot = clonePoints(snake);
+    return;
+  }
+
+  const previousHead = previousSnake[0];
+  const currentHead = snake[0];
+  const headStep = manhattanDistance(previousHead, currentHead);
+
+  if (headStep === 0) {
+    visualsState.lastSnakeSnapshot = clonePoints(snake);
+    return;
+  }
+
+  if (headStep > 1 || snake.length + 2 < previousSnake.length) {
+    visualsState.trailMarks = [];
+    visualsState.lastSnakeSnapshot = clonePoints(snake);
+    return;
+  }
+
+  const previousTail = previousSnake[previousSnake.length - 1];
+  if (previousTail && !pointInCollection(previousTail, snake)) {
+    visualsState.trailMarks.push({
+      point: previousTail,
+      heading: getSnakeSegmentHeading(previousSnake, previousSnake.length - 1),
+      createdAt: timestamp,
+      branches: 3 + Math.min(2, Math.floor(((state?.fibIndex || 0) + snake.length) / 7)),
+      energy: clamp(0.62 + snake.length / 28, 0.62, 1.15),
+    });
+  }
+
+  if (visualsState.trailMarks.length > MAX_TRAIL_MARKS) {
+    visualsState.trailMarks.splice(0, visualsState.trailMarks.length - MAX_TRAIL_MARKS);
+  }
+
+  visualsState.lastSnakeSnapshot = clonePoints(snake);
+}
+
+function pruneTrailMarks(timestamp) {
+  visualsState.trailMarks = visualsState.trailMarks.filter(
+    (mark) => timestamp - mark.createdAt < TRAIL_FADE_MS
+  );
+}
+
+function drawSnakeTrail(context, layout, timestamp) {
+  if (!visualsState.trailMarks.length) {
+    return;
+  }
+
+  context.save();
+  context.globalCompositeOperation = 'screen';
+
+  visualsState.trailMarks.forEach((mark, index) => {
+    const age = Math.max(0, timestamp - mark.createdAt);
+    const life = clamp(1 - age / TRAIL_FADE_MS, 0, 1);
+    if (life <= 0) {
+      return;
+    }
+
+    const center = getCellCenter(layout, mark.point);
+    const fade = Math.pow(life, 1.55);
+    const size = layout.cellSize * (0.28 + (1 - life) * 0.26) * mark.energy;
+    const glowRadius = layout.cellSize * (0.7 + (1 - life) * 0.45) * mark.energy;
+    const hueShift = ((index * 9) % 28) - 8;
+    const aura = context.createRadialGradient(
+      center.x,
+      center.y,
+      0,
+      center.x,
+      center.y,
+      glowRadius
+    );
+
+    aura.addColorStop(0, hsla(42 + hueShift, 100, 76, fade * 0.3));
+    aura.addColorStop(0.48, hsla(184 + hueShift, 92, 58, fade * 0.16));
+    aura.addColorStop(1, hsla(210 + hueShift, 88, 52, 0));
+
+    context.fillStyle = aura;
+    context.beginPath();
+    context.arc(center.x, center.y, glowRadius, 0, TAU);
+    context.fill();
+
+    drawTrailBranchFractal(
+      context,
+      center.x,
+      center.y,
+      mark.heading,
+      size,
+      mark.branches,
+      Math.PI / 4.6,
+      fade * 0.72
+    );
+  });
+
+  context.restore();
+}
+
+function drawTrailBranchFractal(context, x, y, angle, length, depth, spread, alpha) {
+  if (depth <= 0 || length < 1.2 || alpha <= 0.02) {
+    return;
+  }
+
+  const endX = x + Math.cos(angle) * length;
+  const endY = y + Math.sin(angle) * length;
+  const bend = length * 0.2 * (depth % 2 === 0 ? 1 : -1);
+  const controlX = (x + endX) / 2 + Math.cos(angle + Math.PI / 2) * bend;
+  const controlY = (y + endY) / 2 + Math.sin(angle + Math.PI / 2) * bend;
+  const gradient = context.createLinearGradient(x, y, endX, endY);
+
+  gradient.addColorStop(0, hsla(38 + depth * 4, 100, 74, alpha));
+  gradient.addColorStop(0.55, hsla(45 + depth * 3, 96, 63, alpha * 0.9));
+  gradient.addColorStop(1, hsla(188 - depth * 3, 84, 58, alpha * 0.18));
+
+  context.beginPath();
+  context.moveTo(x, y);
+  context.quadraticCurveTo(controlX, controlY, endX, endY);
+  context.lineCap = 'round';
+  context.lineJoin = 'round';
+  context.lineWidth = Math.max(1, length * 0.16);
+  context.shadowColor = hsla(44, 100, 70, alpha * 0.7);
+  context.shadowBlur = length * 0.8;
+  context.strokeStyle = gradient;
+  context.stroke();
+
+  context.beginPath();
+  context.arc(endX, endY, Math.max(0.9, length * 0.07), 0, TAU);
+  context.fillStyle = hsla(190, 85, 72, alpha * 0.35);
+  context.fill();
+
+  const nextLength = length * 0.68;
+  const nextAlpha = alpha * 0.76;
+
+  drawTrailBranchFractal(
+    context,
+    endX,
+    endY,
+    angle - spread,
+    nextLength,
+    depth - 1,
+    spread,
+    nextAlpha
+  );
+  drawTrailBranchFractal(
+    context,
+    endX,
+    endY,
+    angle + spread,
+    nextLength,
+    depth - 1,
+    spread,
+    nextAlpha
+  );
+}
+
 function drawFoodItems(context, layout, food, timestamp) {
   if (!food.length) {
     return;
@@ -491,6 +660,22 @@ function getSnakeSegmentHeading(snake, index) {
   }
 
   return Math.atan2(vectorY, vectorX) - Math.PI / GOLDEN_RATIO;
+}
+
+function clonePoints(points) {
+  return points.map((point) => ({ x: point.x, y: point.y }));
+}
+
+function pointInCollection(target, points) {
+  return points.some((point) => point.x === target.x && point.y === target.y);
+}
+
+function manhattanDistance(a, b) {
+  if (!a || !b) {
+    return Infinity;
+  }
+
+  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 }
 
 function hsla(hue, saturation, lightness, alpha) {
