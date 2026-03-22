@@ -1,4 +1,6 @@
 const FRACTAL_SNAKE = (window.FractalSnake = window.FractalSnake || {});
+const GOLDEN_RATIO = (1 + Math.sqrt(5)) / 2;
+const TAU = Math.PI * 2;
 
 const visualsState = {
   canvas: null,
@@ -85,7 +87,7 @@ function renderFrame(timestamp) {
   const engineState = readEngineState();
 
   drawBackdrop(context, visualsState.width, visualsState.height, timestamp, engineState);
-  drawBoardPlaceholder(context, visualsState.width, visualsState.height, engineState);
+  drawBoardPlaceholder(context, visualsState.width, visualsState.height, timestamp, engineState);
   drawStateOverlay(context, visualsState.width, visualsState.height, engineState);
 
   visualsState.animationFrameId = window.requestAnimationFrame(renderFrame);
@@ -154,7 +156,7 @@ function drawFractalLayer(context, width, height, timestamp, hueRotation, pulse)
   context.restore();
 }
 
-function drawBoardPlaceholder(context, width, height, state) {
+function drawBoardPlaceholder(context, width, height, timestamp, state) {
   const layout = inferBoardLayout(state, width, height);
   if (!layout) {
     return;
@@ -182,14 +184,7 @@ function drawBoardPlaceholder(context, width, height, state) {
   }
 
   const snake = extractPoints(state?.snake);
-  snake.forEach((point, index) => {
-    const center = getCellCenter(layout, point);
-    const intensity = snake.length <= 1 ? 1 : index / (snake.length - 1);
-    context.fillStyle = `rgba(${Math.round(160 + intensity * 70)}, ${Math.round(100 + intensity * 90)}, 28, 0.9)`;
-    context.beginPath();
-    context.arc(center.x, center.y, layout.cellSize * 0.32, 0, Math.PI * 2);
-    context.fill();
-  });
+  drawSnakeSegments(context, layout, snake, timestamp);
 
   const food = extractPoints(state?.food);
   food.forEach((point) => {
@@ -309,6 +304,121 @@ function getCellCenter(layout, point) {
     x: layout.offsetX + point.x * layout.cellSize + layout.cellSize / 2,
     y: layout.offsetY + point.y * layout.cellSize + layout.cellSize / 2,
   };
+}
+
+function drawSnakeSegments(context, layout, snake, timestamp) {
+  if (!snake.length) {
+    return;
+  }
+
+  context.save();
+
+  snake.forEach((point, index) => {
+    const center = getCellCenter(layout, point);
+    const progressToHead = snake.length <= 1 ? 1 : 1 - index / (snake.length - 1);
+    const colors = getSnakeSegmentColors(progressToHead);
+    const heading = getSnakeSegmentHeading(snake, index);
+    const animatedRotation = heading + Math.sin(timestamp / 260 + index * 0.9) * 0.08;
+    const spiralRadius = layout.cellSize * (0.24 + progressToHead * 0.16);
+    const lineWidth = Math.max(2.4, layout.cellSize * (0.085 + progressToHead * 0.03));
+
+    drawGoldenSpiralArc(
+      context,
+      center.x,
+      center.y,
+      spiralRadius,
+      lineWidth,
+      animatedRotation,
+      colors
+    );
+  });
+
+  context.restore();
+}
+
+function drawGoldenSpiralArc(context, x, y, radius, lineWidth, rotation, colors) {
+  const maxTheta = Math.PI * 1.65;
+  const minRadius = Math.max(1.5, radius * 0.12);
+  const growthRate = Math.log(radius / minRadius) / maxTheta;
+  const steps = 42;
+  const endX = x + Math.cos(rotation + maxTheta) * radius;
+  const endY = y + Math.sin(rotation + maxTheta) * radius;
+  const gradient = context.createLinearGradient(x, y, endX, endY);
+
+  gradient.addColorStop(0, colors.inner);
+  gradient.addColorStop(0.55, colors.mid);
+  gradient.addColorStop(1, colors.outer);
+
+  context.beginPath();
+  for (let step = 0; step <= steps; step += 1) {
+    const theta = (step / steps) * maxTheta;
+    const spiralRadius = minRadius * Math.exp(growthRate * theta);
+    const px = x + Math.cos(rotation + theta) * spiralRadius;
+    const py = y + Math.sin(rotation + theta) * spiralRadius;
+
+    if (step === 0) {
+      context.moveTo(px, py);
+    } else {
+      context.lineTo(px, py);
+    }
+  }
+
+  context.lineCap = 'round';
+  context.lineJoin = 'round';
+  context.lineWidth = lineWidth;
+  context.shadowColor = colors.glow;
+  context.shadowBlur = radius * 0.85;
+  context.strokeStyle = gradient;
+  context.stroke();
+
+  context.beginPath();
+  context.arc(x, y, lineWidth * 0.42, 0, TAU);
+  context.fillStyle = colors.inner;
+  context.fill();
+}
+
+function getSnakeSegmentColors(progressToHead) {
+  const eased = Math.pow(progressToHead, 0.82);
+  const hue = 32 + eased * 13;
+  const saturation = 70 + eased * 18;
+  const lightness = 22 + eased * 40;
+
+  return {
+    inner: hsla(hue + 4, saturation + 8, Math.min(lightness + 16, 88), 0.98),
+    mid: hsla(hue + 1, saturation + 4, Math.min(lightness + 5, 76), 0.96),
+    outer: hsla(hue - 3, Math.max(65, saturation - 6), Math.max(18, lightness - 8), 0.92),
+    glow: hsla(hue + 6, 100, Math.min(lightness + 22, 82), 0.38 + eased * 0.28),
+  };
+}
+
+function getSnakeSegmentHeading(snake, index) {
+  const current = snake[index];
+  const towardHead = index > 0 ? snake[index - 1] : null;
+  const towardTail = index < snake.length - 1 ? snake[index + 1] : null;
+
+  let vectorX = 1;
+  let vectorY = 0;
+
+  if (towardHead && towardTail) {
+    vectorX = towardHead.x - towardTail.x;
+    vectorY = towardHead.y - towardTail.y;
+  } else if (towardHead) {
+    vectorX = towardHead.x - current.x;
+    vectorY = towardHead.y - current.y;
+  } else if (towardTail) {
+    vectorX = current.x - towardTail.x;
+    vectorY = current.y - towardTail.y;
+  }
+
+  if (vectorX === 0 && vectorY === 0) {
+    return -Math.PI / 2 + index * (Math.PI / GOLDEN_RATIO);
+  }
+
+  return Math.atan2(vectorY, vectorX) - Math.PI / GOLDEN_RATIO;
+}
+
+function hsla(hue, saturation, lightness, alpha) {
+  return `hsla(${Math.round(hue)}, ${Math.round(saturation)}%, ${Math.round(lightness)}%, ${alpha})`;
 }
 
 function buildStars(width, height) {
