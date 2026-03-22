@@ -27,6 +27,8 @@ const KEY_TO_DIRECTION = {
   D: "right",
 };
 
+const PAUSE_KEYS = new Set([" ", "Spacebar"]);
+
 const OPPOSITE_DIRECTION = {
   up: "down",
   down: "up",
@@ -170,13 +172,6 @@ function emitStateChange() {
   });
 }
 
-function wrapPosition(position) {
-  return {
-    x: (position.x + GRID_SIZE) % GRID_SIZE,
-    y: (position.y + GRID_SIZE) % GRID_SIZE,
-  };
-}
-
 function isSamePosition(a, b) {
   return Boolean(a) && Boolean(b) && a.x === b.x && a.y === b.y;
 }
@@ -184,10 +179,34 @@ function isSamePosition(a, b) {
 function advancePosition(head, direction) {
   const vector = DIRECTION_VECTORS[direction];
 
-  return wrapPosition({
+  return {
     x: head.x + vector.x,
     y: head.y + vector.y,
-  });
+  };
+}
+
+function togglePause() {
+  if (state.isGameOver) {
+    return;
+  }
+
+  state.isPaused = !state.isPaused;
+  resetTiming();
+  emitStateChange();
+}
+
+function isSelfCollision(nextHead, ateFood) {
+  const tailWillMove = !ateFood && pendingGrowth === 0;
+  const collisionSegments = tailWillMove ? state.snake.slice(0, -1) : state.snake;
+
+  return collisionSegments.some((segment) => isSamePosition(segment, nextHead));
+}
+
+function setGameOver() {
+  state.isGameOver = true;
+  state.isPaused = false;
+  resetTiming();
+  emitStateChange();
 }
 
 function queueDirection(direction) {
@@ -206,6 +225,12 @@ function queueDirection(direction) {
 }
 
 function handleKeyDown(event) {
+  if (event.code === "Space" || PAUSE_KEYS.has(event.key)) {
+    event.preventDefault();
+    togglePause();
+    return;
+  }
+
   const nextDirection = KEY_TO_DIRECTION[event.key];
 
   if (!nextDirection) {
@@ -220,8 +245,14 @@ function step() {
   state.direction = queuedDirection;
 
   const nextHead = advancePosition(state.snake[0], state.direction);
-  const nextSnake = [nextHead, ...state.snake];
   const ateFood = isSamePosition(nextHead, state.food);
+
+  if (!isInsideGrid(nextHead) || isSelfCollision(nextHead, ateFood)) {
+    setGameOver();
+    return;
+  }
+
+  const nextSnake = [nextHead, ...state.snake];
 
   if (ateFood) {
     const growthAmount = getFibonacciValue(state.fibIndex);
