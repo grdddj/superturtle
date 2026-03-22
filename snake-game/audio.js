@@ -4,12 +4,23 @@ const EAT_BASE_FREQUENCY = 110;
 const EAT_ATTACK_SECONDS = 0.012;
 const EAT_DECAY_SECONDS = 0.18;
 const EAT_PEAK_GAIN = 0.24;
+const DEATH_START_FREQUENCY = 440;
+const DEATH_STEP_SECONDS = 0.055;
+const DEATH_TONE_DURATION = 0.18;
+const DEATH_ATTACK_SECONDS = 0.004;
+const DEATH_PEAK_GAIN = 0.14;
+const DEATH_SEMITONE_STEPS = 12;
+const DEATH_REVERB_DURATION_SECONDS = 1.6;
+const DEATH_REVERB_DECAY_POWER = 2.4;
+const DEATH_REVERB_WET_GAIN = 0.34;
 
 let audioContext = null;
 let masterGainNode = null;
 let isInitialized = false;
 let isMuted = false;
 let unlockListenersAttached = false;
+let deathReverbBuffer = null;
+let deathReverbSampleRate = 0;
 
 function getFibonacciValue(index) {
   if (index <= 1) {
@@ -76,6 +87,50 @@ function createEnvelopeGainNode(context, startTime) {
   return gainNode;
 }
 
+function createDeathEnvelopeGainNode(context, startTime, stopTime) {
+  const gainNode = context.createGain();
+
+  gainNode.gain.cancelScheduledValues(startTime);
+  gainNode.gain.setValueAtTime(0.0001, startTime);
+  gainNode.gain.linearRampToValueAtTime(
+    DEATH_PEAK_GAIN,
+    startTime + DEATH_ATTACK_SECONDS,
+  );
+  gainNode.gain.exponentialRampToValueAtTime(0.0001, stopTime);
+
+  return gainNode;
+}
+
+function getDeathReverbBuffer(context) {
+  if (
+    deathReverbBuffer
+    && deathReverbSampleRate === context.sampleRate
+  ) {
+    return deathReverbBuffer;
+  }
+
+  const frameCount = Math.max(
+    1,
+    Math.floor(context.sampleRate * DEATH_REVERB_DURATION_SECONDS),
+  );
+  const impulseBuffer = context.createBuffer(2, frameCount, context.sampleRate);
+
+  for (let channelIndex = 0; channelIndex < impulseBuffer.numberOfChannels; channelIndex += 1) {
+    const channelData = impulseBuffer.getChannelData(channelIndex);
+
+    for (let sampleIndex = 0; sampleIndex < frameCount; sampleIndex += 1) {
+      const decayPosition = 1 - sampleIndex / frameCount;
+      const randomSample = Math.random() * 2 - 1;
+      channelData[sampleIndex] = randomSample * (decayPosition ** DEATH_REVERB_DECAY_POWER);
+    }
+  }
+
+  deathReverbBuffer = impulseBuffer;
+  deathReverbSampleRate = context.sampleRate;
+
+  return deathReverbBuffer;
+}
+
 function scheduleEatTone(context, {
   fibIndex = 0,
   baseFrequency = EAT_BASE_FREQUENCY,
@@ -107,6 +162,74 @@ function scheduleEatTone(context, {
   oscillator.stop(stopTime);
 
   return frequency;
+}
+
+function scheduleDeathCascade(context) {
+  if (!masterGainNode) {
+    return null;
+  }
+
+  const startTime = context.currentTime + 0.01;
+  const maxFrequency = getMaxAudibleFrequency(context);
+  const convolverNode = context.createConvolver();
+  const wetGainNode = context.createGain();
+  let lastStopTime = startTime;
+
+  convolverNode.buffer = getDeathReverbBuffer(context);
+  wetGainNode.gain.setValueAtTime(DEATH_REVERB_WET_GAIN, startTime);
+  convolverNode.connect(wetGainNode);
+  wetGainNode.connect(masterGainNode);
+
+  for (let stepIndex = 0; stepIndex < DEATH_SEMITONE_STEPS; stepIndex += 1) {
+    const toneStartTime = startTime + stepIndex * DEATH_STEP_SECONDS;
+    const toneStopTime = toneStartTime + DEATH_TONE_DURATION;
+    const baseFrequency = DEATH_START_FREQUENCY * (2 ** (-stepIndex / 12));
+    const nextFrequency = DEATH_START_FREQUENCY * (2 ** (-(stepIndex + 1) / 12));
+    const oscillator = context.createOscillator();
+    const envelopeGainNode = createDeathEnvelopeGainNode(
+      context,
+      toneStartTime,
+      toneStopTime,
+    );
+
+    oscillator.type = "sawtooth";
+    oscillator.frequency.setValueAtTime(
+      Math.min(baseFrequency, maxFrequency),
+      toneStartTime,
+    );
+    oscillator.frequency.exponentialRampToValueAtTime(
+      Math.max(40, Math.min(nextFrequency, maxFrequency)),
+      toneStopTime,
+    );
+    oscillator.detune.setValueAtTime(-stepIndex * 4, toneStartTime);
+
+    oscillator.connect(envelopeGainNode);
+    envelopeGainNode.connect(masterGainNode);
+    envelopeGainNode.connect(convolverNode);
+
+    oscillator.addEventListener("ended", () => {
+      oscillator.disconnect();
+      envelopeGainNode.disconnect();
+    }, { once: true });
+
+    oscillator.start(toneStartTime);
+    oscillator.stop(toneStopTime + 0.01);
+    lastStopTime = toneStopTime + 0.01;
+  }
+
+  const cleanupDelayMs = Math.ceil(
+    (lastStopTime - context.currentTime + DEATH_REVERB_DURATION_SECONDS + 0.1) * 1000,
+  );
+
+  window.setTimeout(() => {
+    convolverNode.disconnect();
+    wetGainNode.disconnect();
+  }, cleanupDelayMs);
+
+  return {
+    steps: DEATH_SEMITONE_STEPS,
+    startFrequency: DEATH_START_FREQUENCY,
+  };
 }
 
 function getAudioContextClass() {
@@ -248,8 +371,14 @@ async function playEat(options = {}) {
   });
 }
 
-function playDeath() {
-  return resumeAudioContext();
+async function playDeath() {
+  const context = await resumeAudioContext();
+
+  if (!context) {
+    return null;
+  }
+
+  return scheduleDeathCascade(context);
 }
 
 function playLevelUp() {
