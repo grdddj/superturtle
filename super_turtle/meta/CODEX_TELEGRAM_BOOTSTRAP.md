@@ -21,3 +21,53 @@ Execution style:
 - Be concise with the human.
 - Prefer auditable actions and explicit state.
 - If SubTurtle state would be invalid, fix it before spawn instead of continuing with a broken worker.
+
+## SubTurtle spawning workflow
+
+When spawning a SubTurtle:
+
+1. **Write state to /tmp** — Never write the state file directly to `.superturtle/subturtles/<name>/CLAUDE.md`. Write to a temp file like `/tmp/<name>-state.md` first.
+2. **Use --state-file** — Pass the temp file via `--state-file /tmp/<name>-state.md` to `ctl spawn`.
+3. **Let ctl spawn handle workspace setup** — It creates the workspace directory, copies the state file, symlinks AGENTS.md, starts the process, and registers cron supervision automatically.
+
+State file format (CLAUDE.md) must have **exactly these 5 headings in order**:
+```
+# Current task
+# End goal with specs
+# Roadmap (Completed)
+# Roadmap (Upcoming)
+# Backlog
+```
+
+Backlog rules:
+- At least 5 items in `- [ ] item` or `- [x] item` format
+- Exactly one open item marked with `<- current`
+- Each item should be one commit's worth of work
+
+Both roadmap sections need at least 1 `- ` bullet item each.
+
+## ctl commands
+
+```bash
+ctl spawn <name> --type <TYPE> --timeout <DURATION> --state-file <PATH|->
+```
+- Types: `slow`, `yolo`, `yolo-codex`, `yolo-codex-spark`
+- yolo-codex types require codex_available=true
+- Timeout format: `30m`, `2h`, `1d`
+- --state-file can be a path or `-` to read from stdin
+- Automatically prints `ctl list` at the end to confirm the SubTurtle is running
+
+```bash
+ctl stop <name>       # graceful shutdown + kill watchdog + cron cleanup
+ctl status <name>     # running? + type + time elapsed/remaining
+ctl logs <name>       # tail recent output
+ctl list              # all SubTurtles + status + type + time left
+```
+
+Loop type selection:
+- **yolo-codex** — Fast autonomous loop with Codex model (requires codex_available=true)
+- **yolo-codex-spark** — Same as yolo-codex but uses spark model
+- **yolo** — Fast autonomous loop with regular model
+- **slow** — Plan → approve → execute loop with human approval steps
+
+Default supervision: Silent mode enabled (`silent: true`), cron checks every 10 minutes, only notifies on milestones/errors/completion.
