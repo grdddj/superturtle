@@ -1,6 +1,6 @@
 # Current task
 
-Review commit 06b0f83c and document findings.
+Review commit f3192dd8 and document findings.
 
 # End goal with specs
 
@@ -25,8 +25,8 @@ Write review to .superturtle/subturtles/review-c/review-report.md with sections 
 
 # Backlog
 - [x] git show 144cd204 and review
-- [ ] git show 06b0f83c and review <- current
-- [ ] git show f3192dd8 and review
+- [x] git show 06b0f83c and review
+- [ ] git show f3192dd8 and review <- current
 - [ ] git show 2ee8fb23 and review
 - [ ] git show 1b8eaeac and review
 - [ ] Write summary report
