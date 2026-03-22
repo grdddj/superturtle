@@ -1,5 +1,5 @@
 # Current task
-Write `alpha-summary.txt` with the required header, timestamp, captured `/tmp` entries, and completion line.
+Write `done.flag` with `ok`.
 
 # End goal with specs
 - Produce a harmless smoke-test artifact set under `/tmp/st-codex-test-a/`.
@@ -24,6 +24,6 @@ Write `alpha-summary.txt` with the required header, timestamp, captured `/tmp` e
 - [x] Confirm the exact output directory and filenames.
 - [x] Create `/tmp/st-codex-test-a/` and seed `commands.log`.
 - [x] Capture the first 10 `/tmp` entries for the summary file.
-- [ ] Write `alpha-summary.txt` with the required header, timestamp, and completion line. <- current
-- [ ] Write `done.flag` with `ok`.
+- [x] Write `alpha-summary.txt` with the required header, timestamp, and completion line.
+- [ ] Write `done.flag` with `ok`. <- current
 - [ ] Verify all three files exist and stop.
