@@ -11,6 +11,7 @@ window.FractalSnake.ui = (() => {
     currentFibValue: 1,
     snakeLength: 1,
     snake: [],
+    isPaused: false,
     isGameOver: false,
   });
 
@@ -101,6 +102,11 @@ window.FractalSnake.ui = (() => {
 
     if (normalized.isGameOver) {
       renderGameOverScreen(normalized);
+      return;
+    }
+
+    if (hasStartedGame && normalized.isPaused) {
+      renderPauseScreen(normalized);
       return;
     }
 
@@ -257,6 +263,37 @@ window.FractalSnake.ui = (() => {
     menuOverlayElement.innerHTML = "";
   }
 
+  function renderPauseScreen(state) {
+    if (!menuOverlayElement) return;
+
+    const fibLevel = state.currentFibValue || fibonacciValue(state.fibIndex);
+
+    menuOverlayElement.className = "menu-overlay is-visible";
+    menuOverlayElement.setAttribute("aria-hidden", "false");
+    menuOverlayElement.innerHTML = `
+      <section class="menu-screen pause-screen" aria-labelledby="pause-screen-title">
+        <div class="pause-screen__halo" aria-hidden="true"></div>
+        <div class="pause-screen__content">
+          <p class="pause-screen__eyebrow">Run paused</p>
+          <h2 id="pause-screen-title" class="pause-screen__title">Paused</h2>
+          <p class="pause-screen__summary">
+            Fibonacci level ${fibLevel} is on hold. Press Space to resume the run.
+          </p>
+          <div class="pause-screen__instructions" aria-label="Pause instructions">
+            <p class="pause-screen__instruction">
+              <span class="pause-screen__key">Space</span>
+              Resume immediately
+            </p>
+            <p class="pause-screen__instruction">
+              <span class="pause-screen__key">Stay sharp</span>
+              Your current score is ${state.score}
+            </p>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
   function renderGameOverScreen(state) {
     if (!menuOverlayElement) return;
 
@@ -311,6 +348,7 @@ window.FractalSnake.ui = (() => {
     const currentFibValue = finiteNumber(source.currentFibValue, fibonacciValue(fibIndex));
     const score = finiteNumber(source.score, 0);
     const snakeLength = finiteNumber(source.snakeLength, snake.length || 1);
+    const isPaused = Boolean(source.isPaused);
     const isGameOver = Boolean(source.isGameOver);
 
     return {
@@ -319,6 +357,7 @@ window.FractalSnake.ui = (() => {
       currentFibValue,
       snakeLength,
       snake,
+      isPaused,
       isGameOver,
     };
   }
