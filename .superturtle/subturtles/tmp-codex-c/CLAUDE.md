@@ -1,5 +1,5 @@
 # Current task
-Capture the local time, UTC time, and timezone abbreviation for the smoke-test artifact set.
+Write `gamma-dates.txt` with the required header and completion line.
 
 # End goal with specs
 - Produce a harmless smoke-test artifact set under `/tmp/st-codex-test-c/`.
@@ -24,7 +24,7 @@ Capture the local time, UTC time, and timezone abbreviation for the smoke-test a
 # Backlog
 - [x] Confirm the exact output directory and filenames.
 - [x] Create `/tmp/st-codex-test-c/` and seed `commands.log`.
-- [ ] Capture the local time, UTC time, and timezone abbreviation. <- current
-- [ ] Write `gamma-dates.txt` with the required header and completion line.
+- [x] Capture the local time, UTC time, and timezone abbreviation.
+- [ ] Write `gamma-dates.txt` with the required header and completion line. <- current
 - [ ] Write `done.flag` with `ok`.
 - [ ] Verify all three files exist and stop.

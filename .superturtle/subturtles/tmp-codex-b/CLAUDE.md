@@ -1,5 +1,5 @@
 # Current task
-Capture the working directory and `uname -a` output for worker `tmp-codex-b`.
+Write `beta-environment.txt` with the required header, captured environment details, and completion line.
 
 # End goal with specs
 - Produce a harmless smoke-test artifact set under `/tmp/st-codex-test-b/`.
@@ -23,7 +23,7 @@ Capture the working directory and `uname -a` output for worker `tmp-codex-b`.
 # Backlog
 - [x] Confirm the exact output directory and filenames.
 - [x] Create `/tmp/st-codex-test-b/` and seed `commands.log`.
-- [ ] Capture the working directory and `uname -a` output. <- current
-- [ ] Write `beta-environment.txt` with the required header and completion line.
+- [x] Capture the working directory and `uname -a` output.
+- [ ] Write `beta-environment.txt` with the required header and completion line. <- current
 - [ ] Write `done.flag` with `ok`.
 - [ ] Verify all three files exist and stop.
