@@ -3,7 +3,17 @@
  */
 
 import { createHash } from "crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "fs";
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from "fs";
 import { dirname, join } from "path";
 import { InlineKeyboard, type Context } from "grammy";
 import { session, getAvailableModels, EFFORT_DISPLAY, type EffortLevel } from "../session";
@@ -59,6 +69,9 @@ const LOOPLOGS_LINE_COUNT = 50;
 const RESUME_SESSIONS_LIMIT = 5;
 const LIVE_SUBTURTLE_BOARD_REFRESH_MIN_MS = 90 * 1000;
 const LIVE_SUBTURTLE_BOARD_MAX_BUTTONS = 8;
+const LIVE_SUBTURTLE_BOARD_LOCK_WAIT_MS = 10_000;
+const LIVE_SUBTURTLE_BOARD_LOCK_STALE_MS = 120_000;
+const LIVE_SUBTURTLE_BOARD_LOCK_RETRY_MS = 50;
 const CLAUDE_USAGE_RATE_LIMIT_MESSAGE =
   "Claude usage is temporarily unavailable due to Anthropic service limits. This comes from Anthropic's usage endpoint, not from Super Turtle.";
 
@@ -449,6 +462,72 @@ function atomicWriteText(path: string, content: string): void {
 
 function liveSubturtleBoardPath(chatId: number): string {
   return join(LIVE_SUBTURTLE_BOARD_DIR, `${String(chatId).replace(/^-/, "neg-")}.json`);
+}
+
+function liveSubturtleBoardLockPath(chatId: number): string {
+  return `${liveSubturtleBoardPath(chatId)}.lock`;
+}
+
+async function withLiveSubturtleBoardLock<T>(
+  chatId: number,
+  operation: () => Promise<T>
+): Promise<T> {
+  const lockPath = liveSubturtleBoardLockPath(chatId);
+  mkdirSync(dirname(lockPath), { recursive: true });
+  const startedAt = Date.now();
+
+  while (true) {
+    let fd: number | null = null;
+    try {
+      fd = openSync(lockPath, "wx");
+      writeFileSync(
+        fd,
+        JSON.stringify({ pid: process.pid, acquired_at: nowIso() }) + "\n",
+        "utf-8"
+      );
+      try {
+        return await operation();
+      } finally {
+        try {
+          closeSync(fd);
+        } catch {}
+        try {
+          unlinkSync(lockPath);
+        } catch {}
+      }
+    } catch (error) {
+      if (fd !== null) {
+        try {
+          closeSync(fd);
+        } catch {}
+        try {
+          unlinkSync(lockPath);
+        } catch {}
+      }
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "EEXIST"
+      ) {
+        try {
+          const stats = statSync(lockPath);
+          if (Date.now() - stats.mtimeMs > LIVE_SUBTURTLE_BOARD_LOCK_STALE_MS) {
+            unlinkSync(lockPath);
+            continue;
+          }
+        } catch {}
+
+        if (Date.now() - startedAt >= LIVE_SUBTURTLE_BOARD_LOCK_WAIT_MS) {
+          throw new Error(`Timed out waiting for live SubTurtle board lock: ${lockPath}`);
+        }
+
+        await Bun.sleep(LIVE_SUBTURTLE_BOARD_LOCK_RETRY_MS);
+        continue;
+      }
+      throw error;
+    }
+  }
 }
 
 function isSafeSubturtleName(value: unknown): value is string {
@@ -2830,136 +2909,252 @@ export async function syncLiveSubturtleBoard(
   messageId: number | null;
   view: LiveSubturtleBoardView;
 }> {
-  const turtles = listSubturtles();
-  const hasActiveWorkers = turtles.some((turtle) => turtle.status === "running");
-  const record = readLiveSubturtleBoardRecord(chatId);
-  const shouldCreateIfMissing = options.createIfMissing ?? hasActiveWorkers;
-  const targetMessageId =
-    typeof options.targetMessageId === "number" && Number.isFinite(options.targetMessageId)
-      ? options.targetMessageId
-      : null;
-  const allowCreateOnEditFailure = options.allowCreateOnEditFailure ?? true;
-  let recoveredPinnedBoard: { messageId: number; view: LiveSubturtleBoardView } | null | undefined;
+  return withLiveSubturtleBoardLock(chatId, async () => {
+    const turtles = listSubturtles();
+    const hasActiveWorkers = turtles.some((turtle) => turtle.status === "running");
+    const record = readLiveSubturtleBoardRecord(chatId);
+    const shouldCreateIfMissing = options.createIfMissing ?? hasActiveWorkers;
+    const targetMessageId =
+      typeof options.targetMessageId === "number" && Number.isFinite(options.targetMessageId)
+        ? options.targetMessageId
+        : null;
+    const allowCreateOnEditFailure = options.allowCreateOnEditFailure ?? true;
+    let recoveredPinnedBoard: { messageId: number; view: LiveSubturtleBoardView } | null | undefined;
 
-  const loadRecoveredPinnedBoard = async () => {
-    if (typeof recoveredPinnedBoard !== "undefined") {
+    const loadRecoveredPinnedBoard = async () => {
+      if (typeof recoveredPinnedBoard !== "undefined") {
+        return recoveredPinnedBoard;
+      }
+      recoveredPinnedBoard = await recoverPinnedLiveSubturtleBoard(api, chatId);
       return recoveredPinnedBoard;
+    };
+
+    if (!record && !shouldCreateIfMissing) {
+      return { status: "skipped", messageId: null, view: { kind: "board" } };
     }
-    recoveredPinnedBoard = await recoverPinnedLiveSubturtleBoard(api, chatId);
-    return recoveredPinnedBoard;
-  };
 
-  if (!record && !shouldCreateIfMissing) {
-    return { status: "skipped", messageId: null, view: { kind: "board" } };
-  }
-
-  if (targetMessageId === null && !record) {
-    await loadRecoveredPinnedBoard();
-  }
-
-  const targetView = normalizeLiveSubturtleBoardView(
-    options.view || record?.current_view || recoveredPinnedBoard?.view || { kind: "board" }
-  );
-  const payload = await buildLiveSubturtleBoardPayload(turtles, targetView);
-  const renderHash = computeLiveSubturtleBoardHash(payload.text, payload.replyMarkup);
-  const now = nowIso();
-
-  const saveRecord = (
-    messageId: number,
-    createdAt?: string,
-    pinState: LiveSubturtleBoardPinState = "established"
-  ) => {
-    writeLiveSubturtleBoardRecord({
-      chat_id: chatId,
-      message_id: messageId,
-      last_render_hash: renderHash,
-      last_rendered_at: now,
-      created_at: createdAt || record?.created_at || now,
-      updated_at: now,
-      pin_state: pinState,
-      current_view: payload.view,
-    });
-  };
-  const clearRecord = () => {
-    deleteLiveSubturtleBoardRecord(chatId);
-  };
-
-  const pinMessage = async (messageId: number): Promise<LiveSubturtleBoardPinState> => {
-    if (!options.pin || !api.pinChatMessage) return "established";
-    try {
-      await api.pinChatMessage(chatId, messageId, { disable_notification: true });
-      return "established";
-    } catch (error) {
-      const summary = String(error).toLowerCase();
-      if (
-        summary.includes("message is already pinned") ||
-        summary.includes("chat not modified")
-      ) {
-        return "established";
-      }
-      if (summary.includes("not enough rights")) {
-        return "unestablished";
-      }
-      throw error;
+    if (targetMessageId === null && !record) {
+      await loadRecoveredPinnedBoard();
     }
-  };
 
-  const unpinMessage = async (messageId: number) => {
-    if (!api.unpinChatMessage) return;
-    try {
-      await api.unpinChatMessage(chatId, messageId);
-    } catch (error) {
-      const summary = String(error).toLowerCase();
-      if (
-        !summary.includes("message to unpin not found") &&
-        !summary.includes("message is not pinned") &&
-        !summary.includes("chat not modified") &&
-        !summary.includes("not enough rights")
-      ) {
-        throw error;
-      }
-    }
-  };
-
-  const deleteMessage = async (messageId: number) => {
-    if (!api.deleteMessage) return;
-    try {
-      await api.deleteMessage(chatId, messageId);
-    } catch (error) {
-      const summary = String(error).toLowerCase();
-      if (
-        !summary.includes("message to delete not found") &&
-        !summary.includes("message can't be deleted") &&
-        !summary.includes("message identifier is not specified")
-      ) {
-        throw error;
-      }
-    }
-  };
-
-  const cleanupSupersededMessages = async (messageIds: Array<number | null | undefined>) => {
-    const uniqueIds = Array.from(
-      new Set(
-        messageIds.filter((value): value is number => typeof value === "number" && Number.isFinite(value))
-      )
+    const targetView = normalizeLiveSubturtleBoardView(
+      options.view || record?.current_view || recoveredPinnedBoard?.view || { kind: "board" }
     );
-    for (const messageId of uniqueIds) {
-      await unpinMessage(messageId);
-      await deleteMessage(messageId);
-    }
-  };
+    const payload = await buildLiveSubturtleBoardPayload(turtles, targetView);
+    const renderHash = computeLiveSubturtleBoardHash(payload.text, payload.replyMarkup);
+    const now = nowIso();
 
-  const finalizeExistingBoardMessage = async (
-    messageId: number,
-    status: "updated" | "unchanged",
-    supersededMessageIds: Array<number | null | undefined> = []
-  ) => {
+    const saveRecord = (
+      messageId: number,
+      createdAt?: string,
+      pinState: LiveSubturtleBoardPinState = "established"
+    ) => {
+      writeLiveSubturtleBoardRecord({
+        chat_id: chatId,
+        message_id: messageId,
+        last_render_hash: renderHash,
+        last_rendered_at: now,
+        created_at: createdAt || record?.created_at || now,
+        updated_at: now,
+        pin_state: pinState,
+        current_view: payload.view,
+      });
+    };
+    const clearRecord = () => {
+      deleteLiveSubturtleBoardRecord(chatId);
+    };
+
+    const pinMessage = async (messageId: number): Promise<LiveSubturtleBoardPinState> => {
+      if (!options.pin || !api.pinChatMessage) return "established";
+      try {
+        await api.pinChatMessage(chatId, messageId, {
+          disable_notification: options.disableNotification ?? true,
+        });
+        return "established";
+      } catch (error) {
+        const summary = String(error).toLowerCase();
+        if (
+          summary.includes("message is already pinned") ||
+          summary.includes("chat not modified")
+        ) {
+          return "established";
+        }
+        if (summary.includes("not enough rights")) {
+          return "unestablished";
+        }
+        throw error;
+      }
+    };
+
+    const unpinMessage = async (messageId: number) => {
+      if (!api.unpinChatMessage) return;
+      try {
+        await api.unpinChatMessage(chatId, messageId);
+      } catch (error) {
+        const summary = String(error).toLowerCase();
+        if (
+          !summary.includes("message to unpin not found") &&
+          !summary.includes("message is not pinned") &&
+          !summary.includes("chat not modified") &&
+          !summary.includes("not enough rights")
+        ) {
+          throw error;
+        }
+      }
+    };
+
+    const deleteMessage = async (messageId: number) => {
+      if (!api.deleteMessage) return;
+      try {
+        await api.deleteMessage(chatId, messageId);
+      } catch (error) {
+        const summary = String(error).toLowerCase();
+        if (
+          !summary.includes("message to delete not found") &&
+          !summary.includes("message can't be deleted") &&
+          !summary.includes("message identifier is not specified")
+        ) {
+          throw error;
+        }
+      }
+    };
+
+    const cleanupSupersededMessages = async (messageIds: Array<number | null | undefined>) => {
+      const uniqueIds = Array.from(
+        new Set(
+          messageIds.filter((value): value is number => typeof value === "number" && Number.isFinite(value))
+        )
+      );
+      for (const messageId of uniqueIds) {
+        await unpinMessage(messageId);
+        await deleteMessage(messageId);
+      }
+    };
+
+    const finalizeExistingBoardMessage = async (
+      messageId: number,
+      status: "updated" | "unchanged",
+      supersededMessageIds: Array<number | null | undefined> = []
+    ) => {
+      if (hasActiveWorkers) {
+        const pinState = await pinMessage(messageId);
+        saveRecord(messageId, undefined, pinState);
+        await cleanupSupersededMessages(supersededMessageIds);
+        return {
+          status: pinState === "established" ? status : "unestablished",
+          messageId,
+          view: payload.view,
+        };
+      } else {
+        await unpinMessage(messageId);
+        clearRecord();
+      }
+      await cleanupSupersededMessages(supersededMessageIds);
+      return { status, messageId, view: payload.view };
+    };
+
+    const editExistingBoardMessage = async (
+      messageId: number,
+      supersededMessageIds: Array<number | null | undefined> = []
+    ) => {
+      try {
+        await api.editMessageText(chatId, messageId, payload.text, {
+          parse_mode: "HTML",
+          reply_markup: payload.replyMarkup,
+        });
+        return await finalizeExistingBoardMessage(messageId, "updated", supersededMessageIds);
+      } catch (error) {
+        if (shouldIgnoreUnchangedMessageError(error)) {
+          return await finalizeExistingBoardMessage(messageId, "unchanged", supersededMessageIds);
+        }
+        throw error;
+      }
+    };
+
+    if (record && !options.force) {
+      const ageMs = Date.now() - Date.parse(record.updated_at);
+      if (
+        record.last_render_hash === renderHash &&
+        Number.isFinite(ageMs) &&
+        ageMs < LIVE_SUBTURTLE_BOARD_REFRESH_MIN_MS
+      ) {
+        if (hasActiveWorkers) {
+          const pinState = await pinMessage(record.message_id);
+          saveRecord(record.message_id, undefined, pinState);
+          return {
+            status: pinState === "established" ? "unchanged" : "unestablished",
+            messageId: record.message_id,
+            view: record.current_view || payload.view,
+          };
+        } else {
+          await unpinMessage(record.message_id);
+          clearRecord();
+        }
+        return {
+          status: "unchanged",
+          messageId: record.message_id,
+          view: record.current_view || payload.view,
+        };
+      }
+    }
+
+    const editMessageId = targetMessageId ?? record?.message_id ?? recoveredPinnedBoard?.messageId ?? null;
+
+    if (editMessageId !== null) {
+      const supersededMessageIds =
+        record && record.message_id !== editMessageId ? [record.message_id] : [];
+      try {
+        return await editExistingBoardMessage(editMessageId, supersededMessageIds);
+      } catch (error) {
+        if (!allowCreateOnEditFailure || !shouldRecreateLiveBoard(error)) {
+          throw error;
+        }
+        if (targetMessageId === null) {
+          const recoveredBoard = await loadRecoveredPinnedBoard();
+          if (recoveredBoard && recoveredBoard.messageId !== editMessageId) {
+            try {
+              return await editExistingBoardMessage(recoveredBoard.messageId, [
+                record?.message_id,
+              ]);
+            } catch (recoveredError) {
+              if (!allowCreateOnEditFailure || !shouldRecreateLiveBoard(recoveredError)) {
+                throw recoveredError;
+              }
+              await cleanupSupersededMessages([
+                record?.message_id,
+                editMessageId,
+                recoveredBoard.messageId,
+              ]);
+            }
+          } else {
+            await cleanupSupersededMessages([
+              record?.message_id,
+              editMessageId,
+            ]);
+          }
+        } else {
+          await cleanupSupersededMessages([
+            record?.message_id,
+            editMessageId !== record?.message_id ? editMessageId : null,
+          ]);
+        }
+      }
+    }
+
+    const message = await api.sendMessage(chatId, payload.text, {
+      parse_mode: "HTML",
+      reply_markup: payload.replyMarkup,
+      disable_notification: options.disableNotification ?? true,
+    });
+    const messageId = typeof message.message_id === "number" ? message.message_id : null;
+    if (messageId === null) {
+      return { status: "created", messageId: null, view: payload.view };
+    }
     if (hasActiveWorkers) {
       const pinState = await pinMessage(messageId);
-      saveRecord(messageId, undefined, pinState);
-      await cleanupSupersededMessages(supersededMessageIds);
+      saveRecord(messageId, now, pinState);
       return {
-        status: pinState === "established" ? status : "unestablished",
+        status: pinState === "established" ? "created" : "unestablished",
         messageId,
         view: payload.view,
       };
@@ -2967,116 +3162,8 @@ export async function syncLiveSubturtleBoard(
       await unpinMessage(messageId);
       clearRecord();
     }
-    await cleanupSupersededMessages(supersededMessageIds);
-    return { status, messageId, view: payload.view };
-  };
-
-  const editExistingBoardMessage = async (
-    messageId: number,
-    supersededMessageIds: Array<number | null | undefined> = []
-  ) => {
-    try {
-      await api.editMessageText(chatId, messageId, payload.text, {
-        parse_mode: "HTML",
-        reply_markup: payload.replyMarkup,
-      });
-      return await finalizeExistingBoardMessage(messageId, "updated", supersededMessageIds);
-    } catch (error) {
-      if (shouldIgnoreUnchangedMessageError(error)) {
-        return await finalizeExistingBoardMessage(messageId, "unchanged", supersededMessageIds);
-      }
-      throw error;
-    }
-  };
-
-  if (record && !options.force) {
-    const ageMs = Date.now() - Date.parse(record.updated_at);
-    if (
-      record.last_render_hash === renderHash &&
-      Number.isFinite(ageMs) &&
-      ageMs < LIVE_SUBTURTLE_BOARD_REFRESH_MIN_MS
-    ) {
-      if (hasActiveWorkers) {
-        const pinState = await pinMessage(record.message_id);
-        saveRecord(record.message_id, undefined, pinState);
-        return {
-          status: pinState === "established" ? "unchanged" : "unestablished",
-          messageId: record.message_id,
-          view: record.current_view || payload.view,
-        };
-      } else {
-        await unpinMessage(record.message_id);
-        clearRecord();
-      }
-      return { status: "unchanged", messageId: record.message_id, view: record.current_view || payload.view };
-    }
-  }
-
-  const editMessageId = targetMessageId ?? record?.message_id ?? recoveredPinnedBoard?.messageId ?? null;
-
-  if (editMessageId !== null) {
-    const supersededMessageIds =
-      record && record.message_id !== editMessageId ? [record.message_id] : [];
-    try {
-      return await editExistingBoardMessage(editMessageId, supersededMessageIds);
-    } catch (error) {
-      if (!allowCreateOnEditFailure || !shouldRecreateLiveBoard(error)) {
-        throw error;
-      }
-      if (targetMessageId === null) {
-        const recoveredBoard = await loadRecoveredPinnedBoard();
-        if (recoveredBoard && recoveredBoard.messageId !== editMessageId) {
-          try {
-            return await editExistingBoardMessage(recoveredBoard.messageId, [
-              record?.message_id,
-            ]);
-          } catch (recoveredError) {
-            if (!allowCreateOnEditFailure || !shouldRecreateLiveBoard(recoveredError)) {
-              throw recoveredError;
-            }
-            await cleanupSupersededMessages([
-              record?.message_id,
-              editMessageId,
-              recoveredBoard.messageId,
-            ]);
-          }
-        } else {
-          await cleanupSupersededMessages([
-            record?.message_id,
-            editMessageId,
-          ]);
-        }
-      } else {
-        await cleanupSupersededMessages([
-          record?.message_id,
-          editMessageId !== record?.message_id ? editMessageId : null,
-        ]);
-      }
-    }
-  }
-
-  const message = await api.sendMessage(chatId, payload.text, {
-    parse_mode: "HTML",
-    reply_markup: payload.replyMarkup,
-    disable_notification: options.disableNotification ?? true,
+    return { status: "created", messageId, view: payload.view };
   });
-  const messageId = typeof message.message_id === "number" ? message.message_id : null;
-  if (messageId === null) {
-    return { status: "created", messageId: null, view: payload.view };
-  }
-  if (hasActiveWorkers) {
-    const pinState = await pinMessage(messageId);
-    saveRecord(messageId, now, pinState);
-    return {
-      status: pinState === "established" ? "created" : "unestablished",
-      messageId,
-      view: payload.view,
-    };
-  } else {
-    await unpinMessage(messageId);
-    clearRecord();
-  }
-  return { status: "created", messageId, view: payload.view };
 }
 
 export async function handleSubturtle(ctx: Context): Promise<void> {
@@ -3127,12 +3214,21 @@ export async function handleSubturtle(ctx: Context): Promise<void> {
     return;
   }
 
-  await syncLiveSubturtleBoard(ctx.api, chatId, {
+  const result = await syncLiveSubturtleBoard(ctx.api, chatId, {
     force: true,
     pin: true,
-    disableNotification: true,
+    disableNotification: false,
     createIfMissing: true,
   });
+
+  if (result.status === "updated" || result.status === "unchanged") {
+    await ctx.reply("📌 SubTurtle board refreshed.");
+    return;
+  }
+
+  if (result.status === "unestablished") {
+    await ctx.reply("⚠️ SubTurtle board updated, but Telegram did not allow pinning it.");
+  }
 }
 
 export async function buildSubturtleMenuMessage(

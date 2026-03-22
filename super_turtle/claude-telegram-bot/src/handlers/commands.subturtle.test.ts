@@ -469,6 +469,156 @@ describe("/subturtle", () => {
     }
   });
 
+  it("acknowledges /sub when it refreshes an existing pinned board in place", async () => {
+    const workdir = workingDir;
+    const chatId = authorizedUserId + 44;
+    const boardPath = join(
+      workdir,
+      ".superturtle/state/telegram/subturtle-boards",
+      `${chatId}.json`
+    );
+    rmSync(boardPath, { force: true });
+    mkdirSync(dirname(boardPath), { recursive: true });
+    writeFileSync(
+      boardPath,
+      JSON.stringify({
+        chat_id: chatId,
+        message_id: 881,
+        last_render_hash: "stale-hash",
+        last_rendered_at: "2026-03-19T00:00:00Z",
+        created_at: "2026-03-19T00:00:00Z",
+        updated_at: "2026-03-19T00:00:00Z",
+        current_view: { kind: "board" },
+      })
+    );
+
+    const replies: string[] = [];
+    let edited = 0;
+    const pinCalls: Array<{ chatId: number; messageId: number; disableNotification?: boolean }> = [];
+
+    Bun.spawnSync = ((cmd: unknown, opts?: unknown) => {
+      if (Array.isArray(cmd) && String(cmd[0]).endsWith("/subturtle/ctl") && cmd[1] === "list") {
+        return {
+          stdout: Buffer.from("  worker-a      running  yolo-codex   (PID 12345)   9m left       Same task"),
+          stderr: Buffer.from(""),
+          success: true,
+          exitCode: 0,
+        } as ReturnType<typeof Bun.spawnSync>;
+      }
+      return originalSpawnSync(cmd as Parameters<typeof Bun.spawnSync>[0], opts as Parameters<typeof Bun.spawnSync>[1]);
+    }) as typeof Bun.spawnSync;
+
+    const ctx = {
+      from: { id: authorizedUserId },
+      chat: { id: chatId },
+      message: { text: "/sub" },
+      api: {
+        sendMessage: async () => ({ message_id: 999, chat: { id: chatId } }),
+        editMessageText: async () => {
+          edited += 1;
+        },
+        pinChatMessage: async (
+          targetChatId: number,
+          messageId: number,
+          extra?: { disable_notification?: boolean }
+        ) => {
+          pinCalls.push({ chatId: targetChatId, messageId, disableNotification: extra?.disable_notification });
+        },
+      },
+      reply: async (text: string) => {
+        replies.push(text);
+      },
+    } as any;
+
+    try {
+      await handleSubturtleForTest(ctx);
+      expect(edited).toBe(1);
+      expect(replies).toEqual(["📌 SubTurtle board refreshed."]);
+      expect(pinCalls).toEqual([{ chatId, messageId: 881, disableNotification: false }]);
+    } finally {
+      rmSync(boardPath, { force: true });
+    }
+  });
+
+  it("serializes concurrent board creation so a spawn reconcile cannot pin twice", async () => {
+    const workdir = workingDir;
+    const chatId = authorizedUserId + 43;
+    const boardPath = join(
+      workdir,
+      ".superturtle/state/telegram/subturtle-boards",
+      `${chatId}.json`
+    );
+    rmSync(boardPath, { force: true });
+    let sent = 0;
+    let pins = 0;
+    let releaseFirstSend: (() => void) | null = null;
+    const firstSendStarted = new Promise<void>((resolve) => {
+      releaseFirstSend = resolve;
+    });
+    let firstSendBarrierResolved = false;
+
+    Bun.spawnSync = ((cmd: unknown, opts?: unknown) => {
+      if (Array.isArray(cmd) && String(cmd[0]).endsWith("/subturtle/ctl") && cmd[1] === "list") {
+        return {
+          stdout: Buffer.from("  worker-a      running  yolo-codex   (PID 12345)   9m left       Same task"),
+          stderr: Buffer.from(""),
+          success: true,
+          exitCode: 0,
+        } as ReturnType<typeof Bun.spawnSync>;
+      }
+      return originalSpawnSync(cmd as Parameters<typeof Bun.spawnSync>[0], opts as Parameters<typeof Bun.spawnSync>[1]);
+    }) as typeof Bun.spawnSync;
+
+    const api = {
+      sendMessage: async () => {
+        sent += 1;
+        if (!firstSendBarrierResolved) {
+          firstSendBarrierResolved = true;
+          await firstSendStarted;
+        }
+        return { message_id: 871, chat: { id: chatId } };
+      },
+      editMessageText: async () => {},
+      pinChatMessage: async () => {
+        pins += 1;
+      },
+    };
+
+    try {
+      const first = syncLiveSubturtleBoardForTest(api, chatId, {
+        pin: true,
+        disableNotification: true,
+      });
+
+      await Bun.sleep(25);
+
+      const second = syncLiveSubturtleBoardForTest(api, chatId, {
+        force: true,
+        pin: true,
+        disableNotification: true,
+      });
+
+      await Bun.sleep(150);
+      expect(sent).toBe(1);
+
+      releaseFirstSend?.();
+
+      const [firstResult, secondResult] = await Promise.all([first, second]);
+      expect(firstResult.status).toBe("created");
+      expect(secondResult.messageId).toBe(871);
+      expect(["updated", "unchanged"]).toContain(secondResult.status);
+      expect(sent).toBe(1);
+      expect(pins).toBe(2);
+
+      const trackedBoard = JSON.parse(readFileSync(boardPath, "utf-8"));
+      expect(trackedBoard.message_id).toBe(871);
+    } finally {
+      releaseFirstSend?.();
+      rmSync(boardPath, { force: true });
+      rmSync(`${boardPath}.lock`, { force: true });
+    }
+  });
+
   it("tracks pin-rights failures as unestablished instead of treating them as a successful board", async () => {
     const workdir = workingDir;
     const chatId = authorizedUserId + 41;
