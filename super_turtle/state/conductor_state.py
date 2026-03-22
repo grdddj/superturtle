@@ -145,6 +145,13 @@ class ConductorStateStore:
             raise ValueError(f"worker state at {path} must be a JSON object")
         return loaded
 
+    def delete_worker_state(self, worker_name: str) -> bool:
+        path = self.worker_state_path(worker_name)
+        if not path.exists():
+            return False
+        path.unlink()
+        return True
+
     def list_worker_states(self) -> list[dict[str, Any]]:
         states: list[dict[str, Any]] = []
         for path in sorted(self.paths.workers_dir.glob("*.json")):

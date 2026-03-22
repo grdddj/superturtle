@@ -86,6 +86,21 @@ class ConductorStateStoreTests(unittest.TestCase):
             self.assertEqual(parsed["emitted_by"], "supervisor")
             self.assertEqual(parsed["payload"]["pid"], 999)
 
+    def test_delete_worker_state_removes_saved_worker(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            store = ConductorStateStore(tmp_dir)
+            worker_state = store.make_worker_state(
+                worker_name="delta-run",
+                lifecycle_state="archived",
+                updated_by="supervisor",
+            )
+
+            store.write_worker_state(worker_state)
+
+            self.assertTrue(store.delete_worker_state("delta-run"))
+            self.assertIsNone(store.load_worker_state("delta-run"))
+            self.assertFalse(store.delete_worker_state("delta-run"))
+
     def test_write_and_update_wakeup(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             store = ConductorStateStore(tmp_dir)
