@@ -1,6 +1,6 @@
 # Current task
 
-Export public API init start reset getState onStateChange on window.FractalSnake.engine and fire state change callbacks to all registered listeners.
+All backlog items are complete.
 
 # End goal with specs
 
@@ -20,4 +20,7 @@ File ownership: YOU OWN snake-game/engine.js (create it). DO NOT EDIT index.html
 - [x] Add golden-ratio food spawning using golden angle 137.5 degrees to place food in a spiral pattern outward from center
 - [x] Add collision detection for walls and self plus game over state and pause resume with space key
 - [x] Add speed scaling so tick interval decreases as fibIndex grows making the game progressively harder
-- [ ] Export public API init start reset getState onStateChange on window.FractalSnake.engine and fire state change callbacks to all registered listeners <- current
+- [x] Export public API init start reset getState onStateChange on window.FractalSnake.engine and fire state change callbacks to all registered listeners
+
+## Loop Control
+STOP

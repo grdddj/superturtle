@@ -169,8 +169,13 @@ function cloneState() {
 function emitStateChange() {
   const snapshot = cloneState();
 
-  listeners.forEach((listener) => {
-    listener(snapshot);
+  // Notify against a snapshot so one faulty listener cannot block the rest.
+  Array.from(listeners).forEach((listener) => {
+    try {
+      listener(snapshot);
+    } catch (error) {
+      console.error("FractalSnake.engine: state listener failed.", error);
+    }
   });
 }
 
@@ -364,10 +369,12 @@ function onStateChange(listener) {
 }
 
 window.FractalSnake = window.FractalSnake || {};
-window.FractalSnake.engine = {
+const engineApi = Object.freeze({
   init,
   start,
   reset,
   getState,
   onStateChange,
-};
+});
+
+window.FractalSnake.engine = engineApi;
