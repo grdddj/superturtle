@@ -1,6 +1,6 @@
 # Current task
 
-Implement level-up sound as major chord arpeggio where chord intervals use Fibonacci frequency ratios.
+Add particle system rendering gold burst particles on food eat and red particles on death and subtle trailing particles behind snake movement.
 
 # End goal with specs
 
@@ -18,6 +18,6 @@ File ownership: YOU OWN snake-game/audio.js (create it). DO NOT EDIT index.html,
 - [x] Create audio.js with Web Audio API AudioContext setup and mute toggle listening for M key press
 - [x] Implement eat sound with oscillator frequency set to fib of fibIndex times a base frequency with a short attack-decay envelope
 - [x] Implement death sound as descending chromatic cascade playing rapid sequence of falling tones with convolver reverb
-- [ ] Implement level-up sound as major chord arpeggio where chord intervals use Fibonacci frequency ratios <- current
-- [ ] Implement ambient background drone using golden ratio 1.618 frequency layering with multiple quiet oscillators
-- [ ] Add particle system rendering gold burst particles on food eat and red particles on death and subtle trailing particles behind snake movement
+- [x] Implement level-up sound as major chord arpeggio where chord intervals use Fibonacci frequency ratios
+- [x] Implement ambient background drone using golden ratio 1.618 frequency layering with multiple quiet oscillators
+- [ ] Add particle system rendering gold burst particles on food eat and red particles on death and subtle trailing particles behind snake movement <- current

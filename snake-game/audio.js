@@ -13,6 +13,30 @@ const DEATH_SEMITONE_STEPS = 12;
 const DEATH_REVERB_DURATION_SECONDS = 1.6;
 const DEATH_REVERB_DECAY_POWER = 2.4;
 const DEATH_REVERB_WET_GAIN = 0.34;
+const LEVEL_UP_BASE_FREQUENCY = 220;
+const LEVEL_UP_STEP_SECONDS = 0.11;
+const LEVEL_UP_TONE_DURATION = 0.3;
+const LEVEL_UP_ATTACK_SECONDS = 0.01;
+const LEVEL_UP_PEAK_GAIN = 0.12;
+const LEVEL_UP_FIBONACCI_RATIOS = Object.freeze([
+  1,
+  5 / 4,
+  3 / 2,
+  2,
+]);
+const GOLDEN_RATIO = 1.61803398875;
+const AMBIENT_BASE_FREQUENCY = 54;
+const AMBIENT_OUTPUT_GAIN = 0.32;
+const AMBIENT_FADE_IN_SECONDS = 1.8;
+const AMBIENT_FILTER_FREQUENCY = 920;
+const AMBIENT_LFO_FREQUENCY = 0.07;
+const AMBIENT_LFO_DEPTH = 0.012;
+const AMBIENT_LAYER_CONFIGS = Object.freeze([
+  { ratio: 1 / GOLDEN_RATIO, type: "sine", gain: 0.032, detune: -7 },
+  { ratio: 1, type: "triangle", gain: 0.026, detune: 0 },
+  { ratio: GOLDEN_RATIO, type: "sine", gain: 0.02, detune: 5 },
+  { ratio: GOLDEN_RATIO ** 2, type: "triangle", gain: 0.014, detune: -3 },
+]);
 
 let audioContext = null;
 let masterGainNode = null;
@@ -21,6 +45,7 @@ let isMuted = false;
 let unlockListenersAttached = false;
 let deathReverbBuffer = null;
 let deathReverbSampleRate = 0;
+let ambientDroneNodes = null;
 
 function getFibonacciValue(index) {
   if (index <= 1) {
@@ -95,6 +120,20 @@ function createDeathEnvelopeGainNode(context, startTime, stopTime) {
   gainNode.gain.linearRampToValueAtTime(
     DEATH_PEAK_GAIN,
     startTime + DEATH_ATTACK_SECONDS,
+  );
+  gainNode.gain.exponentialRampToValueAtTime(0.0001, stopTime);
+
+  return gainNode;
+}
+
+function createLevelUpEnvelopeGainNode(context, startTime, stopTime) {
+  const gainNode = context.createGain();
+
+  gainNode.gain.cancelScheduledValues(startTime);
+  gainNode.gain.setValueAtTime(0.0001, startTime);
+  gainNode.gain.linearRampToValueAtTime(
+    LEVEL_UP_PEAK_GAIN,
+    startTime + LEVEL_UP_ATTACK_SECONDS,
   );
   gainNode.gain.exponentialRampToValueAtTime(0.0001, stopTime);
 
@@ -232,6 +271,126 @@ function scheduleDeathCascade(context) {
   };
 }
 
+function scheduleLevelUpArpeggio(context, {
+  baseFrequency = LEVEL_UP_BASE_FREQUENCY,
+} = {}) {
+  if (!masterGainNode) {
+    return null;
+  }
+
+  const startTime = context.currentTime + 0.01;
+  const maxFrequency = getMaxAudibleFrequency(context);
+  const rootFrequency = Math.min(
+    normalizeBaseFrequency(baseFrequency),
+    maxFrequency,
+  );
+  const scheduledFrequencies = [];
+
+  LEVEL_UP_FIBONACCI_RATIOS.forEach((ratio, chordIndex) => {
+    const toneStartTime = startTime + chordIndex * LEVEL_UP_STEP_SECONDS;
+    const toneStopTime = toneStartTime + LEVEL_UP_TONE_DURATION;
+    const oscillator = context.createOscillator();
+    const envelopeGainNode = createLevelUpEnvelopeGainNode(
+      context,
+      toneStartTime,
+      toneStopTime,
+    );
+    const frequency = Math.min(rootFrequency * ratio, maxFrequency);
+
+    oscillator.type = "triangle";
+    oscillator.frequency.setValueAtTime(frequency, toneStartTime);
+    oscillator.detune.setValueAtTime(chordIndex * 3, toneStartTime);
+
+    oscillator.connect(envelopeGainNode);
+    envelopeGainNode.connect(masterGainNode);
+
+    oscillator.addEventListener("ended", () => {
+      oscillator.disconnect();
+      envelopeGainNode.disconnect();
+    }, { once: true });
+
+    oscillator.start(toneStartTime);
+    oscillator.stop(toneStopTime + 0.01);
+    scheduledFrequencies.push(frequency);
+  });
+
+  return {
+    chord: "major",
+    ratios: [...LEVEL_UP_FIBONACCI_RATIOS],
+    frequencies: scheduledFrequencies,
+  };
+}
+
+function ensureAmbientDrone(context) {
+  if (ambientDroneNodes || !masterGainNode) {
+    return ambientDroneNodes;
+  }
+
+  const startTime = context.currentTime;
+  const maxFrequency = getMaxAudibleFrequency(context);
+  const filterNode = context.createBiquadFilter();
+  const outputGainNode = context.createGain();
+  const lfoOscillator = context.createOscillator();
+  const lfoGainNode = context.createGain();
+  const layers = [];
+
+  filterNode.type = "lowpass";
+  filterNode.frequency.setValueAtTime(AMBIENT_FILTER_FREQUENCY, startTime);
+  filterNode.Q.setValueAtTime(0.35, startTime);
+
+  outputGainNode.gain.setValueAtTime(0.0001, startTime);
+  outputGainNode.gain.exponentialRampToValueAtTime(
+    AMBIENT_OUTPUT_GAIN,
+    startTime + AMBIENT_FADE_IN_SECONDS,
+  );
+
+  lfoOscillator.type = "sine";
+  lfoOscillator.frequency.setValueAtTime(AMBIENT_LFO_FREQUENCY, startTime);
+  lfoGainNode.gain.setValueAtTime(AMBIENT_LFO_DEPTH, startTime);
+
+  lfoOscillator.connect(lfoGainNode);
+  lfoGainNode.connect(outputGainNode.gain);
+  filterNode.connect(outputGainNode);
+  outputGainNode.connect(masterGainNode);
+
+  AMBIENT_LAYER_CONFIGS.forEach((layerConfig) => {
+    const oscillator = context.createOscillator();
+    const layerGainNode = context.createGain();
+    const frequency = Math.min(
+      AMBIENT_BASE_FREQUENCY * layerConfig.ratio,
+      maxFrequency,
+    );
+
+    oscillator.type = layerConfig.type;
+    oscillator.frequency.setValueAtTime(frequency, startTime);
+    oscillator.detune.setValueAtTime(layerConfig.detune, startTime);
+
+    layerGainNode.gain.setValueAtTime(layerConfig.gain, startTime);
+
+    oscillator.connect(layerGainNode);
+    layerGainNode.connect(filterNode);
+    oscillator.start(startTime);
+
+    layers.push({
+      oscillator,
+      gainNode: layerGainNode,
+      frequency,
+    });
+  });
+
+  lfoOscillator.start(startTime);
+
+  ambientDroneNodes = {
+    filterNode,
+    outputGainNode,
+    lfoOscillator,
+    lfoGainNode,
+    layers,
+  };
+
+  return ambientDroneNodes;
+}
+
 function getAudioContextClass() {
   return window.AudioContext || window.webkitAudioContext || null;
 }
@@ -267,14 +426,20 @@ function ensureAudioContext() {
 async function resumeAudioContext() {
   const context = ensureAudioContext();
 
-  if (!context || context.state !== "suspended") {
+  if (!context) {
     return context;
   }
 
-  try {
-    await context.resume();
-  } catch (error) {
-    console.warn("Failed to resume audio context.", error);
+  if (context.state === "suspended") {
+    try {
+      await context.resume();
+    } catch (error) {
+      console.warn("Failed to resume audio context.", error);
+    }
+  }
+
+  if (context.state !== "closed") {
+    ensureAmbientDrone(context);
   }
 
   return context;
@@ -340,6 +505,11 @@ function init() {
   }
 
   ensureAudioContext();
+
+  if (audioContext && audioContext.state === "running") {
+    ensureAmbientDrone(audioContext);
+  }
+
   attachUnlockListeners();
   window.addEventListener("keydown", handleKeyDown);
   isInitialized = true;
@@ -381,8 +551,21 @@ async function playDeath() {
   return scheduleDeathCascade(context);
 }
 
-function playLevelUp() {
-  return resumeAudioContext();
+async function playLevelUp(options = {}) {
+  const context = await resumeAudioContext();
+
+  if (!context) {
+    return null;
+  }
+
+  const safeOptions = options && typeof options === "object" ? options : {};
+  const baseFrequency = normalizeBaseFrequency(
+    Number.isFinite(safeOptions.baseFrequency)
+      ? safeOptions.baseFrequency
+      : LEVEL_UP_BASE_FREQUENCY,
+  );
+
+  return scheduleLevelUpArpeggio(context, { baseFrequency });
 }
 
 function spawnParticles() {}
