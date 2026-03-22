@@ -1,6 +1,9 @@
 const GRID_SIZE = 40;
 const BASE_TICK_MS = 180;
 const INITIAL_DIRECTION = "right";
+const GOLDEN_ANGLE_RADIANS = (137.5 * Math.PI) / 180;
+const FOOD_SPIRAL_SCALE = 0.5;
+const FOOD_SPAWN_SEARCH_LIMIT = GRID_SIZE * GRID_SIZE * 8;
 
 const DIRECTION_VECTORS = {
   up: { x: 0, y: -1 },
@@ -39,6 +42,7 @@ let accumulatedTime = 0;
 let tickInterval = BASE_TICK_MS;
 let isInitialized = false;
 let pendingGrowth = 0;
+let foodSpawnIndex = 0;
 
 let state = createInitialState();
 let queuedDirection = INITIAL_DIRECTION;
@@ -86,14 +90,58 @@ function getFibonacciValue(index) {
   return current;
 }
 
+function isInsideGrid(position) {
+  return (
+    position.x >= 0 &&
+    position.x < GRID_SIZE &&
+    position.y >= 0 &&
+    position.y < GRID_SIZE
+  );
+}
+
+function createSpiralPosition(index) {
+  const center = (GRID_SIZE - 1) / 2;
+  const angle = index * GOLDEN_ANGLE_RADIANS;
+  const radius = FOOD_SPIRAL_SCALE * Math.sqrt(index);
+
+  return {
+    x: Math.round(center + Math.cos(angle) * radius),
+    y: Math.round(center + Math.sin(angle) * radius),
+  };
+}
+
 function createFoodPosition(snake) {
   const occupied = new Set(snake.map((segment) => `${segment.x},${segment.y}`));
-  const center = Math.floor(GRID_SIZE / 2);
-  const fallback = { x: center + 5, y: center };
+  const visited = new Set();
 
-  if (!occupied.has(`${fallback.x},${fallback.y}`)) {
-    return fallback;
+  // Use a Vogel spiral so successive food placements advance outward from center.
+  for (
+    let attempt = 0;
+    attempt < FOOD_SPAWN_SEARCH_LIMIT;
+    attempt += 1
+  ) {
+    const spiralIndex = foodSpawnIndex + attempt;
+    const candidate = createSpiralPosition(spiralIndex);
+
+    if (!isInsideGrid(candidate)) {
+      continue;
+    }
+
+    const key = `${candidate.x},${candidate.y}`;
+
+    if (visited.has(key)) {
+      continue;
+    }
+
+    visited.add(key);
+
+    if (!occupied.has(key)) {
+      foodSpawnIndex = spiralIndex + 1;
+      return candidate;
+    }
   }
+
+  foodSpawnIndex += FOOD_SPAWN_SEARCH_LIMIT;
 
   for (let y = 0; y < GRID_SIZE; y += 1) {
     for (let x = 0; x < GRID_SIZE; x += 1) {
@@ -248,6 +296,7 @@ function start() {
 
 function reset() {
   pendingGrowth = 0;
+  foodSpawnIndex = 0;
   queuedDirection = INITIAL_DIRECTION;
   tickInterval = BASE_TICK_MS;
   state = createInitialState();

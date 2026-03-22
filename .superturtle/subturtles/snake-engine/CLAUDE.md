@@ -1,6 +1,6 @@
 # Current task
 
-Add golden-ratio food spawning in snake-game/engine.js using the 137.5 degree golden angle spiral from center while avoiding snake-occupied cells.
+Add collision detection in snake-game/engine.js for walls and self, plus game over state and pause/resume with the space key.
 
 # End goal with specs
 
@@ -17,7 +17,7 @@ File ownership: YOU OWN snake-game/engine.js (create it). DO NOT EDIT index.html
 # Backlog
 - [x] Create engine.js with grid system, snake data structure, movement logic, and requestAnimationFrame game loop with tick rate control
 - [x] Add Fibonacci growth sequence tracking fibIndex and computing fib(n) to determine how many segments to add on each eat event
-- [ ] Add golden-ratio food spawning using golden angle 137.5 degrees to place food in a spiral pattern outward from center <- current
-- [ ] Add collision detection for walls and self plus game over state and pause resume with space key
+- [x] Add golden-ratio food spawning using golden angle 137.5 degrees to place food in a spiral pattern outward from center
+- [ ] Add collision detection for walls and self plus game over state and pause resume with space key <- current
 - [ ] Add speed scaling so tick interval decreases as fibIndex grows making the game progressively harder
 - [ ] Export public API init start reset getState onStateChange on window.FractalSnake.engine and fire state change callbacks to all registered listeners
