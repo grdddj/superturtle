@@ -1,5 +1,5 @@
 # Current task
-Verify all three files exist under `/tmp/st-codex-test-d/` and contain sensible content.
+All backlog items are complete. Stop.
 
 # End goal with specs
 - Produce a harmless smoke-test artifact set under `/tmp/st-codex-test-d/`.
@@ -26,4 +26,7 @@ Verify all three files exist under `/tmp/st-codex-test-d/` and contain sensible 
 - [x] Count `/tmp` entries and capture the first 5 names.
 - [x] Write `delta-files.txt` with the required header and completion line.
 - [x] Write `done.flag` with `ok`.
-- [ ] Verify all three files exist and stop. <- current
+- [x] Verify all three files exist and stop.
+
+## Loop Control
+STOP
