@@ -11,6 +11,10 @@
   <a href="https://www.superturtle.dev/docs"><img src="https://img.shields.io/badge/docs-superturtle.dev-blue?style=flat-square" alt="Docs" /></a>
 </p>
 
+<p align="center">
+  <a href="https://e2b.dev/startups"><img src="https://img.shields.io/badge/SPONSORED%20BY-E2B%20FOR%20STARTUPS-ff8800?style=for-the-badge" alt="Sponsored by E2B for Startups" /></a>
+</p>
+
 ---
 
 SuperTurtle is an autonomous coding agent you control from Telegram. Send a voice message or text from your phone, and SuperTurtle gets to work on your machine using [Codex](https://openai.com/index/introducing-codex/) and [Claude Code](https://claude.ai/code). Whether you're on the couch, out for a walk, or on a different machine entirely, SuperTurtle keeps the work moving. For bigger tasks it spins up parallel workers called SubTurtles and supervises them to completion. You get milestone updates as things land, not a wall of logs.
