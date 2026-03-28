@@ -9,7 +9,9 @@ node ../bin/superturtle.js start  # Preferred in this repo: source CLI entrypoin
 bun run start                     # Bot-folder-only manual tmux launcher
 bun run dev                       # Run with auto-reload (--watch)
 bun run typecheck                 # Run TypeScript type checking
-bun install                       # Install dependencies
+bun run test:stable               # Run each test file in a fresh Bun process
+bun run verify:ci                 # Local parity check for the CI gate
+bun install --frozen-lockfile     # Install dependencies exactly as locked
 ```
 
 ## Architecture
@@ -78,7 +80,7 @@ MCP servers defined in `mcp-config.ts`.
 
 **Streaming pattern**: All handlers use `createStatusCallback()` from `streaming.ts` and `session.sendMessageStreaming()` for live updates.
 
-**Type checking**: Run `bun run typecheck` periodically while editing TypeScript files. Fix any type errors before committing.
+**Verification**: Run `bun run verify:ci` before pushing when you touch the bot. It pins the Bun version, enforces the lockfile, type-checks, and runs the deterministic per-file test gate.
 
 **After code changes**: In this repo, prefer `node ../bin/superturtle.js start` and keep that terminal as the canonical live view; re-running the command re-attaches to the same `tmux` session. If you are intentionally running only this folder, `bun run start` is the equivalent manual path. `/restart` must stay in the same terminal session (run-loop respawn), not detached.
 

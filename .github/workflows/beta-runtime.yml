@@ -79,6 +79,8 @@ jobs:
         if: steps.preflight.outputs.should_publish_template == 'true'
       - uses: oven-sh/setup-bun@v2
         if: steps.preflight.outputs.should_publish_template == 'true'
+        with:
+          bun-version-file: .bun-version
       - if: steps.preflight.outputs.should_publish_template == 'true'
         run: bun install --frozen-lockfile
       - if: steps.preflight.outputs.should_publish_template == 'true'

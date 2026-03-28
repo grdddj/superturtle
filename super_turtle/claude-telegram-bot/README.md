@@ -251,11 +251,17 @@ alias cbot-logs='tail -f /tmp/claude-telegram-bot-ts.log'
 # Run with auto-reload
 bun --watch run src/index.ts
 
+# Verify you are on the pinned Bun version
+bun run check:bun-version
+
 # Type check
 bun run typecheck
 
-# Or directly
-bun run --bun tsc --noEmit
+# Deterministic test gate (fresh Bun process per file)
+bun run test:stable
+
+# Full local parity check for CI
+bun run verify:ci
 ```
 
 ## Security

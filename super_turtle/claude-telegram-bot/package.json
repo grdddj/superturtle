@@ -6,7 +6,10 @@
   "scripts": {
     "start": "./live.sh",
     "dev": "bun --watch run src/index.ts",
-    "typecheck": "bun run --bun tsc --noEmit"
+    "typecheck": "bun run --bun tsc --noEmit",
+    "check:bun-version": "bun run scripts/check-bun-version.ts",
+    "test:stable": "bun run scripts/test-stable.ts",
+    "verify:ci": "bun run check:bun-version && bun install --frozen-lockfile && bun run typecheck && bun run test:stable"
   },
   "devDependencies": {
     "@types/bun": "latest"
