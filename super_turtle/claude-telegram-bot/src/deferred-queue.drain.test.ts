@@ -3,6 +3,8 @@ import type { Context } from "grammy";
 import { session } from "./session";
 
 type DeferredQueueModule = typeof import("./deferred-queue");
+type DeferredQueueRuntimeModule = typeof import("./deferred-queue-runtime");
+type DeferredQueueTestModule = DeferredQueueModule & DeferredQueueRuntimeModule;
 
 let isAnyDriverRunningMock: ReturnType<typeof mock>;
 let runMessageWithActiveDriverMock: ReturnType<typeof mock>;
@@ -18,8 +20,16 @@ let typingStopMock: ReturnType<typeof mock>;
 const originalSessionTypingController = session.typingController;
 const originalSessionStartProcessing = session.startProcessing;
 
-async function loadDeferredQueueModule(): Promise<DeferredQueueModule> {
-  return import(`./deferred-queue.ts?drain-test=${Date.now()}-${Math.random()}`);
+async function loadDeferredQueueModule(): Promise<DeferredQueueTestModule> {
+  const tag = `${Date.now()}-${Math.random()}`;
+  const [stateModule, runtimeModule] = await Promise.all([
+    import(`./deferred-queue.ts?drain-test=${tag}`),
+    import(`./deferred-queue-runtime.ts?drain-runtime-test=${tag}`),
+  ]);
+  return {
+    ...stateModule,
+    ...runtimeModule,
+  };
 }
 
 function makeCtx() {

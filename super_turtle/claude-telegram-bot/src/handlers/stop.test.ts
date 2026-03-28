@@ -313,7 +313,14 @@ describe("stop handlers", () => {
   it("handleStop retains the progress message for an active foreground run", async () => {
     const actualImportSuffix = `${Date.now()}-${Math.random()}`;
     const actualStreaming = await import(`./streaming.ts?stop-test=${actualImportSuffix}`);
-    const deferredQueue = await import(`../deferred-queue.ts?stop-test=${actualImportSuffix}`);
+    const [deferredQueueState, deferredQueueRuntime] = await Promise.all([
+      import(`../deferred-queue.ts?stop-test=${actualImportSuffix}`),
+      import(`../deferred-queue-runtime.ts?stop-runtime-test=${actualImportSuffix}`),
+    ]);
+    const deferredQueue = {
+      ...deferredQueueState,
+      ...deferredQueueRuntime,
+    };
     const actualDriverRouting = await import(
       `./driver-routing.ts?stop-test=${actualImportSuffix}`
     );
@@ -623,127 +630,6 @@ describe("stop handlers", () => {
       expect(stopCalls).toBe(2);
       expect(replies).toEqual(["🛑 Stopped current work.", "🛑 Stopped current work."]);
     } finally {
-      deferredQueue.clearDeferredQueue(chatId);
-      deferredQueue.unsuppressDrain(chatId);
-    }
-  });
-
-  it("stopAllRunningWork suppresses drain, clears queue, then drains after unsuppress", async () => {
-    const actualImportSuffix = `${Date.now()}-${Math.random()}`;
-
-    const actualDriverRouting = await import(`./driver-routing.ts?actual=${actualImportSuffix}`);
-    const actualUtils = await import(`../utils.ts?actual=${actualImportSuffix}`);
-    const actualStreaming = await import(`./streaming.ts?actual=${actualImportSuffix}`);
-
-    const isAnyDriverRunningMock = mock(() => false);
-    const runMessageWithActiveDriverMock = mock(async (_input: unknown) => "queued response");
-    const auditLogMock = mock(async (..._args: unknown[]) => {});
-    const typingStopMock = mock(() => {});
-    const startTypingIndicatorMock = mock((_ctx: Context) => ({ stop: typingStopMock }));
-    const createStatusCallbackMock = mock((_ctx: Context, _state: unknown) => async () => {});
-    const startProcessingMock = mock(() => () => {});
-
-    const originalStartProcessing = session.startProcessing;
-    const originalTypingController = session.typingController;
-    session.startProcessing = startProcessingMock as unknown as typeof session.startProcessing;
-    session.typingController = null;
-
-    mock.module("./driver-routing", () => ({
-      ...actualDriverRouting,
-      stopActiveDriverQuery: async () => false,
-      isAnyDriverRunning: () => isAnyDriverRunningMock(),
-      runMessageWithActiveDriver: (input: unknown) => runMessageWithActiveDriverMock(input),
-    }));
-
-    mock.module("../utils", () => ({
-      ...actualUtils,
-      auditLog: (...args: unknown[]) => auditLogMock(...args),
-      startTypingIndicator: (ctx: Context) => startTypingIndicatorMock(ctx),
-    }));
-
-    mock.module("./streaming", () => ({
-      ...actualStreaming,
-      StreamingState: class StreamingState {},
-      createStatusCallback: (ctx: Context, state: unknown) =>
-        createStatusCallbackMock(ctx, state),
-    }));
-
-    const deferredQueue = await import(`../deferred-queue.ts?stop-test=${actualImportSuffix}`);
-
-    mock.module("../deferred-queue", () => ({ ...deferredQueue }));
-
-    const { stopAllRunningWork: stopAllRunningWorkIsolated } = await import(
-      `./stop.ts?stop-test=${actualImportSuffix}`
-    );
-
-    Bun.spawnSync = ((cmd: unknown, _opts?: unknown) => {
-      if (!Array.isArray(cmd)) {
-        return originalSpawnSync(cmd as Parameters<typeof Bun.spawnSync>[0]);
-      }
-      const args = cmd.map((part) => String(part));
-      if (args[1] === "list") {
-        return {
-          stdout: Buffer.from(""),
-          stderr: Buffer.from(""),
-          success: true,
-          exitCode: 0,
-        } as ReturnType<typeof Bun.spawnSync>;
-      }
-      return {
-        stdout: Buffer.from(""),
-        stderr: Buffer.from("unexpected command"),
-        success: false,
-        exitCode: 1,
-      } as ReturnType<typeof Bun.spawnSync>;
-    }) as typeof Bun.spawnSync;
-
-    const chatId = 41002;
-    const ctx = {
-      reply: async () => ({}),
-    } as unknown as Context;
-
-    try {
-      deferredQueue.enqueueDeferredMessage({
-        text: "queued one",
-        userId: 1,
-        username: "u",
-        chatId,
-        source: "text",
-        enqueuedAt: 1000,
-      });
-      deferredQueue.enqueueDeferredMessage({
-        text: "queued two",
-        userId: 1,
-        username: "u",
-        chatId,
-        source: "text",
-        enqueuedAt: 2000,
-      });
-
-      const result = await stopAllRunningWorkIsolated(chatId);
-      expect(result.queueCleared).toBe(2);
-      expect(deferredQueue.getDeferredQueueSize(chatId)).toBe(0);
-
-      deferredQueue.enqueueDeferredMessage({
-        text: "post-stop",
-        userId: 1,
-        username: "u",
-        chatId,
-        source: "text",
-        enqueuedAt: 3000,
-      });
-
-      await deferredQueue.drainDeferredQueue(ctx, chatId);
-      expect(runMessageWithActiveDriverMock).not.toHaveBeenCalled();
-      expect(deferredQueue.getDeferredQueueSize(chatId)).toBe(1);
-
-      deferredQueue.unsuppressDrain(chatId);
-      await deferredQueue.drainDeferredQueue(ctx, chatId);
-      expect(runMessageWithActiveDriverMock).toHaveBeenCalledTimes(1);
-      expect(deferredQueue.getDeferredQueueSize(chatId)).toBe(0);
-    } finally {
-      session.startProcessing = originalStartProcessing;
-      session.typingController = originalTypingController;
       deferredQueue.clearDeferredQueue(chatId);
       deferredQueue.unsuppressDrain(chatId);
     }

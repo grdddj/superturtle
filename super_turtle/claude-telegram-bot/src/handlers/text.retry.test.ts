@@ -38,6 +38,7 @@ async function runRetryDelegationProbe(): Promise<RetryProbeResult> {
     securityPath: resolve(import.meta.dir, "../security.ts"),
     utilsPath: resolve(import.meta.dir, "../utils.ts"),
     deferredQueuePath: resolve(import.meta.dir, "../deferred-queue.ts"),
+    deferredQueueRuntimePath: resolve(import.meta.dir, "../deferred-queue-runtime.ts"),
     driverRoutingPath: resolve(import.meta.dir, "driver-routing.ts"),
     streamingPath: resolve(import.meta.dir, "streaming.ts"),
     teleportPath: resolve(import.meta.dir, "../teleport.ts"),
@@ -111,12 +112,15 @@ async function runRetryDelegationProbe(): Promise<RetryProbeResult> {
 
     mock.module(paths.deferredQueuePath, () => ({
       ...actualDeferredQueue,
+      enqueueDeferredMessage: () => 1,
+      unsuppressDrain: () => {},
+    }));
+
+    mock.module(paths.deferredQueueRuntimePath, () => ({
       drainDeferredQueue: async () => {
         drainDeferredQueueCalls += 1;
       },
-      enqueueDeferredMessage: () => 1,
       makeDrainItemNotifier: () => async () => {},
-      unsuppressDrain: () => {},
     }));
 
     mock.module(paths.driverRoutingPath, () => ({

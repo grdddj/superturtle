@@ -117,14 +117,17 @@ beforeEach(async () => {
 
   mock.module("../deferred-queue", () => ({
     ...actualDeferredQueue,
+    enqueueDeferredMessage: () => 1,
+    unsuppressDrain: () => {},
+  }));
+
+  mock.module("../deferred-queue-runtime", () => ({
     drainDeferredQueue: (
       ctx: Context,
       chatId: number,
       onDrainItem?: (msg: unknown) => Promise<void>
     ) => drainDeferredQueueMock(ctx, chatId, onDrainItem),
-    enqueueDeferredMessage: () => 1,
     makeDrainItemNotifier: () => async () => {},
-    unsuppressDrain: () => {},
   }));
 });
 

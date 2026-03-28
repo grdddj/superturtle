@@ -53,7 +53,8 @@ import { resetAllDriverSessions, syncLiveSubturtleBoard } from "./handlers/comma
 import { handlePinologs } from "./handlers/commands";
 import { TELEGRAM_COMMANDS } from "./handlers/commands";
 import { enqueueBusyDeferredCronJob, pruneQueuedDueCronJobIds } from "./cron-deferred-queue";
-import { drainDeferredQueue, isCronJobQueued } from "./deferred-queue";
+import { isCronJobQueued } from "./deferred-queue";
+import { drainDeferredQueue } from "./deferred-queue-runtime";
 import { session } from "./session";
 import { codexSession } from "./codex-session";
 import { getDueJobs, getJobs, advanceRecurringJob, removeJob } from "./cron";

@@ -35,7 +35,9 @@ async function loadTextModuleForRemoteMode(
   const actualSecurity = await import("../security");
   const actualUtils = await import("../utils");
   const actualDeferredQueue = await import("../deferred-queue");
+  const actualDeferredQueueRuntime = await import("../deferred-queue-runtime");
   const actualStop = await import("./stop");
+  const actualStopReplyState = await import("./stop-reply-state");
   const actualStreaming = await import("./streaming");
   const actualLogger = await import("../logger");
   const actualDriversRegistry = await import("../drivers/registry");
@@ -92,15 +94,21 @@ async function loadTextModuleForRemoteMode(
   }));
   mock.module("../deferred-queue", () => ({
     ...actualDeferredQueue,
-    drainDeferredQueue: async () => {},
     enqueueDeferredMessage: () => 1,
-    makeDrainItemNotifier: () => () => {},
     unsuppressDrain: () => {},
+  }));
+  mock.module("../deferred-queue-runtime", () => ({
+    ...actualDeferredQueueRuntime,
+    drainDeferredQueue: async () => {},
+    makeDrainItemNotifier: () => () => {},
   }));
   mock.module("./stop", () => ({
     ...actualStop,
-    consumeHandledStopReply: () => false,
     handleStop: async () => {},
+  }));
+  mock.module("./stop-reply-state", () => ({
+    ...actualStopReplyState,
+    consumeHandledStopReply: () => false,
   }));
   mock.module("./streaming", () => ({
     ...actualStreaming,

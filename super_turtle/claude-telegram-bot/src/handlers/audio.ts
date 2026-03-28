@@ -22,7 +22,7 @@ import {
 import { getDriverAuditType, isActiveDriverSessionActive, runMessageWithActiveDriver } from "./driver-routing";
 import { StreamingState, createStatusCallback } from "./streaming";
 import { eventLog, streamLog } from "../logger";
-import { consumeHandledStopReply } from "./stop";
+import { consumeHandledStopReply } from "./stop-reply-state";
 import { getTeleportRemoteUnsupportedMessage, isTeleportRemoteRuntime } from "../teleport";
 
 const audioLog = streamLog.child({ handler: "audio" });

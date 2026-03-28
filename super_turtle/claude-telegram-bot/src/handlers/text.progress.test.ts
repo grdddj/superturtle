@@ -35,11 +35,13 @@ async function runProgressProbe(scriptBody: string): Promise<ProgressProbeResult
     securityPath: resolve(import.meta.dir, "../security.ts"),
     utilsPath: resolve(import.meta.dir, "../utils.ts"),
     deferredQueuePath: resolve(import.meta.dir, "../deferred-queue.ts"),
+    deferredQueueRuntimePath: resolve(import.meta.dir, "../deferred-queue-runtime.ts"),
     driverRoutingPath: resolve(import.meta.dir, "driver-routing.ts"),
     streamingPath: resolve(import.meta.dir, "streaming.ts"),
     teleportPath: resolve(import.meta.dir, "../teleport.ts"),
     loggerPath: resolve(import.meta.dir, "../logger.ts"),
     stopPath: resolve(import.meta.dir, "stop.ts"),
+    stopReplyStatePath: resolve(import.meta.dir, "stop-reply-state.ts"),
   };
 
   const script = `
@@ -79,6 +81,7 @@ describe("handleText retained progress outcomes", () => {
   it("retains the progress message as Failed before sending the terminal error reply", async () => {
     const result = await runProgressProbe(`
       const actualDeferredQueue = await import(paths.deferredQueuePath + "?actual=" + Date.now());
+      const actualStreaming = await import(paths.streamingPath + "?actual=" + Date.now());
 
       const replies = [];
       const updateStates = [];
@@ -132,10 +135,13 @@ describe("handleText retained progress outcomes", () => {
 
       mock.module(paths.deferredQueuePath, () => ({
         ...actualDeferredQueue,
-        drainDeferredQueue: async () => {},
         enqueueDeferredMessage: () => 1,
-        makeDrainItemNotifier: () => async () => {},
         unsuppressDrain: () => {},
+      }));
+
+      mock.module(paths.deferredQueueRuntimePath, () => ({
+        drainDeferredQueue: async () => {},
+        makeDrainItemNotifier: () => async () => {},
       }));
 
       mock.module(paths.driverRoutingPath, () => ({
@@ -148,6 +154,7 @@ describe("handleText retained progress outcomes", () => {
       }));
 
       mock.module(paths.streamingPath, () => ({
+        ...actualStreaming,
         StreamingState: class StreamingState {
           awaitingUserAttention = false;
           teardownCompleted = false;
@@ -173,6 +180,9 @@ describe("handleText retained progress outcomes", () => {
 
       mock.module(paths.stopPath, () => ({
         handleStop: async () => {},
+      }));
+
+      mock.module(paths.stopReplyStatePath, () => ({
         consumeHandledStopReply: () => false,
       }));
 
@@ -247,6 +257,7 @@ describe("handleText retained progress outcomes", () => {
   it("retains the progress message in place when the run ends waiting for user input", async () => {
     const result = await runProgressProbe(`
       const actualDeferredQueue = await import(paths.deferredQueuePath + "?actual=" + Date.now());
+      const actualStreaming = await import(paths.streamingPath + "?actual=" + Date.now());
 
       const replies = [];
       const updateStates = [];
@@ -297,10 +308,13 @@ describe("handleText retained progress outcomes", () => {
 
       mock.module(paths.deferredQueuePath, () => ({
         ...actualDeferredQueue,
-        drainDeferredQueue: async () => {},
         enqueueDeferredMessage: () => 1,
-        makeDrainItemNotifier: () => async () => {},
         unsuppressDrain: () => {},
+      }));
+
+      mock.module(paths.deferredQueueRuntimePath, () => ({
+        drainDeferredQueue: async () => {},
+        makeDrainItemNotifier: () => async () => {},
       }));
 
       mock.module(paths.driverRoutingPath, () => ({
@@ -311,6 +325,7 @@ describe("handleText retained progress outcomes", () => {
       }));
 
       mock.module(paths.streamingPath, () => ({
+        ...actualStreaming,
         StreamingState: class StreamingState {
           awaitingUserAttention = true;
           teardownCompleted = false;
@@ -336,6 +351,9 @@ describe("handleText retained progress outcomes", () => {
 
       mock.module(paths.stopPath, () => ({
         handleStop: async () => {},
+      }));
+
+      mock.module(paths.stopReplyStatePath, () => ({
         consumeHandledStopReply: () => false,
       }));
 

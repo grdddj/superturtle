@@ -7,7 +7,7 @@ const driverRoutingPath = resolve(import.meta.dir, "driver-routing.ts");
 const configPath = resolve(import.meta.dir, "../config.ts");
 const sessionPath = resolve(import.meta.dir, "../session.ts");
 const codexPath = resolve(import.meta.dir, "../codex-session.ts");
-const stopPath = resolve(import.meta.dir, "stop.ts");
+const stopReplyStatePath = resolve(import.meta.dir, "stop-reply-state.ts");
 const utilsPath = resolve(import.meta.dir, "../utils.ts");
 const marker = "__CALLBACK_PROBE__=";
 
@@ -40,7 +40,7 @@ async function runCallbackProbe<T>(
     const configPath = ${JSON.stringify(configPath)};
     const sessionPath = ${JSON.stringify(sessionPath)};
     const codexPath = ${JSON.stringify(codexPath)};
-    const stopPath = ${JSON.stringify(stopPath)};
+    const stopReplyStatePath = ${JSON.stringify(stopReplyStatePath)};
     const utilsPath = ${JSON.stringify(utilsPath)};
     ${scriptBody}
   `;
@@ -250,7 +250,7 @@ describe("handleCallback Codex switching and controls", () => {
       const { IPC_DIR } = await import(configPath);
       const actualStreaming = await import(streamingPath + "?actual=" + Date.now());
       const actualDriverRouting = await import(driverRoutingPath + "?actual=" + Date.now());
-      const actualStop = await import(stopPath + "?actual=" + Date.now());
+      const actualStopReplyState = await import(stopReplyStatePath + "?actual=" + Date.now());
 
       const replies = [];
       const updateStates = [];
@@ -274,8 +274,8 @@ describe("handleCallback Codex switching and controls", () => {
         },
       }));
 
-      mock.module(stopPath, () => ({
-        ...actualStop,
+      mock.module(stopReplyStatePath, () => ({
+        ...actualStopReplyState,
         consumeHandledStopReply: () => false,
       }));
 

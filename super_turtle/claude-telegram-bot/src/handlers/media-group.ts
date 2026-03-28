@@ -14,7 +14,7 @@ import { auditLogRateLimit } from "../utils";
 import { session } from "../session";
 import { isAskUserPromptMessage } from "./streaming";
 import { streamLog } from "../logger";
-import { consumeHandledStopReply } from "./stop";
+import { consumeHandledStopReply } from "./stop-reply-state";
 
 const mediaGroupLog = streamLog.child({ handler: "media-group" });
 

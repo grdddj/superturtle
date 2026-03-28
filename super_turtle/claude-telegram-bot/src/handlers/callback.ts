@@ -56,7 +56,7 @@ import {
   syncLiveSubturtleBoard,
 } from "./commands";
 import { eventLog, streamLog } from "../logger";
-import { consumeHandledStopReply } from "./stop";
+import { consumeHandledStopReply } from "./stop-reply-state";
 
 const SAFE_CALLBACK_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const SAFE_CALLBACK_OPTION_INDEX = /^\d+$/;

@@ -18,12 +18,12 @@ import {
   startTypingIndicator,
 } from "../utils";
 import {
-  drainDeferredQueue,
   enqueueDeferredMessage,
-  makeDrainItemNotifier,
   unsuppressDrain,
 } from "../deferred-queue";
-import { consumeHandledStopReply, handleStop } from "./stop";
+import { drainDeferredQueue, makeDrainItemNotifier } from "../deferred-queue-runtime";
+import { handleStop } from "./stop";
+import { consumeHandledStopReply } from "./stop-reply-state";
 import {
   StreamingState,
   createSilentStatusCallback,

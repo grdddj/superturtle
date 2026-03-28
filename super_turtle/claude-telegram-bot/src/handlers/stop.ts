@@ -1,19 +1,30 @@
 import type { Context } from "grammy";
 import { WORKING_DIR, CTL_PATH } from "../config";
-import { session } from "../session";
-import { isAnyDriverRunning, stopActiveDriverQuery } from "./driver-routing";
-import { clearDeferredQueue, getDeferredQueueSize, suppressDrain } from "../deferred-queue";
 import {
-  getStreamingState,
-  retainStreamingState,
-  updateRetainedProgressState,
-} from "./streaming";
+  clearDeferredQueue,
+  getDeferredQueueSize,
+  suppressDrain,
+} from "../deferred-queue";
+import {
+  hasRecentStopReply,
+  markRecentStopReply,
+  markStopReplyHandled,
+} from "./stop-reply-state";
 import { streamLog } from "../logger";
 const stopLog = streamLog.child({ handler: "stop" });
-const stopReplyHandledChats = new Set<number>();
-const recentStopReplyExpiryByChat = new Map<number, number>();
 const inFlightStopByChat = new Map<number, Promise<void>>();
-const STOP_REPLY_DEDUPE_WINDOW_MS = 2_000;
+
+async function loadSessionModule() {
+  return import("../session");
+}
+
+async function loadDriverRoutingModule() {
+  return import("./driver-routing");
+}
+
+async function loadStreamingModule() {
+  return import("./streaming");
+}
 
 export interface StopSubturtlesResult {
   attempted: string[];
@@ -91,6 +102,11 @@ async function performStop(
   chatId: number | undefined,
   stopSubturtles: boolean
 ): Promise<StopAllRunningWorkResult> {
+  const [{ session }, { stopActiveDriverQuery }] = await Promise.all([
+    loadSessionModule(),
+    loadDriverRoutingModule(),
+  ]);
+
   // Suppress drain FIRST — wins the race against finally-block drains
   // that fire when we kill the driver process below.
   if (chatId != null) {
@@ -119,31 +135,8 @@ export async function stopForegroundWork(chatId?: number): Promise<StopAllRunnin
   return performStop(chatId, false);
 }
 
-export function consumeHandledStopReply(chatId: number | undefined): boolean {
-  if (chatId == null || !stopReplyHandledChats.has(chatId)) {
-    return false;
-  }
-  stopReplyHandledChats.delete(chatId);
-  return true;
-}
-
-function hasRecentStopReply(chatId: number, now = Date.now()): boolean {
-  const expiresAt = recentStopReplyExpiryByChat.get(chatId);
-  if (typeof expiresAt !== "number") {
-    return false;
-  }
-  if (expiresAt <= now) {
-    recentStopReplyExpiryByChat.delete(chatId);
-    return false;
-  }
-  return true;
-}
-
-function markRecentStopReply(chatId: number, now = Date.now()): void {
-  recentStopReplyExpiryByChat.set(chatId, now + STOP_REPLY_DEDUPE_WINDOW_MS);
-}
-
-function hasForegroundWorkToStop(chatId: number): boolean {
+async function hasForegroundWorkToStop(chatId: number): Promise<boolean> {
+  const [{ isAnyDriverRunning }] = await Promise.all([loadDriverRoutingModule()]);
   return isAnyDriverRunning() || getDeferredQueueSize(chatId) > 0;
 }
 
@@ -153,7 +146,7 @@ function hasForegroundWorkToStop(chatId: number): boolean {
  * SubTurtles alone.
  */
 export async function handleStop(ctx: Context, chatId: number): Promise<void> {
-  if (hasRecentStopReply(chatId) && !hasForegroundWorkToStop(chatId)) {
+  if (hasRecentStopReply(chatId) && !(await hasForegroundWorkToStop(chatId))) {
     stopLog.info({ chatId }, "Suppressed duplicate stop reply");
     return;
   }
@@ -166,6 +159,8 @@ export async function handleStop(ctx: Context, chatId: number): Promise<void> {
   }
 
   const stopPromise = (async () => {
+    const { getStreamingState, retainStreamingState, updateRetainedProgressState } =
+      await loadStreamingModule();
     const state = getStreamingState(chatId);
     if (state) {
       state.stopRequestedByUser = true;
@@ -205,7 +200,7 @@ export async function handleStop(ctx: Context, chatId: number): Promise<void> {
 
     let message = "Nothing to stop.";
     if (driverStopped) {
-      stopReplyHandledChats.add(chatId);
+      markStopReplyHandled(chatId);
       message = "🛑 Stopped current work.";
       if (result.queueCleared > 0) {
         message =
@@ -234,7 +229,7 @@ export async function handleStop(ctx: Context, chatId: number): Promise<void> {
       await ctx.reply(message);
       markRecentStopReply(chatId);
     } else if (driverStopped || result.driverStopResult === "pending") {
-      stopReplyHandledChats.add(chatId);
+      markStopReplyHandled(chatId);
       markRecentStopReply(chatId);
     }
   })();

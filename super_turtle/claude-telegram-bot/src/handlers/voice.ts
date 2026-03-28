@@ -27,12 +27,12 @@ import {
 } from "./driver-routing";
 import { StreamingState, createStatusCallback } from "./streaming";
 import {
-  drainDeferredQueue,
   enqueueDeferredMessage,
-  makeDrainItemNotifier,
   unsuppressDrain,
 } from "../deferred-queue";
-import { consumeHandledStopReply, handleStop } from "./stop";
+import { drainDeferredQueue, makeDrainItemNotifier } from "../deferred-queue-runtime";
+import { handleStop } from "./stop";
+import { consumeHandledStopReply } from "./stop-reply-state";
 import { eventLog, streamLog } from "../logger";
 import { isTeleportRemoteRuntime, getTeleportRemoteUnsupportedMessage } from "../teleport";
 

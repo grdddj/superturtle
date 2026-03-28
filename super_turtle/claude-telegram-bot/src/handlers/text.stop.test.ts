@@ -34,7 +34,9 @@ async function runStopSuppressionProbe(): Promise<StopProbeResult> {
     securityPath: resolve(import.meta.dir, "../security.ts"),
     utilsPath: resolve(import.meta.dir, "../utils.ts"),
     deferredQueuePath: resolve(import.meta.dir, "../deferred-queue.ts"),
+    deferredQueueRuntimePath: resolve(import.meta.dir, "../deferred-queue-runtime.ts"),
     stopPath: resolve(import.meta.dir, "stop.ts"),
+    stopReplyStatePath: resolve(import.meta.dir, "stop-reply-state.ts"),
     streamingPath: resolve(import.meta.dir, "streaming.ts"),
     teleportPath: resolve(import.meta.dir, "../teleport.ts"),
     loggerPath: resolve(import.meta.dir, "../logger.ts"),
@@ -103,17 +105,23 @@ async function runStopSuppressionProbe(): Promise<StopProbeResult> {
 
     mock.module(paths.deferredQueuePath, () => ({
       ...actualDeferredQueue,
-      drainDeferredQueue: async () => {
-        drainDeferredQueueCalls += 1;
-      },
       enqueueDeferredMessage: () => 1,
-      makeDrainItemNotifier: () => async () => {},
       unsuppressDrain: () => {},
     }));
 
     mock.module(paths.stopPath, () => ({
       handleStop: async () => {},
+    }));
+
+    mock.module(paths.stopReplyStatePath, () => ({
       consumeHandledStopReply: () => true,
+    }));
+
+    mock.module(paths.deferredQueueRuntimePath, () => ({
+      drainDeferredQueue: async () => {
+        drainDeferredQueueCalls += 1;
+      },
+      makeDrainItemNotifier: () => async () => {},
     }));
 
     mock.module(paths.streamingPath, () => ({
