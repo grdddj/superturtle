@@ -46,7 +46,6 @@ import { isAuthorized } from "../security";
 import { escapeHtml, convertMarkdownToHtml } from "../formatting";
 import { getJobs } from "../cron";
 import { isAnyDriverRunning, isBackgroundRunActive, wasBackgroundRunPreempted, stopActiveDriverQuery } from "./driver-routing";
-import { handleStop } from "./stop";
 import { clearPreparedSnapshots, getPreparedSnapshotCount } from "../cron-supervision-queue";
 import { getAllDeferredQueues } from "../deferred-queue";
 import { cmdLog } from "../logger";
@@ -261,6 +260,7 @@ export async function handleStopCommand(ctx: Context): Promise<void> {
     await ctx.reply("Unauthorized.");
     return;
   }
+  const { handleStop } = await import("./stop");
   await handleStop(ctx, chatId);
 }
 
