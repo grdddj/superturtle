@@ -5,8 +5,11 @@ import { executeNonSilentCronJob } from "./cron-execution";
 import { session } from "./session";
 import { auditLog, generateRequestId, startTypingIndicator } from "./utils";
 import { isAnyDriverRunning, runMessageWithActiveDriver } from "./handlers/driver-routing";
-import { StreamingState, createStatusCallback, getStreamingState } from "./handlers/streaming";
 import { eventLog } from "./logger";
+
+async function loadStreamingModule() {
+  return import("./handlers/streaming");
+}
 
 export interface DeferredMessage {
   kind: "user_message";
@@ -71,6 +74,7 @@ export function makeDrainItemNotifier(
     const notice = await ctx.reply(
       truncated ? `💬 Processing queued message…\n${truncated}` : "💬 Processing queued message…"
     );
+    const { getStreamingState } = await loadStreamingModule();
     const state = getStreamingState(chatId);
     if (state) {
       state.toolMessages.push(notice);
@@ -341,6 +345,7 @@ export async function drainDeferredQueue(
             source: next.source,
             queueRemaining: getDeferredQueueSize(chatId),
           });
+          const { StreamingState, createStatusCallback } = await loadStreamingModule();
           const state = new StreamingState();
           const statusCallback = createStatusCallback(ctx, state);
           try {

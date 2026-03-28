@@ -7,6 +7,8 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.9] - 2026-03-28
+
 ### Changed
 - `superturtle init` now seeds `.superturtle/.env.example` so npm/global installs keep a local env reference template next to the live `.superturtle/.env`
 - turtle greetings are now opt-in; set `TURTLE_GREETINGS=true` to enable the scheduled 8am/8pm Telegram messages
