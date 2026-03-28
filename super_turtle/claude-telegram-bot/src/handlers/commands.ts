@@ -47,7 +47,6 @@ import { escapeHtml, convertMarkdownToHtml } from "../formatting";
 import { getJobs } from "../cron";
 import { isAnyDriverRunning, isBackgroundRunActive, wasBackgroundRunPreempted, stopActiveDriverQuery } from "./driver-routing";
 import { clearPreparedSnapshots, getPreparedSnapshotCount } from "../cron-supervision-queue";
-import { getAllDeferredQueues } from "../deferred-queue";
 import { cmdLog } from "../logger";
 import type { BotCommand } from "grammy/types";
 import {
@@ -3377,6 +3376,7 @@ export async function handleDebug(ctx: Context): Promise<void> {
   lines.push("");
 
   // ── Deferred queue ──
+  const { getAllDeferredQueues } = await import("../deferred-queue");
   const deferredQueues = getAllDeferredQueues();
   let totalDeferred = 0;
   for (const [, items] of deferredQueues) {
