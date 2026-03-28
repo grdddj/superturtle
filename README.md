@@ -31,6 +31,8 @@ For agents and CI, init runs non-interactively with flags:
 superturtle init --token <BOT_TOKEN> --user <TELEGRAM_USER_ID> --openai-key <KEY>
 ```
 
+`superturtle init` seeds both `.superturtle/.env` for live config and `.superturtle/.env.example` as the local reference template.
+
 ### Prerequisites
 
 - [Bun](https://bun.sh) ≥ 1.0

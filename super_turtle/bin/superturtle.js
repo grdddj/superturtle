@@ -54,6 +54,7 @@ const SUPERTURTLE_TELEPORT_RELATIVE_PATH = join(SUPERTURTLE_DIRNAME, "teleport")
 const SUPERTURTLE_SERVICE_PID_RELATIVE_PATH = join(SUPERTURTLE_DIRNAME, "service.pid");
 const PROJECT_CONFIG_RELATIVE_PATH = join(".superturtle", "project.json");
 const PROJECT_ENV_RELATIVE_PATH = join(".superturtle", ".env");
+const PROJECT_ENV_EXAMPLE_RELATIVE_PATH = join(".superturtle", ".env.example");
 
 function normalizeExistingPath(path) {
   try {
@@ -211,6 +212,20 @@ function writeProjectBinding(projectRoot, initCwd, options = {}) {
   };
   fs.writeFileSync(configPath, `${JSON.stringify(payload, null, 2)}\n`, "utf-8");
   return configPath;
+}
+
+function resolveEnvExampleTemplatePath() {
+  const packagedTemplatePath = resolve(TEMPLATES_DIR, "superturtle.env.example.template");
+  if (fs.existsSync(packagedTemplatePath)) {
+    return packagedTemplatePath;
+  }
+
+  const repoTemplatePath = resolve(PACKAGE_ROOT, "..", ".env.example");
+  if (fs.existsSync(repoTemplatePath)) {
+    return repoTemplatePath;
+  }
+
+  return null;
 }
 
 function loadProjectEnv(cwd) {
@@ -787,6 +802,19 @@ async function init() {
   ok(".superturtle/");
   writeProjectBinding(projectRoot, cwd, { gitCreated });
   ok(".superturtle/project.json");
+
+  const envExamplePath = resolve(projectRoot, PROJECT_ENV_EXAMPLE_RELATIVE_PATH);
+  if (!fs.existsSync(envExamplePath)) {
+    const envExampleTemplatePath = resolveEnvExampleTemplatePath();
+    if (envExampleTemplatePath) {
+      fs.copyFileSync(envExampleTemplatePath, envExamplePath);
+      ok(".superturtle/.env.example");
+    } else {
+      warn("Missing env example template in package; skipped .superturtle/.env.example");
+    }
+  } else {
+    ok(".superturtle/.env.example " + c.dim("(exists)"));
+  }
 
   // --- .env config ---
   const envPath = resolve(dataDir, ".env");

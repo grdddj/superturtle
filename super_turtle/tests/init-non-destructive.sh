@@ -101,6 +101,11 @@ if [[ ! -f "${PROJECT_DIR}/.superturtle/.env" ]]; then
   exit 1
 fi
 
+if [[ ! -f "${PROJECT_DIR}/.superturtle/.env.example" ]]; then
+  echo "Expected .superturtle/.env.example to be created." >&2
+  exit 1
+fi
+
 if [[ ! -f "${PROJECT_DIR}/.superturtle/project.json" ]]; then
   echo "Expected .superturtle/project.json to be created." >&2
   exit 1
@@ -118,6 +123,11 @@ fi
 
 if ! grep -q "^CLAUDE_WORKING_DIR=${PROJECT_DIR}$" "${PROJECT_DIR}/.superturtle/.env"; then
   echo "Expected CLAUDE_WORKING_DIR to point at the repo root." >&2
+  exit 1
+fi
+
+if ! grep -q '^# TURTLE_GREETINGS=true$' "${PROJECT_DIR}/.superturtle/.env.example"; then
+  echo "Expected .superturtle/.env.example to include optional env documentation." >&2
   exit 1
 fi
 
