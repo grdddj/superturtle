@@ -515,6 +515,7 @@ export const DASHBOARD_BIND_ADDR = "127.0.0.1";
 export const DASHBOARD_AUTH_TOKEN = process.env.DASHBOARD_AUTH_TOKEN || "";
 export const DASHBOARD_PUBLIC_BASE_URL = `http://localhost:${DASHBOARD_PORT}`;
 export const SHOW_TOOL_STATUS = parseBooleanEnv("SHOW_TOOL_STATUS", false);
+export const TURTLE_GREETINGS_ENABLED = parseBooleanEnv("TURTLE_GREETINGS", false);
 
 // ============== Audit Logging ==============
 

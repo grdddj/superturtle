@@ -7,6 +7,9 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- turtle greetings are now opt-in; set `TURTLE_GREETINGS=true` to enable the scheduled 8am/8pm Telegram messages
+
 ## [0.2.7] - 2026-03-20
 
 ### Fixed

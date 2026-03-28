@@ -21,6 +21,7 @@ import {
   IPC_DIR,
   SUPERTURTLE_DATA_DIR,
   SUPERTURTLE_RUNTIME_ROLE,
+  TURTLE_GREETINGS_ENABLED,
   getCodexUnavailableReason,
 } from "./config";
 import { unlinkSync, readFileSync, existsSync, writeFileSync, openSync, closeSync, mkdirSync } from "fs";
@@ -1021,7 +1022,7 @@ await syncTelegramCommands();
 
 if (
   SUPERTURTLE_RUNTIME_ROLE !== "teleport-remote" &&
-  process.env.TURTLE_GREETINGS !== "false" &&
+  TURTLE_GREETINGS_ENABLED &&
   ALLOWED_USERS.length > 0
 ) {
   startTurtleGreetings(bot, ALLOWED_USERS[0]!);

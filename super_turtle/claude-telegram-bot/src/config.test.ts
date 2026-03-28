@@ -14,6 +14,7 @@ type ConfigProbeOverrides = {
   metaCodexNetworkAccess?: string | undefined;
   dashboardEnabled?: string | undefined;
   showToolStatus?: string | undefined;
+  turtleGreetings?: string | undefined;
   defaultClaudeModel?: string | undefined;
   defaultClaudeEffort?: string | undefined;
   defaultCodexModel?: string | undefined;
@@ -32,6 +33,7 @@ const MARKERS = {
   dashboardPort: "__DASHBOARD_PORT__=",
   dashboardPublicBaseUrl: "__DASHBOARD_PUBLIC_BASE_URL__=",
   showToolStatus: "__SHOW_TOOL_STATUS__=",
+  turtleGreetingsEnabled: "__TURTLE_GREETINGS_ENABLED__=",
   defaultClaudeModel: "__DEFAULT_CLAUDE_MODEL__=",
   defaultClaudeEffort: "__DEFAULT_CLAUDE_EFFORT__=",
   defaultCodexModel: "__DEFAULT_CODEX_MODEL__=",
@@ -61,6 +63,7 @@ async function probeConfig(overrides: ConfigProbeOverrides): Promise<ConfigProbe
   applyOverride("META_CODEX_NETWORK_ACCESS", overrides.metaCodexNetworkAccess);
   applyOverride("DASHBOARD_ENABLED", overrides.dashboardEnabled);
   applyOverride("SHOW_TOOL_STATUS", overrides.showToolStatus);
+  applyOverride("TURTLE_GREETINGS", overrides.turtleGreetings);
   applyOverride("DEFAULT_CLAUDE_MODEL", overrides.defaultClaudeModel);
   applyOverride("DEFAULT_CLAUDE_EFFORT", overrides.defaultClaudeEffort);
   applyOverride("DEFAULT_CODEX_MODEL", overrides.defaultCodexModel);
@@ -77,6 +80,7 @@ async function probeConfig(overrides: ConfigProbeOverrides): Promise<ConfigProbe
     console.log(${JSON.stringify(MARKERS.dashboardPort)} + String(config.DASHBOARD_PORT));
     console.log(${JSON.stringify(MARKERS.dashboardPublicBaseUrl)} + String(config.DASHBOARD_PUBLIC_BASE_URL));
     console.log(${JSON.stringify(MARKERS.showToolStatus)} + String(config.SHOW_TOOL_STATUS));
+    console.log(${JSON.stringify(MARKERS.turtleGreetingsEnabled)} + String(config.TURTLE_GREETINGS_ENABLED));
     console.log(${JSON.stringify(MARKERS.defaultClaudeModel)} + String(config.DEFAULT_CLAUDE_MODEL));
     console.log(${JSON.stringify(MARKERS.defaultClaudeEffort)} + String(config.DEFAULT_CLAUDE_EFFORT));
     console.log(${JSON.stringify(MARKERS.defaultCodexModel)} + String(config.DEFAULT_CODEX_MODEL));
@@ -137,6 +141,7 @@ describe("config defaults", () => {
       `http://localhost:${expectedDashboardPort("test-token")}`
     );
     expect(extractMarker(result.stdout, MARKERS.showToolStatus)).toBe("false");
+    expect(extractMarker(result.stdout, MARKERS.turtleGreetingsEnabled)).toBe("false");
     expect(extractMarker(result.stdout, MARKERS.defaultClaudeModel)).toBe("claude-opus-4-6");
     expect(extractMarker(result.stdout, MARKERS.defaultClaudeEffort)).toBe("high");
     expect(extractMarker(result.stdout, MARKERS.defaultCodexModel)).toBe("gpt-5.3-codex");
@@ -177,6 +182,20 @@ describe("config overrides", () => {
 
     expect(result.exitCode).toBe(0);
     expect(extractMarker(result.stdout, MARKERS.showToolStatus)).toBe("true");
+  });
+
+  it("keeps turtle greetings opt-in", async () => {
+    const disabledByDefault = await probeConfig({
+      turtleGreetings: undefined,
+    });
+    const enabledExplicitly = await probeConfig({
+      turtleGreetings: "true",
+    });
+
+    expect(disabledByDefault.exitCode).toBe(0);
+    expect(extractMarker(disabledByDefault.stdout, MARKERS.turtleGreetingsEnabled)).toBe("false");
+    expect(enabledExplicitly.exitCode).toBe(0);
+    expect(extractMarker(enabledExplicitly.stdout, MARKERS.turtleGreetingsEnabled)).toBe("true");
   });
 
   it("accepts explicit valid default model and effort overrides", async () => {
