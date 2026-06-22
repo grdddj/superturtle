@@ -19,7 +19,7 @@ import { dirname, resolve } from "path";
 import { mcpLog } from "../src/logger";
 
 const sendTurtleLog = mcpLog.child({ tool: "send_turtle", server: "send-turtle" });
-const IPC_DIR = process.env.SUPERTURTLE_IPC_DIR || "/tmp";
+const IPC_DIR = (process.env.SUPERTURTLE_IPC_DIR || "/tmp").trim();
 
 // Load turtle combo lookup table (emoji codepoint → gstatic URL)
 const COMBOS_PATH = resolve(dirname(import.meta.path), "turtle-combos.json");

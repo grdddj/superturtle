@@ -7,7 +7,7 @@
 import type { Context } from "grammy";
 import type { Message } from "grammy/types";
 import { InlineKeyboard, InputFile } from "grammy";
-import { closeSync, openSync, statSync, unlinkSync } from "fs";
+import { closeSync, existsSync, mkdirSync, openSync, statSync, unlinkSync } from "fs";
 import type { DriverStatusType, StatusCallback } from "../types";
 import { convertMarkdownToHtml, escapeHtml } from "../formatting";
 import {
@@ -83,7 +83,12 @@ const retainedProgressViewers = new Map<string, StreamingState>();
 
 function getIpcDir(): string {
   const override = process.env.SUPERTURTLE_IPC_DIR?.trim();
-  return override && override.length > 0 ? override : IPC_DIR;
+  const dir = override && override.length > 0 ? override : IPC_DIR;
+  // Ensure the IPC directory exists — it may have been cleaned by systemd-tmpfiles
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+  return dir;
 }
 
 function getRequestChatId(data: Record<string, unknown>): string {

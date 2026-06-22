@@ -23,7 +23,7 @@ const POLL_INTERVAL_MS = 100;
 const POLL_TIMEOUT_MS = 10_000;
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 500;
-const IPC_DIR = process.env.SUPERTURTLE_IPC_DIR || "/tmp";
+const IPC_DIR = (process.env.SUPERTURTLE_IPC_DIR || "/tmp").trim();
 
 const VALID_ACTIONS = [
   "usage",
