@@ -144,9 +144,9 @@ describe("config defaults", () => {
     );
     expect(extractMarker(result.stdout, MARKERS.showToolStatus)).toBe("false");
     expect(extractMarker(result.stdout, MARKERS.turtleGreetingsEnabled)).toBe("false");
-    expect(extractMarker(result.stdout, MARKERS.defaultClaudeModel)).toBe("claude-opus-4-6");
+    expect(extractMarker(result.stdout, MARKERS.defaultClaudeModel)).toBe("claude-opus-4-8");
     expect(extractMarker(result.stdout, MARKERS.defaultClaudeEffort)).toBe("high");
-    expect(extractMarker(result.stdout, MARKERS.defaultCodexModel)).toBe("gpt-5.3-codex");
+    expect(extractMarker(result.stdout, MARKERS.defaultCodexModel)).toBe("gpt-5.6-terra");
     expect(extractMarker(result.stdout, MARKERS.defaultCodexEffort)).toBe("medium");
     expect(extractMarker(result.stdout, MARKERS.mainProvider)).toBe("claude");
   });
@@ -221,7 +221,7 @@ describe("config overrides", () => {
 
   it("accepts explicit valid default model and effort overrides", async () => {
     const result = await probeConfig({
-      defaultClaudeModel: "claude-sonnet-4-6",
+      defaultClaudeModel: "claude-sonnet-5",
       defaultClaudeEffort: "medium",
       defaultCodexModel: "gpt-5.3-codex-spark",
       defaultCodexEffort: "low",
@@ -229,7 +229,7 @@ describe("config overrides", () => {
     });
 
     expect(result.exitCode).toBe(0);
-    expect(extractMarker(result.stdout, MARKERS.defaultClaudeModel)).toBe("claude-sonnet-4-6");
+    expect(extractMarker(result.stdout, MARKERS.defaultClaudeModel)).toBe("claude-sonnet-5");
     expect(extractMarker(result.stdout, MARKERS.defaultClaudeEffort)).toBe("medium");
     expect(extractMarker(result.stdout, MARKERS.defaultCodexModel)).toBe("gpt-5.3-codex-spark");
     expect(extractMarker(result.stdout, MARKERS.defaultCodexEffort)).toBe("low");
@@ -259,9 +259,9 @@ describe("config overrides", () => {
     });
 
     expect(result.exitCode).toBe(0);
-    expect(extractMarker(result.stdout, MARKERS.defaultClaudeModel)).toBe("claude-opus-4-6");
+    expect(extractMarker(result.stdout, MARKERS.defaultClaudeModel)).toBe("claude-opus-4-8");
     expect(extractMarker(result.stdout, MARKERS.defaultClaudeEffort)).toBe("high");
-    expect(extractMarker(result.stdout, MARKERS.defaultCodexModel)).toBe("gpt-5.3-codex");
+    expect(extractMarker(result.stdout, MARKERS.defaultCodexModel)).toBe("gpt-5.6-terra");
     expect(extractMarker(result.stdout, MARKERS.defaultCodexEffort)).toBe("medium");
     expect(extractMarker(result.stdout, MARKERS.mainProvider)).toBe("claude");
   });
